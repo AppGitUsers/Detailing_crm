@@ -1,6 +1,6 @@
 from decimal import Decimal
 from rest_framework import serializers
-from .models import Vendor, Product, Inventory, Invoice, InvoiceItem, InvoicePayment
+from .models import Vendor, ProductType, Product, Inventory, Invoice, InvoiceItem, InvoicePayment
 
 
 class VendorSerializer(serializers.ModelSerializer):
@@ -61,20 +61,44 @@ class VendorSerializer(serializers.ModelSerializer):
         return {'total': s['total'], 'paid': s['paid'], 'partial': s['partial'], 'unpaid': s['unpaid']}
 
 
+class ProductTypeSerializer(serializers.ModelSerializer):
+    product_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProductType
+        fields = ['id', 'name', 'description', 'product_count', 'created_at']
+
+    def get_product_count(self, obj):
+        return obj.products.count()
+
+
 class ProductSerializer(serializers.ModelSerializer):
+    type_name = serializers.SerializerMethodField()
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
+    product_code = serializers.CharField(read_only=True)
+
     class Meta:
         model = Product
         fields = '__all__'
 
+    def get_type_name(self, obj):
+        return obj.product_type.name if obj.product_type_id else None
+
 
 class InventorySerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.product_name', read_only=True)
+    product_code = serializers.CharField(source='product.product_code', read_only=True)
+    category     = serializers.CharField(source='product.category', read_only=True)
+    type_name    = serializers.SerializerMethodField()
     is_low_stock = serializers.BooleanField(read_only=True)
-    unit = serializers.CharField(source='product.product_unit', read_only=True)
+    unit         = serializers.CharField(source='product.product_unit', read_only=True)
 
     class Meta:
         model = Inventory
         fields = '__all__'
+
+    def get_type_name(self, obj):
+        return obj.product.product_type.name if obj.product.product_type_id else None
 
 
 class InvoicePaymentSerializer(serializers.ModelSerializer):

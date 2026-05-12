@@ -275,7 +275,12 @@ function VendorCard({ vendor, onEdit, onDelete, onStatement, stmtLoading }) {
           {initial}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-gray-100 text-base truncate">{vendor.vendor_name}</div>
+          <div className="flex items-center gap-2">
+            <div className="font-semibold text-gray-100 text-base truncate">{vendor.vendor_name}</div>
+            <span className="shrink-0 text-[10px] font-mono text-gray-600 bg-bg-elev border border-border px-1.5 py-0.5 rounded">
+              #{vendor.id}
+            </span>
+          </div>
           {hasDues ? (
             <div className="text-xs font-medium text-amber-400 mt-0.5">{fmt(outstanding)} outstanding</div>
           ) : isFullyPaid ? (

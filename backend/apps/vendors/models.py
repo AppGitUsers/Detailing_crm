@@ -11,23 +11,64 @@ class Vendor(models.Model):
 
     def __str__(self):
         return self.vendor_name
+class ProductType(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
 class Product(models.Model):
     UNIT_CHOICES = [
-        ('l','Litres'),
-        ('pcs','Pieces'),
-        ('kg','Kilograms'),
-        ('g','Grams'),
+        ('l',   'Litres'),
+        ('ml',  'Millilitres'),
+        ('pcs', 'Pieces'),
+        ('kg',  'Kilograms'),
+        ('g',   'Grams'),
+        ('box', 'Box / Pack'),
+        ('set', 'Set'),
     ]
-    product_name = models.CharField(max_length=255)
+    CATEGORY_CHOICES = [
+        ('consumption',  'Consumption'),
+        ('sales',        'Sales'),
+        ('fixed_assets', 'Fixed Assets'),
+        ('other',        'Other'),
+    ]
+
+    product_name        = models.CharField(max_length=255)
+    product_code        = models.CharField(max_length=100, blank=True, null=True, unique=True)
+    hsn_code            = models.CharField(max_length=20, blank=True)
+    brand               = models.CharField(max_length=255, blank=True)
     product_description = models.TextField(blank=True, null=True)
-    product_price = models.DecimalField(max_digits=10, decimal_places=2)
-    product_unit = models.CharField(max_length=10, choices=UNIT_CHOICES)
-    product_unit_price = models.DecimalField(max_digits=10, decimal_places=2)
-    product_type = models.CharField(max_length=255)
+    product_price       = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    product_unit        = models.CharField(max_length=10, choices=UNIT_CHOICES)
+    product_type        = models.ForeignKey(
+                            ProductType, on_delete=models.SET_NULL,
+                            null=True, blank=True, related_name='products')
+    category            = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default='consumption')
+
+    def save(self, *args, **kwargs):
+        if not self.product_code:
+            existing = Product.objects.filter(
+                product_code__startswith='PRD-'
+            ).values_list('product_code', flat=True)
+            nums = []
+            for code in existing:
+                try:
+                    nums.append(int(code[4:]))
+                except (ValueError, IndexError):
+                    pass
+            self.product_code = f'PRD-{(max(nums) + 1 if nums else 1):04d}'
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.product_name
-    
+
 class Inventory(models.Model):
     product = models.OneToOneField(Product, on_delete=models.CASCADE)
     quantity_available = models.DecimalField(max_digits=10, decimal_places=2)

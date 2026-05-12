@@ -3,9 +3,9 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.db.models import Prefetch
-from .models import Vendor, Product, Inventory, Invoice, InvoiceItem, InvoicePayment
+from .models import Vendor, ProductType, Product, Inventory, Invoice, InvoiceItem, InvoicePayment
 from .serializers import (
-    VendorSerializer, ProductSerializer,
+    VendorSerializer, ProductTypeSerializer, ProductSerializer,
     InventorySerializer, InvoiceSerializer,
     InvoiceCreateSerializer, InvoicePaymentSerializer,
 )
@@ -100,12 +100,51 @@ class VendorStatementView(APIView):
         })
 
 
+# ─── Product Type ─────────────────────────────────────
+
+class ProductTypeListCreateView(APIView):
+    def get(self, request):
+        return Response(ProductTypeSerializer(ProductType.objects.all(), many=True).data)
+
+    def post(self, request):
+        serializer = ProductTypeSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ProductTypeDetailView(APIView):
+    def _get(self, pk):
+        try:
+            return ProductType.objects.get(pk=pk)
+        except ProductType.DoesNotExist:
+            return None
+
+    def put(self, request, pk):
+        obj = self._get(pk)
+        if not obj:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = ProductTypeSerializer(obj, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk):
+        obj = self._get(pk)
+        if not obj:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        obj.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 # ─── Product ──────────────────────────────────────────
 
 class ProductListCreateView(APIView):
     def get(self, request):
-        name = request.query_params.get('name', None)
-        qs = Product.objects.all()
+        qs = Product.objects.select_related('product_type').all()
+        name = request.query_params.get('name')
         if name:
             qs = qs.filter(product_name__icontains=name)
         return Response(ProductSerializer(qs, many=True).data)
@@ -119,30 +158,27 @@ class ProductListCreateView(APIView):
 
 
 class ProductDetailView(APIView):
-    def get_object(self, pk):
-        try:
-            return Product.objects.get(pk=pk)
-        except Product.DoesNotExist:
-            return None
+    def _get(self, pk):
+        return Product.objects.select_related('product_type').filter(pk=pk).first()
 
     def get(self, request, pk):
-        product = self.get_object(pk)
+        product = self._get(pk)
         if not product:
             return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
         return Response(ProductSerializer(product).data)
 
     def put(self, request, pk):
-        product = self.get_object(pk)
+        product = self._get(pk)
         if not product:
             return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
         serializer = ProductSerializer(product, data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data)
+            return Response(ProductSerializer(self._get(pk)).data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
-        product = self.get_object(pk)
+        product = self._get(pk)
         if not product:
             return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
         product.delete()
@@ -154,7 +190,7 @@ class ProductDetailView(APIView):
 class InventoryListView(APIView):
     def get(self, request):
         low_stock = request.query_params.get('low_stock', None)
-        inventory = Inventory.objects.select_related('product').all()
+        inventory = Inventory.objects.select_related('product__product_type').all()
         if low_stock:
             inventory = [i for i in inventory if i.is_low_stock]
         return Response(InventorySerializer(inventory, many=True).data)

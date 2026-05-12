@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Receipt, Trash2, Eye, CreditCard, Printer, Search, X } from 'lucide-react';
+import { Plus, Receipt, Trash2, Eye, CreditCard, Printer, X } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Button from '../../components/Button';
 import Loading from '../../components/Loading';
@@ -70,7 +70,7 @@ export default function InvoicesTab() {
 
   // ── filters ──
   const [statusFilter, setStatusFilter] = useState('all');
-  const [vendorSearch, setVendorSearch] = useState('');
+  const [vendorFilter, setVendorFilter] = useState('');  // vendor id as string, '' = all
   const [dateMode, setDateMode] = useState('all');   // 'all' | 'single' | 'range' | 'month'
   const [singleDate, setSingleDate] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -78,20 +78,19 @@ export default function InvoicesTab() {
   const [selectedMonth, setSelectedMonth] = useState('');
 
   const resetFilters = () => {
-    setStatusFilter('all'); setVendorSearch('');
+    setStatusFilter('all'); setVendorFilter('');
     setDateMode('all'); setSingleDate('');
     setDateFrom(''); setDateTo(''); setSelectedMonth('');
   };
 
-  const hasFilters = statusFilter !== 'all' || vendorSearch.trim() ||
+  const hasFilters = statusFilter !== 'all' || vendorFilter ||
     (dateMode !== 'all' && (singleDate || dateFrom || dateTo || selectedMonth));
 
   const filteredInvoices = useMemo(() => {
     let r = invoices;
     if (statusFilter !== 'all') r = r.filter((inv) => inv.payment_status === statusFilter);
-    if (vendorSearch.trim()) {
-      const q = vendorSearch.trim().toLowerCase();
-      r = r.filter((inv) => inv.vendor_name?.toLowerCase().includes(q));
+    if (vendorFilter) {
+      r = r.filter((inv) => String(inv.vendor) === vendorFilter);
     }
     if (dateMode === 'single' && singleDate) {
       r = r.filter((inv) => inv.invoice_date === singleDate);
@@ -105,7 +104,7 @@ export default function InvoicesTab() {
       r = r.filter((inv) => inv.invoice_date?.startsWith(selectedMonth));
     }
     return r;
-  }, [invoices, statusFilter, vendorSearch, dateMode, singleDate, dateFrom, dateTo, selectedMonth]);
+  }, [invoices, statusFilter, vendorFilter, dateMode, singleDate, dateFrom, dateTo, selectedMonth]);
 
   const load = async () => {
     setLoading(true);
@@ -175,17 +174,18 @@ export default function InvoicesTab() {
 
       {/* ── Filter Bar ── */}
       <div className="bg-bg-card border border-border rounded-xl p-4 mb-4 space-y-3">
-        {/* Row 1: vendor search + status chips */}
+        {/* Row 1: vendor dropdown + status chips */}
         <div className="flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[180px]">
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-            <Input
-              placeholder="Search by vendor name…"
-              value={vendorSearch}
-              onChange={(e) => setVendorSearch(e.target.value)}
-              className="pl-8 h-8 text-sm"
-            />
-          </div>
+          <Select
+            value={vendorFilter}
+            onChange={(e) => setVendorFilter(e.target.value)}
+            className="flex-1 min-w-[180px] h-8 text-sm"
+          >
+            <option value="">All vendors</option>
+            {vendors.map((v) => (
+              <option key={v.id} value={String(v.id)}>{v.vendor_name}</option>
+            ))}
+          </Select>
 
           <div className="flex items-center gap-1">
             {[
