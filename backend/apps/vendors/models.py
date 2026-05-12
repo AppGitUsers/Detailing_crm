@@ -1,3 +1,4 @@
+from decimal import Decimal
 from django.db import models
 
 # Create your models here.
@@ -48,7 +49,24 @@ class Invoice(models.Model):
 
     def __str__(self):
         return self.invoice_number
-    
+
+    @property
+    def total_paid(self):
+        return sum((p.amount for p in self.payments.all()), Decimal('0'))
+
+    @property
+    def outstanding_amount(self):
+        return self.total_amount - self.total_paid
+
+    @property
+    def payment_status(self):
+        paid = self.total_paid
+        if paid >= self.total_amount:
+            return 'paid'
+        elif paid > 0:
+            return 'partial'
+        return 'unpaid'
+
 class InvoiceItem(models.Model):
     invoice = models.ForeignKey(Invoice, related_name='items', on_delete=models.CASCADE)
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
@@ -61,3 +79,15 @@ class InvoiceItem(models.Model):
 
     def __str__(self):
         return f"{self.product.product_name} - {self.quantity} {self.product.product_unit}"
+
+
+class InvoicePayment(models.Model):
+    invoice = models.ForeignKey(Invoice, related_name='payments', on_delete=models.CASCADE)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    payment_date = models.DateField()
+    payment_reference = models.CharField(max_length=255, blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Payment ₹{self.amount} for {self.invoice.invoice_number}"

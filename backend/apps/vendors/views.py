@@ -1,24 +1,30 @@
+from decimal import Decimal
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from .models import Vendor, Product, Inventory, Invoice
+from django.db.models import Prefetch
+from .models import Vendor, Product, Inventory, Invoice, InvoiceItem, InvoicePayment
 from .serializers import (
     VendorSerializer, ProductSerializer,
     InventorySerializer, InvoiceSerializer,
-    InvoiceCreateSerializer
+    InvoiceCreateSerializer, InvoicePaymentSerializer,
 )
 
 
 # ─── Vendor ───────────────────────────────────────────
 
 class VendorListCreateView(APIView):
+    def _vendor_qs(self):
+        return Vendor.objects.prefetch_related(
+            Prefetch('invoice_set', queryset=Invoice.objects.prefetch_related('payments'))
+        )
+
     def get(self, request):
         name = request.query_params.get('name', None)
+        qs = self._vendor_qs()
         if name:
-            vendors = Vendor.objects.filter(vendor_name__icontains=name)
-        else:
-            vendors = Vendor.objects.all()
-        serializer = VendorSerializer(vendors, many=True)
+            qs = qs.filter(vendor_name__icontains=name)
+        serializer = VendorSerializer(qs, many=True)
         return Response(serializer.data)
 
     def post(self, request):
@@ -30,44 +36,68 @@ class VendorListCreateView(APIView):
 
 
 class VendorDetailView(APIView):
-    def get_object(self, pk):
-        try:
-            return Vendor.objects.get(pk=pk)
-        except Vendor.DoesNotExist:
-            return None
+    def _get_vendor(self, pk):
+        return (
+            Vendor.objects
+            .prefetch_related(Prefetch('invoice_set', queryset=Invoice.objects.prefetch_related('payments')))
+            .filter(pk=pk)
+            .first()
+        )
 
     def get(self, request, pk):
-        vendor = self.get_object(pk)
+        vendor = self._get_vendor(pk)
         if not vendor:
-            return Response(
-                {'error': 'Vendor not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        serializer = VendorSerializer(vendor)
-        return Response(serializer.data)
+            return Response({'error': 'Vendor not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(VendorSerializer(vendor).data)
 
     def put(self, request, pk):
-        vendor = self.get_object(pk)
+        vendor = self._get_vendor(pk)
         if not vendor:
-            return Response(
-                {'error': 'Vendor not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({'error': 'Vendor not found'}, status=status.HTTP_404_NOT_FOUND)
         serializer = VendorSerializer(vendor, data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data)
+            return Response(VendorSerializer(self._get_vendor(pk)).data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
-        vendor = self.get_object(pk)
+        vendor = self._get_vendor(pk)
         if not vendor:
-            return Response(
-                {'error': 'Vendor not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({'error': 'Vendor not found'}, status=status.HTTP_404_NOT_FOUND)
         vendor.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class VendorStatementView(APIView):
+    def get(self, request, pk):
+        vendor = (
+            Vendor.objects
+            .prefetch_related(Prefetch('invoice_set', queryset=Invoice.objects.prefetch_related('payments')))
+            .filter(pk=pk).first()
+        )
+        if not vendor:
+            return Response({'error': 'Vendor not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        invoices = (
+            Invoice.objects
+            .filter(vendor=vendor)
+            .prefetch_related('items__product', 'payments')
+            .order_by('invoice_date')
+        )
+        invoice_data = InvoiceSerializer(invoices, many=True).data
+
+        total_invoiced = sum(Decimal(str(inv['total_amount'])) for inv in invoice_data)
+        total_paid = sum(Decimal(str(inv['total_paid'])) for inv in invoice_data)
+
+        return Response({
+            'vendor': VendorSerializer(vendor).data,
+            'invoices': invoice_data,
+            'summary': {
+                'total_invoiced': str(total_invoiced),
+                'total_paid': str(total_paid),
+                'outstanding': str(total_invoiced - total_paid),
+            },
+        })
 
 
 # ─── Product ──────────────────────────────────────────
@@ -75,12 +105,10 @@ class VendorDetailView(APIView):
 class ProductListCreateView(APIView):
     def get(self, request):
         name = request.query_params.get('name', None)
+        qs = Product.objects.all()
         if name:
-            products = Product.objects.filter(product_name__icontains=name)
-        else:
-            products = Product.objects.all()
-        serializer = ProductSerializer(products, many=True)
-        return Response(serializer.data)
+            qs = qs.filter(product_name__icontains=name)
+        return Response(ProductSerializer(qs, many=True).data)
 
     def post(self, request):
         serializer = ProductSerializer(data=request.data)
@@ -100,20 +128,13 @@ class ProductDetailView(APIView):
     def get(self, request, pk):
         product = self.get_object(pk)
         if not product:
-            return Response(
-                {'error': 'Product not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        serializer = ProductSerializer(product)
-        return Response(serializer.data)
+            return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(ProductSerializer(product).data)
 
     def put(self, request, pk):
         product = self.get_object(pk)
         if not product:
-            return Response(
-                {'error': 'Product not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
         serializer = ProductSerializer(product, data=request.data)
         if serializer.is_valid():
             serializer.save()
@@ -123,10 +144,7 @@ class ProductDetailView(APIView):
     def delete(self, request, pk):
         product = self.get_object(pk)
         if not product:
-            return Response(
-                {'error': 'Product not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
         product.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -139,8 +157,7 @@ class InventoryListView(APIView):
         inventory = Inventory.objects.select_related('product').all()
         if low_stock:
             inventory = [i for i in inventory if i.is_low_stock]
-        serializer = InventorySerializer(inventory, many=True)
-        return Response(serializer.data)
+        return Response(InventorySerializer(inventory, many=True).data)
 
 
 class InventoryDetailView(APIView):
@@ -153,20 +170,13 @@ class InventoryDetailView(APIView):
     def get(self, request, pk):
         inventory = self.get_object(pk)
         if not inventory:
-            return Response(
-                {'error': 'Inventory not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        serializer = InventorySerializer(inventory)
-        return Response(serializer.data)
+            return Response({'error': 'Inventory not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(InventorySerializer(inventory).data)
 
     def put(self, request, pk):
         inventory = self.get_object(pk)
         if not inventory:
-            return Response(
-                {'error': 'Inventory not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({'error': 'Inventory not found'}, status=status.HTTP_404_NOT_FOUND)
         serializer = InventorySerializer(inventory, data=request.data)
         if serializer.is_valid():
             serializer.save()
@@ -178,9 +188,13 @@ class InventoryDetailView(APIView):
 
 class InvoiceListCreateView(APIView):
     def get(self, request):
-        invoices = Invoice.objects.select_related('vendor').all()
-        serializer = InvoiceSerializer(invoices, many=True)
-        return Response(serializer.data)
+        invoices = (
+            Invoice.objects
+            .select_related('vendor')
+            .prefetch_related('items__product', 'payments')
+            .all()
+        )
+        return Response(InvoiceSerializer(invoices, many=True).data)
 
     def post(self, request):
         serializer = InvoiceCreateSerializer(data=request.data)
@@ -191,49 +205,97 @@ class InvoiceListCreateView(APIView):
 
 
 class InvoiceDetailView(APIView):
-    def get_object(self, pk):
-        try:
-            return Invoice.objects.get(pk=pk)
-        except Invoice.DoesNotExist:
-            return None
+    def _get_invoice(self, pk):
+        return (
+            Invoice.objects
+            .prefetch_related('items__product', 'payments')
+            .filter(pk=pk)
+            .select_related('vendor')
+            .first()
+        )
 
     def get(self, request, pk):
-        invoice = self.get_object(pk)
+        invoice = self._get_invoice(pk)
         if not invoice:
-            return Response(
-                {'error': 'Invoice not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        serializer = InvoiceSerializer(invoice)
-        return Response(serializer.data)
+            return Response({'error': 'Invoice not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(InvoiceSerializer(invoice).data)
 
     def put(self, request, pk):
-        invoice = self.get_object(pk)
-        if not invoice:
-            return Response(
-                {'error': 'Invoice not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+        try:
+            invoice = Invoice.objects.get(pk=pk)
+        except Invoice.DoesNotExist:
+            return Response({'error': 'Invoice not found'}, status=status.HTTP_404_NOT_FOUND)
         serializer = InvoiceCreateSerializer(invoice, data=request.data)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
+
 class InvoiceItemDeleteView(APIView):
     def delete(self, request, pk):
         try:
             item = InvoiceItem.objects.get(pk=pk)
         except InvoiceItem.DoesNotExist:
-            return Response(
-                {'error': 'Invoice item not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({'error': 'Invoice item not found'}, status=status.HTTP_404_NOT_FOUND)
         try:
-            inventory = Inventory.objects.get(product=item.product)
-            inventory.quantity_available -= item.quantity
-            inventory.save()
+            inv = Inventory.objects.get(product=item.product)
+            inv.quantity_available -= item.quantity
+            inv.save()
         except Inventory.DoesNotExist:
             pass
         item.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# ─── Invoice Payments ─────────────────────────────────
+
+class InvoicePaymentListCreateView(APIView):
+    def _get_invoice(self, invoice_pk):
+        return (
+            Invoice.objects
+            .prefetch_related('payments')
+            .filter(pk=invoice_pk)
+            .first()
+        )
+
+    def get(self, request, invoice_pk):
+        invoice = self._get_invoice(invoice_pk)
+        if not invoice:
+            return Response({'error': 'Invoice not found'}, status=status.HTTP_404_NOT_FOUND)
+        payments = invoice.payments.all().order_by('payment_date', 'created_at')
+        return Response(InvoicePaymentSerializer(payments, many=True).data)
+
+    def post(self, request, invoice_pk):
+        invoice = self._get_invoice(invoice_pk)
+        if not invoice:
+            return Response({'error': 'Invoice not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = InvoicePaymentSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        amount = serializer.validated_data['amount']
+        if amount <= Decimal('0'):
+            return Response({'amount': ['Amount must be greater than 0.']}, status=status.HTTP_400_BAD_REQUEST)
+
+        outstanding = invoice.outstanding_amount
+        if amount > outstanding:
+            return Response(
+                {'amount': [f'Amount exceeds outstanding balance of ₹{outstanding}.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        payment = serializer.save(invoice=invoice)
+
+        # Return fresh invoice with all payments for receipt generation
+        refreshed = (
+            Invoice.objects
+            .select_related('vendor')
+            .prefetch_related('items__product', 'payments')
+            .get(pk=invoice.pk)
+        )
+        return Response({
+            'payment': InvoicePaymentSerializer(payment).data,
+            'invoice': InvoiceSerializer(refreshed).data,
+        }, status=status.HTTP_201_CREATED)

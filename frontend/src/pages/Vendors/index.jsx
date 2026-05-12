@@ -6,10 +6,10 @@ import InventoryTab from './InventoryTab';
 import InvoicesTab from './InvoicesTab';
 
 const tabs = [
-  { to: '', icon: Truck, label: 'Vendors', end: true },
-  { to: 'products', icon: Package, label: 'Products' },
-  { to: 'inventory', icon: Boxes, label: 'Inventory' },
-  { to: 'invoices', icon: Receipt, label: 'Invoices' },
+  { to: '/vendors', icon: Truck, label: 'Vendors', end: true },
+  { to: '/vendors/products', icon: Package, label: 'Products' },
+  { to: '/vendors/inventory', icon: Boxes, label: 'Inventory' },
+  { to: '/vendors/invoices', icon: Receipt, label: 'Invoices' },
 ];
 
 export default function VendorsHub() {
@@ -39,7 +39,7 @@ export default function VendorsHub() {
         <Route path="products" element={<ProductsTab />} />
         <Route path="inventory" element={<InventoryTab />} />
         <Route path="invoices" element={<InvoicesTab />} />
-        <Route path="*" element={<Navigate to="" replace />} />
+        <Route path="*" element={<Navigate to="/vendors" replace />} />
       </Routes>
     </div>
   );
