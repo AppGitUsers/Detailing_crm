@@ -43,9 +43,7 @@ class Product(models.Model):
     product_name        = models.CharField(max_length=255)
     product_code        = models.CharField(max_length=100, blank=True, null=True, unique=True)
     hsn_code            = models.CharField(max_length=20, blank=True)
-    brand               = models.CharField(max_length=255, blank=True)
     product_description = models.TextField(blank=True, null=True)
-    product_price       = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     product_unit        = models.CharField(max_length=10, choices=UNIT_CHOICES)
     product_type        = models.ForeignKey(
                             ProductType, on_delete=models.SET_NULL,
@@ -70,14 +68,21 @@ class Product(models.Model):
         return self.product_name
 
 class Inventory(models.Model):
-    product = models.OneToOneField(Product, on_delete=models.CASCADE)
-    quantity_available = models.DecimalField(max_digits=10, decimal_places=2)
-    minimum_threshold = models.DecimalField(max_digits=10, decimal_places=2)    
-    last_updated = models.DateTimeField(auto_now=True)
+    product           = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='inventory_records')
+    brand             = models.CharField(max_length=255, blank=True, default='')
+    cost_price        = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    selling_price     = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    quantity_available = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    minimum_threshold  = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    last_updated      = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [('product', 'brand', 'cost_price')]
 
     def __str__(self):
-        return f"{self.product.product_name} - {self.quantity_available}"
-    
+        brand_str = f' [{self.brand}]' if self.brand else ''
+        return f"{self.product.product_name}{brand_str} — {self.quantity_available}"
+
     @property
     def is_low_stock(self):
         return self.quantity_available <= self.minimum_threshold
@@ -109,14 +114,15 @@ class Invoice(models.Model):
         return 'unpaid'
 
 class InvoiceItem(models.Model):
-    invoice = models.ForeignKey(Invoice, related_name='items', on_delete=models.CASCADE)
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    quantity = models.DecimalField(max_digits=10, decimal_places=2)
-    unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+    invoice       = models.ForeignKey(Invoice, related_name='items', on_delete=models.CASCADE)
+    product       = models.ForeignKey(Product, on_delete=models.CASCADE)
+    quantity      = models.DecimalField(max_digits=10, decimal_places=2)
+    unit_price    = models.DecimalField(max_digits=10, decimal_places=2)   # cost / purchase price
+    selling_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     product_brand = models.CharField(max_length=255, blank=True, null=True)
-    
+
     class Meta:
-        unique_together = ('invoice', 'product')
+        unique_together = [('invoice', 'product', 'product_brand')]
 
     def __str__(self):
         return f"{self.product.product_name} - {self.quantity} {self.product.product_unit}"

@@ -213,7 +213,7 @@ class InventoryDetailView(APIView):
         inventory = self.get_object(pk)
         if not inventory:
             return Response({'error': 'Inventory not found'}, status=status.HTTP_404_NOT_FOUND)
-        serializer = InventorySerializer(inventory, data=request.data)
+        serializer = InventorySerializer(inventory, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
@@ -275,7 +275,11 @@ class InvoiceItemDeleteView(APIView):
         except InvoiceItem.DoesNotExist:
             return Response({'error': 'Invoice item not found'}, status=status.HTTP_404_NOT_FOUND)
         try:
-            inv = Inventory.objects.get(product=item.product)
+            inv = Inventory.objects.get(
+                product=item.product,
+                brand=item.product_brand or '',
+                cost_price=item.unit_price,
+            )
             inv.quantity_available -= item.quantity
             inv.save()
         except Inventory.DoesNotExist:

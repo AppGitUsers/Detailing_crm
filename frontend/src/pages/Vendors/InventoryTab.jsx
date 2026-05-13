@@ -72,7 +72,8 @@ export default function InventoryTab() {
       const q = search.trim().toLowerCase();
       r = r.filter(i =>
         i.product_name?.toLowerCase().includes(q) ||
-        i.product_code?.toLowerCase().includes(q)
+        i.product_code?.toLowerCase().includes(q) ||
+        i.brand?.toLowerCase().includes(q)
       );
     }
     if (lowOnly) r = r.filter(i => i.is_low_stock);
@@ -86,14 +87,19 @@ export default function InventoryTab() {
     return r;
   }, [items, search, lowOnly, catFilter, typeFilter, qtyMax, updatedAfter]);
 
-  // group filtered results by category
-  const grouped = useMemo(() => {
-    const map = {};
-    for (const cat of CATEGORIES) {
-      const group = filtered.filter(i => i.category === cat.value);
-      if (group.length > 0) map[cat.value] = group;
-    }
-    return map;
+  // split into in-stock vs zero-quantity, then group each by category
+  const { grouped, zeroGrouped } = useMemo(() => {
+    const inStock  = filtered.filter(i => Number(i.quantity_available) > 0);
+    const outStock = filtered.filter(i => Number(i.quantity_available) <= 0);
+    const buildMap = (list) => {
+      const map = {};
+      for (const cat of CATEGORIES) {
+        const group = list.filter(i => i.category === cat.value);
+        if (group.length > 0) map[cat.value] = group;
+      }
+      return map;
+    };
+    return { grouped: buildMap(inStock), zeroGrouped: buildMap(outStock) };
   }, [filtered]);
 
   const hasFilters = search.trim() || lowOnly || catFilter !== 'all' || typeFilter !== 'all' || qtyMax !== '' || updatedAfter;
@@ -119,7 +125,7 @@ export default function InventoryTab() {
           <div className="relative flex-1 min-w-[200px]">
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
             <Input
-              placeholder="Search by name or product code…"
+              placeholder="Search by name, brand or code…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 h-8 text-sm"
@@ -227,24 +233,31 @@ export default function InventoryTab() {
         <div className="text-center py-12 text-gray-500 text-sm">No items match the current filters.</div>
       ) : (
         <div className="space-y-8">
+
+          {/* ── In-stock items grouped by category ── */}
           {CATEGORIES.filter(cat => grouped[cat.value]).map(cat => (
-            <div key={cat.value}>
-              {/* Section header */}
-              <div className="flex items-center gap-3 mb-3">
-                <CategoryBadge value={cat.value} />
-                <span className="text-xs text-gray-500">
-                  {grouped[cat.value].length} item{grouped[cat.value].length !== 1 ? 's' : ''}
+            <CategorySection key={cat.value} cat={cat} group={grouped[cat.value]} onEdit={setEditItem} />
+          ))}
+
+          {/* ── Zero-quantity separator + section ── */}
+          {Object.keys(zeroGrouped).length > 0 && (
+            <>
+              <div className="flex items-center gap-3 pt-2">
+                <div className="flex-1 h-px bg-border" />
+                <span className="flex items-center gap-1.5 text-xs font-medium text-gray-500 px-2 py-0.5 bg-bg-elev border border-border rounded-full whitespace-nowrap">
+                  Out of Stock
                 </span>
                 <div className="flex-1 h-px bg-border" />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {grouped[cat.value].map(item => (
-                  <InventoryCard key={item.id} item={item} onEdit={() => setEditItem(item)} />
+              <div className="space-y-8 opacity-60">
+                {CATEGORIES.filter(cat => zeroGrouped[cat.value]).map(cat => (
+                  <CategorySection key={cat.value} cat={cat} group={zeroGrouped[cat.value]} onEdit={setEditItem} />
                 ))}
               </div>
-            </div>
-          ))}
+            </>
+          )}
+
         </div>
       )}
 
@@ -253,7 +266,30 @@ export default function InventoryTab() {
   );
 }
 
+// ─── Category Section ─────────────────────────────────
+
+function CategorySection({ cat, group, onEdit }) {
+  return (
+    <div>
+      <div className="flex items-center gap-3 mb-3">
+        <CategoryBadge value={cat.value} />
+        <span className="text-xs text-gray-500">
+          {group.length} item{group.length !== 1 ? 's' : ''}
+        </span>
+        <div className="flex-1 h-px bg-border" />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {group.map(item => (
+          <InventoryCard key={item.id} item={item} onEdit={() => onEdit(item)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Inventory Card ───────────────────────────────────
+
+const fmtPrice = (n) => n != null ? `₹${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : null;
 
 function InventoryCard({ item, onEdit }) {
   const pct = Number(item.minimum_threshold) > 0
@@ -272,6 +308,10 @@ function InventoryCard({ item, onEdit }) {
               </span>
             )}
           </div>
+          {/* Brand as prominent subtitle */}
+          {item.brand && (
+            <div className="text-xs font-medium text-gray-400 mt-0.5">{item.brand}</div>
+          )}
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             {item.product_code && (
               <span className="text-[10px] font-mono text-gray-500 bg-bg-elev px-1.5 py-0.5 rounded">
@@ -297,7 +337,28 @@ function InventoryCard({ item, onEdit }) {
         </button>
       </div>
 
-      <div className="mt-4 flex items-end justify-between gap-3">
+      {/* Cost / Selling price row */}
+      {(item.cost_price != null || item.selling_price != null) && (
+        <div className="mt-3 flex items-center gap-3 text-xs border-t border-border/50 pt-2">
+          {item.cost_price != null && (
+            <div>
+              <span className="text-gray-600">Cost </span>
+              <span className="text-gray-300 font-medium">{fmtPrice(item.cost_price)}</span>
+            </div>
+          )}
+          {item.cost_price != null && item.selling_price != null && (
+            <span className="text-gray-700">·</span>
+          )}
+          {item.selling_price != null && (
+            <div>
+              <span className="text-gray-600">Sell </span>
+              <span className="text-green-400 font-medium">{fmtPrice(item.selling_price)}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="mt-3 flex items-end justify-between gap-3">
         <div>
           <div className={`text-2xl font-semibold ${item.is_low_stock ? 'text-red-300' : 'text-gray-100'}`}>
             {item.quantity_available}
@@ -330,12 +391,14 @@ function AdjustStockModal({ item, onClose, onSaved }) {
   const toast = useToast();
   const [qty, setQty] = useState('');
   const [threshold, setThreshold] = useState('');
+  const [sellingPrice, setSellingPrice] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!item) return;
     setQty(item.quantity_available ?? '');
     setThreshold(item.minimum_threshold ?? '');
+    setSellingPrice(item.selling_price ?? '');
   }, [item]);
 
   const submit = async (e) => {
@@ -345,6 +408,7 @@ function AdjustStockModal({ item, onClose, onSaved }) {
       await updateInventory(item.id, {
         quantity_available: Number(qty),
         minimum_threshold: Number(threshold),
+        selling_price: sellingPrice !== '' ? Number(sellingPrice) : null,
       });
       toast.success('Inventory updated');
       onSaved();
@@ -356,11 +420,15 @@ function AdjustStockModal({ item, onClose, onSaved }) {
     }
   };
 
+  const title = item
+    ? `Adjust: ${item.product_name}${item.brand ? ` · ${item.brand}` : ''}${item.cost_price != null ? ` @ ₹${item.cost_price}` : ''}`
+    : '';
+
   return (
     <Modal
       open={!!item}
       onClose={onClose}
-      title={item ? `Adjust: ${item.product_name}` : ''}
+      title={title}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
@@ -369,11 +437,16 @@ function AdjustStockModal({ item, onClose, onSaved }) {
       }
     >
       <form onSubmit={submit} className="space-y-4">
-        <Field label={`Quantity Available (${item?.unit || ''})`}>
-          <Input type="number" step="0.01" value={qty} onChange={(e) => setQty(e.target.value)} />
-        </Field>
-        <Field label={`Minimum Threshold (${item?.unit || ''})`}>
-          <Input type="number" step="0.01" value={threshold} onChange={(e) => setThreshold(e.target.value)} />
+        <div className="grid grid-cols-2 gap-4">
+          <Field label={`Quantity Available (${item?.unit || ''})`}>
+            <Input type="number" step="0.01" value={qty} onChange={(e) => setQty(e.target.value)} />
+          </Field>
+          <Field label={`Minimum Threshold (${item?.unit || ''})`}>
+            <Input type="number" step="0.01" value={threshold} onChange={(e) => setThreshold(e.target.value)} />
+          </Field>
+        </div>
+        <Field label="Selling Price (₹)" hint="Update the price at which this batch is sold">
+          <Input type="number" step="0.01" value={sellingPrice} onChange={(e) => setSellingPrice(e.target.value)} placeholder="Optional" />
         </Field>
       </form>
     </Modal>

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus, Receipt, Trash2, Eye, CreditCard, Printer, X } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Button from '../../components/Button';
@@ -11,6 +12,7 @@ import { useToast } from '../../components/Toast';
 import { listInvoices, createInvoice, getInvoice, createPayment } from '../../api/invoices';
 import { listVendors } from '../../api/vendors';
 import { listProducts } from '../../api/products';
+import { listInventory } from '../../api/inventory';
 import { extractError } from '../../api/axios';
 
 const fmt = (n) =>
@@ -67,6 +69,7 @@ export default function InvoicesTab() {
   const [receipt, setReceipt] = useState(null);
   const [vendors, setVendors] = useState([]);
   const [products, setProducts] = useState([]);
+  const [inventoryBrands, setInventoryBrands] = useState([]);
 
   // ── filters ──
   const [statusFilter, setStatusFilter] = useState('all');
@@ -109,10 +112,16 @@ export default function InvoicesTab() {
   const load = async () => {
     setLoading(true);
     try {
-      const [inv, vs, ps] = await Promise.all([listInvoices(), listVendors(), listProducts()]);
+      const [inv, vs, ps, invItems] = await Promise.all([
+        listInvoices(), listVendors(), listProducts(), listInventory(),
+      ]);
       setInvoices(Array.isArray(inv) ? inv : (inv.results || []));
       setVendors(Array.isArray(vs) ? vs : (vs.results || []));
       setProducts(Array.isArray(ps) ? ps : (ps.results || []));
+      const items = Array.isArray(invItems) ? invItems : (invItems.results || []);
+      const seen = new Set();
+      for (const it of items) { if (it.brand?.trim()) seen.add(it.brand.trim()); }
+      setInventoryBrands([...seen].sort());
     } catch (err) {
       toast.error(extractError(err));
     } finally {
@@ -269,7 +278,7 @@ export default function InvoicesTab() {
         <div className="text-center py-12 text-gray-500 text-sm">No invoices match the current filters.</div>
       ) : <Table columns={columns} rows={filteredInvoices} />}
 
-      <CreateInvoiceModal open={createOpen} onClose={() => setCreateOpen(false)} onSaved={load} vendors={vendors} products={products} />
+      <CreateInvoiceModal open={createOpen} onClose={() => setCreateOpen(false)} onSaved={load} vendors={vendors} products={products} brands={inventoryBrands} />
       <ViewInvoiceModal invoice={viewInvoice} onClose={() => setViewInvoice(null)} />
       <PayInvoiceModal modal={payModal} onClose={() => setPayModal(null)} onSuccess={handlePaySuccess} />
       <ReceiptModal receipt={receipt} onClose={() => setReceipt(null)} />
@@ -571,7 +580,7 @@ function ViewInvoiceModal({ invoice, onClose }) {
 
 // ─── Create Invoice Modal ─────────────────────────────
 
-function CreateInvoiceModal({ open, onClose, onSaved, vendors, products }) {
+function CreateInvoiceModal({ open, onClose, onSaved, vendors, products, brands }) {
   const toast = useToast();
   const emptyItem = { product: '', quantity: '', unit_price: '', product_brand: '' };
   const [vendorId, setVendorId] = useState('');
@@ -580,6 +589,8 @@ function CreateInvoiceModal({ open, onClose, onSaved, vendors, products }) {
   const [items, setItems] = useState([{ ...emptyItem }]);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
+
+  // brands prop already comes from inventory; no extra derivation needed
 
   useEffect(() => {
     if (!open) return;
@@ -592,6 +603,10 @@ function CreateInvoiceModal({ open, onClose, onSaved, vendors, products }) {
   const updateItem = (i, k, v) => setItems((arr) => arr.map((row, idx) => idx === i ? { ...row, [k]: v } : row));
   const addRow = () => setItems((arr) => [...arr, { ...emptyItem }]);
   const removeRow = (i) => setItems((arr) => arr.length > 1 ? arr.filter((_, idx) => idx !== i) : arr);
+
+  const selectProduct = (i, productId) => {
+    setItems(arr => arr.map((row, idx) => idx !== i ? row : { ...row, product: productId }));
+  };
 
   const total = items.reduce((s, it) => s + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0), 0);
 
@@ -617,7 +632,7 @@ function CreateInvoiceModal({ open, onClose, onSaved, vendors, products }) {
           product: Number(it.product),
           quantity: Number(it.quantity),
           unit_price: Number(it.unit_price),
-          product_brand: it.product_brand,
+          product_brand: it.product_brand || '',
         })),
       });
       toast.success('Invoice created. Inventory updated.');
@@ -658,29 +673,38 @@ function CreateInvoiceModal({ open, onClose, onSaved, vendors, products }) {
           <div className="divide-y divide-border">
             {items.map((it, idx) => (
               <div key={idx} className="grid grid-cols-12 gap-2 p-3 items-end">
+                {/* Product */}
                 <div className="col-span-12 md:col-span-4">
                   <Field label={idx === 0 ? 'Product' : null}>
-                    <Select value={it.product} onChange={(e) => updateItem(idx, 'product', e.target.value)}>
+                    <Select value={it.product} onChange={(e) => selectProduct(idx, e.target.value)}>
                       <option value="">Select…</option>
                       {products.map((p) => <option key={p.id} value={p.id}>{p.product_name} ({p.product_unit})</option>)}
                     </Select>
                   </Field>
                 </div>
-                <div className="col-span-4 md:col-span-2">
+                {/* Brand */}
+                <div className="col-span-12 md:col-span-3">
+                  <Field label={idx === 0 ? 'Brand' : null}>
+                    <BrandCombobox
+                      value={it.product_brand}
+                      onChange={(v) => updateItem(idx, 'product_brand', v)}
+                      brands={brands}
+                    />
+                  </Field>
+                </div>
+                {/* Qty */}
+                <div className="col-span-6 md:col-span-2">
                   <Field label={idx === 0 ? 'Qty' : null}>
                     <Input type="number" step="0.01" value={it.quantity} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} />
                   </Field>
                 </div>
-                <div className="col-span-4 md:col-span-2">
-                  <Field label={idx === 0 ? 'Unit Price (₹)' : null}>
+                {/* Cost price */}
+                <div className="col-span-6 md:col-span-2">
+                  <Field label={idx === 0 ? 'Cost Price (₹)' : null}>
                     <Input type="number" step="0.01" value={it.unit_price} onChange={(e) => updateItem(idx, 'unit_price', e.target.value)} />
                   </Field>
                 </div>
-                <div className="col-span-4 md:col-span-3">
-                  <Field label={idx === 0 ? 'Brand' : null}>
-                    <Input value={it.product_brand} onChange={(e) => updateItem(idx, 'product_brand', e.target.value)} />
-                  </Field>
-                </div>
+                {/* Delete */}
                 <div className="col-span-12 md:col-span-1 flex justify-end">
                   <button type="button" onClick={() => removeRow(idx)} disabled={items.length === 1}
                     className="text-gray-400 hover:text-red-400 disabled:opacity-30 p-2">
@@ -699,5 +723,82 @@ function CreateInvoiceModal({ open, onClose, onSaved, vendors, products }) {
         </div>
       </div>
     </Modal>
+  );
+}
+
+// ─── Brand Combobox ───────────────────────────────────
+// Uses a portal so the dropdown escapes overflow-hidden ancestors (modal, table).
+
+function BrandCombobox({ value, onChange, brands }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+  const wrapRef = useRef(null);
+
+  const reposition = () => {
+    if (wrapRef.current) {
+      const r = wrapRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom, left: r.left, width: r.width });
+    }
+  };
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Reposition when open and user scrolls inside the modal
+  useEffect(() => {
+    if (!open) return;
+    const handler = () => reposition();
+    window.addEventListener('scroll', handler, true);
+    return () => window.removeEventListener('scroll', handler, true);
+  }, [open]);
+
+  const suggestions = useMemo(() => {
+    if (!value.trim()) return brands;
+    const q = value.trim().toLowerCase();
+    return brands.filter(b => b.toLowerCase().includes(q));
+  }, [value, brands]);
+
+  const dropdown = open && suggestions.length > 0 && createPortal(
+    <ul
+      style={{ position: 'fixed', top: pos.top + 4, left: pos.left, width: pos.width, zIndex: 9999 }}
+      className="bg-bg-card border border-border rounded-lg shadow-2xl overflow-hidden max-h-48 overflow-y-auto"
+    >
+      {suggestions.map((b) => (
+        <li key={b}>
+          <button
+            type="button"
+            onMouseDown={(e) => {
+              e.preventDefault();   // keep input focused
+              onChange(b);
+              setOpen(false);
+            }}
+            className={`w-full text-left px-3 py-2 text-sm transition-colors hover:bg-bg-elev ${
+              value === b ? 'text-accent bg-accent/10' : 'text-gray-200'
+            }`}
+          >
+            {b}
+          </button>
+        </li>
+      ))}
+    </ul>,
+    document.body,
+  );
+
+  return (
+    <div ref={wrapRef}>
+      <Input
+        value={value}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); reposition(); }}
+        onFocus={() => { setOpen(true); reposition(); }}
+        placeholder="Type or pick a brand…"
+      />
+      {dropdown}
+    </div>
   );
 }
