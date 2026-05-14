@@ -15,3 +15,8 @@ staticfiles/
 
 # VS Code
 .vscode/
+
+# Claude
+.claude/
+
+
