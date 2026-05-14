@@ -86,7 +86,6 @@ export default function ProductsTab() {
       const q = search.trim().toLowerCase();
       r = r.filter(p =>
         p.product_name?.toLowerCase().includes(q) ||
-        p.brand?.toLowerCase().includes(q) ||
         p.product_code?.toLowerCase().includes(q) ||
         p.hsn_code?.toLowerCase().includes(q)
       );
@@ -116,12 +115,7 @@ export default function ProductsTab() {
   const columns = [
     {
       key: 'product_name', header: 'Product',
-      render: (r) => (
-        <div>
-          <div className="font-medium text-gray-100">{r.product_name}</div>
-          {r.brand && <div className="text-xs text-gray-500 mt-0.5">{r.brand}</div>}
-        </div>
-      ),
+      render: (r) => <div className="font-medium text-gray-100">{r.product_name}</div>,
     },
     {
       key: 'product_code', header: 'Code',
@@ -141,12 +135,6 @@ export default function ProductsTab() {
         : <span className="text-gray-600 text-xs">—</span>,
     },
     { key: 'product_unit', header: 'Unit', render: (r) => <span className="text-gray-300">{r.product_unit}</span> },
-    {
-      key: 'product_price', header: 'Selling Price',
-      render: (r) => r.product_price
-        ? `₹${Number(r.product_price).toLocaleString('en-IN')}`
-        : <span className="text-gray-600">—</span>,
-    },
     {
       key: 'actions', header: '',
       render: (r) => (
@@ -257,8 +245,8 @@ export default function ProductsTab() {
 function ProductFormModal({ modal, onClose, onSaved, types }) {
   const toast = useToast();
   const empty = {
-    product_name: '', hsn_code: '', brand: '',
-    product_description: '', product_price: '',
+    product_name: '', hsn_code: '',
+    product_description: '',
     product_unit: 'l', product_type: '', category: 'consumption',
   };
   const [form, setForm] = useState(empty);
@@ -272,9 +260,7 @@ function ProductFormModal({ modal, onClose, onSaved, types }) {
       setForm({
         product_name:        d.product_name || '',
         hsn_code:            d.hsn_code || '',
-        brand:               d.brand || '',
         product_description: d.product_description || '',
-        product_price:       d.product_price || '',
         product_unit:        d.product_unit || 'l',
         product_type:        d.product_type ? String(d.product_type) : '',
         category:            d.category || 'consumption',
@@ -292,16 +278,13 @@ function ProductFormModal({ modal, onClose, onSaved, types }) {
     if (!form.product_name.trim()) eMap.product_name = 'Required';
     if (!form.product_unit)        eMap.product_unit = 'Required';
     if (!form.category)            eMap.category = 'Required';
-    if (form.product_price && isNaN(Number(form.product_price))) eMap.product_price = 'Invalid number';
     setErrors(eMap);
     if (Object.keys(eMap).length) return;
 
     const payload = {
       product_name:        form.product_name.trim(),
       hsn_code:            form.hsn_code.trim(),
-      brand:               form.brand.trim(),
       product_description: form.product_description.trim(),
-      product_price:       form.product_price !== '' ? Number(form.product_price) : null,
       product_unit:        form.product_unit,
       product_type:        form.product_type ? Number(form.product_type) : null,
       category:            form.category,
@@ -343,9 +326,6 @@ function ProductFormModal({ modal, onClose, onSaved, types }) {
 
         {/* Row 2 */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Field label="Brand">
-            <Input value={form.brand} onChange={set('brand')} placeholder="e.g. Koch Chemie" />
-          </Field>
           <Field label="Category" required error={errors.category}>
             <Select value={form.category} onChange={set('category')}>
               {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
@@ -357,17 +337,10 @@ function ProductFormModal({ modal, onClose, onSaved, types }) {
               {types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </Select>
           </Field>
-        </div>
-
-        {/* Row 3 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Field label="Unit" required error={errors.product_unit}>
             <Select value={form.product_unit} onChange={set('product_unit')}>
               {UNITS.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
             </Select>
-          </Field>
-          <Field label="Selling Price (₹)" error={errors.product_price} hint="Leave blank if not sold directly to customers">
-            <Input type="number" step="0.01" value={form.product_price} onChange={set('product_price')} placeholder="Optional" />
           </Field>
         </div>
 

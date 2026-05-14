@@ -92,6 +92,7 @@ class InventorySerializer(serializers.ModelSerializer):
     type_name    = serializers.SerializerMethodField()
     is_low_stock = serializers.BooleanField(read_only=True)
     unit         = serializers.CharField(source='product.product_unit', read_only=True)
+    # brand, cost_price, selling_price come from the model fields directly
 
     class Meta:
         model = Inventory
@@ -137,30 +138,44 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
         model = Invoice
         fields = '__all__'
 
+    def _upsert_inventory(self, product, brand, cost_price, selling_price, delta):
+        brand = brand or ''
+        inv, _ = Inventory.objects.get_or_create(
+            product=product,
+            brand=brand,
+            cost_price=cost_price,
+            defaults={'quantity_available': 0, 'minimum_threshold': 0, 'selling_price': selling_price},
+        )
+        if selling_price is not None:
+            inv.selling_price = selling_price
+        inv.quantity_available += delta
+        inv.save()
+
     def create(self, validated_data):
         items_data = validated_data.pop('items')
         invoice = Invoice.objects.create(**validated_data)
-
         for item_data in items_data:
-            product = item_data['product']
-            quantity = item_data['quantity']
             InvoiceItem.objects.create(invoice=invoice, **item_data)
-            inventory, _ = Inventory.objects.get_or_create(
-                product=product,
-                defaults={'quantity_available': 0, 'minimum_threshold': 0}
+            self._upsert_inventory(
+                product=item_data['product'],
+                brand=item_data.get('product_brand'),
+                cost_price=item_data['unit_price'],
+                selling_price=item_data.get('selling_price'),
+                delta=item_data['quantity'],
             )
-            inventory.quantity_available += quantity
-            inventory.save()
-
         return invoice
 
     def update(self, instance, validated_data):
         items_data = validated_data.pop('items')
 
-        for old_item in instance.items.all():
+        for old in instance.items.all():
             try:
-                inv = Inventory.objects.get(product=old_item.product)
-                inv.quantity_available -= old_item.quantity
+                inv = Inventory.objects.get(
+                    product=old.product,
+                    brand=old.product_brand or '',
+                    cost_price=old.unit_price,
+                )
+                inv.quantity_available -= old.quantity
                 inv.save()
             except Inventory.DoesNotExist:
                 pass
@@ -173,14 +188,12 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
         instance.save()
 
         for item_data in items_data:
-            product = item_data['product']
-            quantity = item_data['quantity']
             InvoiceItem.objects.create(invoice=instance, **item_data)
-            inventory, _ = Inventory.objects.get_or_create(
-                product=product,
-                defaults={'quantity_available': 0, 'minimum_threshold': 0}
+            self._upsert_inventory(
+                product=item_data['product'],
+                brand=item_data.get('product_brand'),
+                cost_price=item_data['unit_price'],
+                selling_price=item_data.get('selling_price'),
+                delta=item_data['quantity'],
             )
-            inventory.quantity_available += quantity
-            inventory.save()
-
         return instance
