@@ -7,7 +7,6 @@ from .serializers import (
     EmployeeSerializer, ShiftSerializer, AttendanceSerializer,
     SalaryAdvanceSerializer, SalaryTransactionSerializer,
 )
-from rest_framework.permissions import AllowAny
 
 
 
@@ -25,8 +24,10 @@ def get_or_404(model, pk):
 class EmployeeListView(APIView):
     #permission_classes = [AllowAny]
     def get(self, request):
-        employees = Employee.objects.select_related('shift').all()
-        serializer = EmployeeSerializer(employees, many=True)
+        qs = Employee.objects.select_related('shift').all()
+        if request.query_params.get('name'):
+            qs = qs.filter(employee_name__icontains=request.query_params['name'])
+        serializer = EmployeeSerializer(qs, many=True)
         return Response(serializer.data)
 
     def post(self, request):
@@ -86,7 +87,7 @@ class ShiftListView(APIView):
 
 
 class ShiftDetailView(APIView):
-    permission_classes = [AllowAny]
+    #permission_classes = [AllowAny]
     def get(self, request, pk):
         obj = get_or_404(Shift, pk)
         if not obj:

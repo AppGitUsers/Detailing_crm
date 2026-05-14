@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, CalendarCheck, Pencil, Trash2, ChevronLeft, ChevronRight, UserCheck, UserX, Clock, CalendarDays } from 'lucide-react';
+import { Plus, CalendarCheck, Pencil, Trash2, ChevronLeft, ChevronRight, UserCheck, UserX, Clock, CalendarDays, AlertCircle } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Button from '../../components/Button';
 import Loading from '../../components/Loading';
@@ -46,7 +46,7 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
-export default function Attendance() {
+export default function AttendanceTab() {
   const toast = useToast();
   const now   = new Date();
   const [month, setMonth]           = useState(now.getMonth() + 1);
@@ -58,20 +58,25 @@ export default function Attendance() {
   const [modal, setModal]           = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
   const [delLoading, setDelLoading] = useState(false);
+  const [markingAll, setMarkingAll] = useState(false);
 
   const isCurrentMonth = month === now.getMonth() + 1 && year === now.getFullYear();
+  const today = todayStr();
+
+  // Fetch employees once on mount — not re-fetched when month/filter changes
+  useEffect(() => {
+    listEmployees()
+      .then((data) => setEmployees(Array.isArray(data) ? data : (data.results || [])))
+      .catch(() => {});
+  }, []);
 
   const load = async () => {
     setLoading(true);
     try {
       const params = { month, year };
       if (filterEmp) params.employee = filterEmp;
-      const [att, emps] = await Promise.all([
-        listAttendance(params),
-        listEmployees(),
-      ]);
+      const att = await listAttendance(params);
       setRecords(Array.isArray(att) ? att : (att.results || []));
-      setEmployees(Array.isArray(emps) ? emps : (emps.results || []));
     } catch (err) {
       toast.error(extractError(err));
     } finally {
@@ -96,6 +101,31 @@ export default function Attendance() {
       toast.error(extractError(err));
     } finally {
       setDelLoading(false);
+    }
+  };
+
+  // Employees who don't have any attendance record for today (only relevant on current month view)
+  const markedTodayEmpIds = new Set(
+    records.filter((r) => r.date === today).map((r) => String(r.employee))
+  );
+  const unmarkedToday = isCurrentMonth && !loading
+    ? employees.filter((e) => !markedTodayEmpIds.has(String(e.id)))
+    : [];
+
+  const markAllPresent = async () => {
+    setMarkingAll(true);
+    try {
+      await Promise.all(
+        unmarkedToday.map((emp) =>
+          createAttendance({ employee: emp.id, date: today, status: 'present', notes: null, check_in: null, check_out: null })
+        )
+      );
+      toast.success(`Marked ${unmarkedToday.length} employee${unmarkedToday.length > 1 ? 's' : ''} as present`);
+      load();
+    } catch (err) {
+      toast.error(extractError(err));
+    } finally {
+      setMarkingAll(false);
     }
   };
 
@@ -143,7 +173,7 @@ export default function Attendance() {
   ];
 
   return (
-    <div>
+    <div className="space-y-5">
       <PageHeader
         title="Attendance"
         subtitle="Track daily employee attendance"
@@ -151,7 +181,7 @@ export default function Attendance() {
       />
 
       {/* Month navigator + employee filter */}
-      <div className="bg-bg-card border border-border rounded-xl p-4 mb-5 flex flex-col sm:flex-row sm:items-center gap-3">
+      <div className="bg-bg-card border border-border rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex items-center gap-2">
           <button onClick={prevMonth} className="p-1.5 text-gray-400 hover:text-gray-100 transition-colors">
             <ChevronLeft size={18} />
@@ -180,13 +210,39 @@ export default function Attendance() {
         </div>
       </div>
 
-      {/* Summary stat cards — only when there's data */}
+      {/* Summary stat cards */}
       {!loading && records.length > 0 && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard icon={UserCheck}     label="Present"       value={presentCount} accent="green"  />
           <StatCard icon={UserX}         label="Absent"        value={absentCount}  accent="red"    />
           <StatCard icon={Clock}         label="Late"          value={lateCount}    accent="yellow" />
           <StatCard icon={CalendarCheck} label="Leave / Half"  value={leaveCount}   accent="blue"   />
+        </div>
+      )}
+
+      {/* Unmarked today banner — shows which employees haven't been marked yet */}
+      {isCurrentMonth && !loading && unmarkedToday.length > 0 && (
+        <div className="bg-yellow-900/15 border border-yellow-700/30 rounded-xl px-4 py-3 flex items-start gap-2.5">
+          <AlertCircle size={15} className="text-yellow-400 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-yellow-300 mb-1.5">
+              {unmarkedToday.length} employee{unmarkedToday.length > 1 ? 's' : ''} not marked for today
+            </p>
+            <div className="flex flex-wrap gap-1.5 mb-2.5">
+              {unmarkedToday.map((emp) => (
+                <span key={emp.id} className="px-2 py-0.5 rounded-full bg-yellow-900/30 text-yellow-300 text-xs border border-yellow-700/30">
+                  {emp.employee_name}
+                </span>
+              ))}
+            </div>
+            <button
+              onClick={markAllPresent}
+              disabled={markingAll}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-900/30 text-emerald-400 border border-emerald-700/40 hover:bg-emerald-900/50 transition-colors disabled:opacity-50"
+            >
+              {markingAll ? 'Marking…' : `Mark All Present (${unmarkedToday.length})`}
+            </button>
+          </div>
         </div>
       )}
 
@@ -207,7 +263,7 @@ export default function Attendance() {
         />
       )}
 
-      <AttendanceFormModal modal={modal} onClose={() => setModal(null)} onSaved={load} employees={employees} />
+      <AttendanceFormModal modal={modal} onClose={() => setModal(null)} onSaved={load} employees={employees} records={records} />
       <ConfirmDialog
         open={!!confirmDel}
         onClose={() => setConfirmDel(null)}
@@ -220,14 +276,14 @@ export default function Attendance() {
   );
 }
 
-function AttendanceFormModal({ modal, onClose, onSaved, employees }) {
+function AttendanceFormModal({ modal, onClose, onSaved, employees, records }) {
   const toast  = useToast();
   const today  = todayStr();
   const empty  = { employee: '', date: today, status: 'present', notes: '' };
 
-  const [form, setForm]         = useState(empty);
+  const [form, setForm]             = useState(empty);
   const [submitting, setSubmitting] = useState(false);
-  const [errors, setErrors]     = useState({});
+  const [errors, setErrors]         = useState({});
 
   useEffect(() => {
     if (!modal) return;
@@ -251,6 +307,11 @@ function AttendanceFormModal({ modal, onClose, onSaved, employees }) {
     const eMap = {};
     if (!form.employee) eMap.employee = 'Select an employee';
     if (!form.date)     eMap.date     = 'Required';
+    // Duplicate guard — prevent marking same employee twice on the same date
+    if (modal?.mode === 'create' && form.employee && form.date) {
+      const dup = records.find((r) => String(r.employee) === String(form.employee) && r.date === form.date);
+      if (dup) eMap.employee = `Already marked as ${STATUS_LABEL[dup.status]?.label || dup.status} on this date`;
+    }
     setErrors(eMap);
     if (Object.keys(eMap).length) return;
     setSubmitting(true);

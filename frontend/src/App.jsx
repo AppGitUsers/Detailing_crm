@@ -14,9 +14,6 @@ import Services from './pages/Services';
 import ServiceDetail from './pages/Services/Detail';
 import Employees from './pages/Employees';
 import Vendors from './pages/Vendors';
-import Shifts from './pages/Shifts';
-import Attendance from './pages/Attendance';
-import Salary from './pages/Salary';
 
 export default function App() {
   return (
@@ -33,10 +30,7 @@ export default function App() {
             <Route path="customers/:id" element={<CustomerDetail />} />
             <Route path="services" element={<Services />} />
             <Route path="services/:id" element={<ServiceDetail />} />
-            <Route path="employees" element={<Employees />} />
-            <Route path="employees/shifts" element={<Shifts />} />
-            <Route path="employees/attendance" element={<Attendance />} />
-            <Route path="employees/salary" element={<Salary />} />
+            <Route path="employees/*" element={<Employees />} />
             <Route path="vendors/*" element={<Vendors />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

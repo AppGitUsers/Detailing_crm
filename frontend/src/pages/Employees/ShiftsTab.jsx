@@ -27,7 +27,6 @@ const DAY_VALS = [
   { label: 'Sun', val: '6' },
 ];
 
-// Converts "HH:MM" 24hr to { h12, min, ampm }
 function parseTime(val) {
   if (!val) return { h12: 9, min: 0, ampm: 'AM' };
   const [h24, m] = val.split(':').map(Number);
@@ -38,14 +37,12 @@ function parseTime(val) {
   };
 }
 
-// Converts { h12, min, ampm } back to "HH:MM" 24hr string
 function buildTime(h12, min, ampm) {
   let h = h12 % 12;
   if (ampm === 'PM') h += 12;
   return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
 }
 
-// Formats "HH:MM" to "9:30 AM"
 function fmt12(val) {
   if (!val) return '—';
   const [h24, m] = val.split(':').map(Number);
@@ -54,7 +51,6 @@ function fmt12(val) {
   return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
-// Calculates shift duration string like "8h 30m"
 function shiftDuration(start, end) {
   if (!start || !end) return null;
   const [sh, sm] = start.split(':').map(Number);
@@ -66,7 +62,6 @@ function shiftDuration(start, end) {
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
-// ── AM/PM Time Picker ─────────────────────────────────────────────────────────
 function TimePicker({ value, onChange, error }) {
   const { h12, min, ampm } = parseTime(value);
 
@@ -113,7 +108,6 @@ function TimePicker({ value, onChange, error }) {
   );
 }
 
-// ── Custom Day Toggle Picker ──────────────────────────────────────────────────
 function DayPicker({ value, onChange }) {
   const selected = value ? value.split(',').filter(Boolean) : [];
 
@@ -150,8 +144,7 @@ function DayPicker({ value, onChange }) {
   );
 }
 
-// ── Shifts Page ───────────────────────────────────────────────────────────────
-export default function Shifts() {
+export default function ShiftsTab() {
   const toast = useToast();
   const [loading, setLoading]       = useState(true);
   const [shifts, setShifts]         = useState([]);
@@ -188,7 +181,7 @@ export default function Shifts() {
   };
 
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
         title="Shifts"
         subtitle="Manage work shift timings and schedules"
@@ -212,10 +205,10 @@ export default function Shifts() {
             return (
               <div
                 key={s.id}
-                className="bg-bg-card border border-border rounded-xl p-5 hover:border-accent/40 transition-colors flex flex-col"
+                className="bg-bg-card border border-border rounded-2xl overflow-hidden flex flex-col transition-all hover:shadow-lg hover:shadow-black/20 hover:border-accent/30"
               >
                 {/* Header */}
-                <div className="flex items-center gap-2.5 mb-4">
+                <div className="p-4 flex items-center gap-2.5">
                   <div className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
                     <Clock size={16} className="text-accent" />
                   </div>
@@ -227,8 +220,8 @@ export default function Shifts() {
                   </div>
                 </div>
 
-                {/* Time range block */}
-                <div className="bg-bg-elev rounded-lg px-4 py-3 mb-4 flex items-center justify-between">
+                {/* Time range */}
+                <div className="mx-4 mb-3 bg-bg-elev rounded-lg px-4 py-3 flex items-center justify-between border border-border">
                   <div className="text-center">
                     <div className="text-xs text-gray-500 mb-0.5">Start</div>
                     <div className="text-lg font-semibold text-accent">{fmt12(s.start_time)}</div>
@@ -241,7 +234,7 @@ export default function Shifts() {
                 </div>
 
                 {/* Day pills */}
-                <div className="flex flex-wrap gap-1.5 mb-4">
+                <div className="px-4 pb-3 flex flex-wrap gap-1.5 border-b border-border">
                   {ALL_DAYS.map((day) => {
                     const active = activeDays.includes(day);
                     return (
@@ -260,22 +253,26 @@ export default function Shifts() {
                 </div>
 
                 {s.description && (
-                  <p className="text-xs text-gray-500 mb-3 truncate">{s.description}</p>
+                  <div className="px-4 py-2 border-b border-border">
+                    <p className="text-xs text-gray-500 truncate">{s.description}</p>
+                  </div>
                 )}
 
                 {/* Actions */}
-                <div className="flex gap-2 mt-auto pt-3 border-t border-border">
+                <div className="px-4 py-3 flex items-center justify-end gap-1 mt-auto">
                   <button
                     onClick={() => setModal({ mode: 'edit', data: s })}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs text-gray-400 hover:text-accent hover:bg-accent/10 transition-colors border border-border"
+                    className="p-1.5 text-gray-400 hover:text-accent rounded-lg hover:bg-accent/10 transition-colors"
+                    title="Edit"
                   >
-                    <Pencil size={12} /> Edit
+                    <Pencil size={14} />
                   </button>
                   <button
                     onClick={() => setConfirmDel(s)}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs text-gray-400 hover:text-red-400 hover:bg-red-400/10 transition-colors border border-border"
+                    className="p-1.5 text-gray-400 hover:text-red-400 rounded-lg hover:bg-red-900/20 transition-colors"
+                    title="Delete"
                   >
-                    <Trash2 size={12} /> Delete
+                    <Trash2 size={14} />
                   </button>
                 </div>
               </div>
@@ -297,7 +294,6 @@ export default function Shifts() {
   );
 }
 
-// ── Shift Form Modal ──────────────────────────────────────────────────────────
 function ShiftFormModal({ modal, onClose, onSaved }) {
   const toast = useToast();
   const empty = {
@@ -361,8 +357,8 @@ function ShiftFormModal({ modal, onClose, onSaved }) {
     }
   };
 
-  const isCustom   = form.working_days_preset === 'custom';
-  const duration   = !errors.end_time ? shiftDuration(form.start_time, form.end_time) : null;
+  const isCustom = form.working_days_preset === 'custom';
+  const duration = !errors.end_time ? shiftDuration(form.start_time, form.end_time) : null;
 
   return (
     <Modal
@@ -407,7 +403,6 @@ function ShiftFormModal({ modal, onClose, onSaved }) {
           </div>
         </div>
 
-        {/* Live shift preview */}
         {form.start_time && form.end_time && duration && (
           <div className="bg-accent/10 border border-accent/20 rounded-lg px-4 py-2.5 flex items-center justify-between">
             <span className="text-xs text-gray-400">Shift duration</span>
@@ -437,7 +432,6 @@ function ShiftFormModal({ modal, onClose, onSaved }) {
           </Select>
         </Field>
 
-        {/* Visual day picker for custom */}
         {isCustom && (
           <div>
             <label className="block text-xs font-medium text-gray-300 mb-2">Select Working Days</label>
