@@ -30,3 +30,10 @@ export const listTransactions  = (params) => api.get('employees/salary/transacti
 export const createTransaction = (data)   => api.post('employees/salary/transactions/', data).then(r => r.data);
 export const updateTransaction = (id, data) => api.put(`employees/salary/transactions/${id}/`, data).then(r => r.data);
 export const deleteTransaction = (id)     => api.delete(`employees/salary/transactions/${id}/`).then(r => r.data);
+
+// ── Salary Compute (attendance-based) ────────────────────────────────────────
+export const computeSalary = (params) => api.get('employees/salary/compute/', { params }).then(r => r.data);
+
+// ── Kiosk ─────────────────────────────────────────────────────────────────────
+export const kioskLookup  = (data) => api.post('employees/attendance/kiosk/lookup/', data).then(r => r.data);
+export const kioskCheckIn = (data) => api.post('employees/attendance/kiosk/', data).then(r => r.data);

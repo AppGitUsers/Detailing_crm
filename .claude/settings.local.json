@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python manage.py migrate)"
+      "Bash(python manage.py migrate)",
+      "Bash(grep -v \"^$\")",
+      "Bash(Get-ChildItem -Path \"d:\\\\Projects\\\\Gymcrm\\\\GymDesk\" -Recurse -Include \"*.py\", \"*.js\", \"*.jsx\", \"*.ts\", \"*.tsx\")",
+      "Bash(Select-Object -First 20)"
     ]
   }
 }

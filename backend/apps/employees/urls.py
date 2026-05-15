@@ -5,6 +5,7 @@ from .views import (
     AttendanceListView, AttendanceDetailView,
     SalaryAdvanceListView, SalaryAdvanceDetailView,
     SalaryTransactionListView, SalaryTransactionDetailView,
+    SalaryComputeView, AttendanceKioskView, AttendanceKioskLookupView,
 )
 
 urlpatterns = [
@@ -19,6 +20,8 @@ urlpatterns = [
     # Attendance
     path('attendance/', AttendanceListView.as_view(), name='attendance-list'),
     path('attendance/<int:pk>/', AttendanceDetailView.as_view(), name='attendance-detail'),
+    path('attendance/kiosk/lookup/', AttendanceKioskLookupView.as_view(), name='attendance-kiosk-lookup'),
+    path('attendance/kiosk/', AttendanceKioskView.as_view(), name='attendance-kiosk'),
 
     # Salary Advances
     path('salary/advances/', SalaryAdvanceListView.as_view(), name='salary-advance-list'),
@@ -27,4 +30,7 @@ urlpatterns = [
     # Salary Transactions
     path('salary/transactions/', SalaryTransactionListView.as_view(), name='salary-transaction-list'),
     path('salary/transactions/<int:pk>/', SalaryTransactionDetailView.as_view(), name='salary-transaction-detail'),
+
+    # Salary compute — attendance-based calculation
+    path('salary/compute/', SalaryComputeView.as_view(), name='salary-compute'),
 ]

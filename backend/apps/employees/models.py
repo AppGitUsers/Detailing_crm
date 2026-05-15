@@ -33,6 +33,10 @@ class Shift(models.Model):
     )
     # Comma-separated ints "0,1,2,3,4" — auto-filled from preset unless custom
     working_days        = models.CharField(max_length=20, default='0,1,2,3,4,5,6')
+    # Check-in within this window of shift start is NOT considered late
+    late_grace_minutes       = models.IntegerField(default=15)
+    # Check-out beyond this window of shift end is considered overtime
+    overtime_threshold_minutes = models.IntegerField(default=30)
     description         = models.TextField(blank=True, null=True)
 
     # #1 — Timestamps
@@ -88,6 +92,12 @@ class Employee(models.Model):
         ('contractor', 'Contractor'),
     ]
 
+    STATUS_CHOICES = [
+        ('active',    'Active'),
+        ('inactive',  'Inactive'),
+        ('on_leave',  'On Leave'),
+    ]
+
     # #4 — Employee code (EMP001, EMP002 etc.)
     employee_code         = models.CharField(max_length=20, unique=True)
     employee_name         = models.CharField(max_length=255)
@@ -103,6 +113,8 @@ class Employee(models.Model):
         max_digits=10, decimal_places=2,
         validators=[MinValueValidator(Decimal('0.00'))]
     )
+
+    status                = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
 
     # Employee's currently assigned shift (SET_NULL so deleting a shift doesn't delete employee)
     shift                 = models.ForeignKey(
@@ -127,12 +139,14 @@ class Employee(models.Model):
 
 class Attendance(models.Model):
     STATUS_CHOICES = [
-        ('present',  'Present'),
-        ('absent',   'Absent'),
-        ('half_day', 'Half Day'),
-        ('leave',    'Leave'),
-        # #5 — Ready for auto-status later
-        ('late',     'Late'),
+        ('present',       'Present'),
+        ('absent',        'Absent'),
+        ('half_day',      'Half Day'),
+        ('leave',         'Leave'),
+        ('late',          'Late'),
+        ('overtime',      'Overtime'),
+        ('late_overtime', 'Late + Overtime'),
+        ('auto_absent',   'Auto Absent'),
     ]
 
     employee  = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='attendances')
@@ -141,6 +155,11 @@ class Attendance(models.Model):
     check_in  = models.TimeField(blank=True, null=True)
     check_out = models.TimeField(blank=True, null=True)
     notes     = models.TextField(blank=True, null=True)
+
+    # Auto-computed from check_in / check_out vs shift times
+    worked_minutes   = models.IntegerField(default=0)
+    late_minutes     = models.IntegerField(default=0)
+    overtime_minutes = models.IntegerField(default=0)
 
     # #1 — Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
@@ -165,6 +184,50 @@ class Attendance(models.Model):
 
     def __str__(self):
         return f"{self.employee.employee_name} – {self.date} [{self.status}]"
+
+    def save(self, *args, **kwargs):
+        from datetime import datetime, timedelta
+        shift = self.employee.shift if self.employee_id else None
+
+        # Worked minutes from actual clock times
+        if self.check_in and self.check_out:
+            ci = datetime.combine(self.date, self.check_in)
+            co = datetime.combine(self.date, self.check_out)
+            self.worked_minutes = max(0, int((co - ci).total_seconds() / 60))
+        else:
+            self.worked_minutes = 0
+
+        # Late minutes — how far past shift start + grace the employee arrived
+        self.late_minutes = 0
+        if shift and self.check_in:
+            grace   = timedelta(minutes=shift.late_grace_minutes)
+            s_start = datetime.combine(self.date, shift.start_time)
+            ci_dt   = datetime.combine(self.date, self.check_in)
+            if ci_dt > s_start + grace:
+                self.late_minutes = int((ci_dt - s_start).total_seconds() / 60)
+
+        # Overtime minutes — how far past shift end + threshold the employee stayed
+        self.overtime_minutes = 0
+        if shift and self.check_out:
+            ot_buf  = timedelta(minutes=shift.overtime_threshold_minutes)
+            s_end   = datetime.combine(self.date, shift.end_time)
+            co_dt   = datetime.combine(self.date, self.check_out)
+            if co_dt > s_end + ot_buf:
+                self.overtime_minutes = int((co_dt - s_end).total_seconds() / 60)
+
+        # Auto-update status only when check_in is present and status isn't manually locked
+        MANUAL_STATUSES = ('absent', 'half_day', 'leave', 'auto_absent')
+        if self.status not in MANUAL_STATUSES and self.check_in:
+            if self.late_minutes > 0 and self.overtime_minutes > 0:
+                self.status = 'late_overtime'
+            elif self.late_minutes > 0:
+                self.status = 'late'
+            elif self.overtime_minutes > 0:
+                self.status = 'overtime'
+            else:
+                self.status = 'present'
+
+        super().save(*args, **kwargs)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

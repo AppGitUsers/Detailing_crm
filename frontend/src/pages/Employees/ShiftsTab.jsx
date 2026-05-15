@@ -233,6 +233,12 @@ export default function ShiftsTab() {
                   </div>
                 </div>
 
+                {/* Grace / OT badges */}
+                <div className="px-4 pb-2 flex gap-3 text-xs text-gray-500">
+                  <span>Grace: <span className="text-gray-300 font-medium">{s.late_grace_minutes ?? 15}m</span></span>
+                  <span>OT after: <span className="text-gray-300 font-medium">{s.overtime_threshold_minutes ?? 30}m</span></span>
+                </div>
+
                 {/* Day pills */}
                 <div className="px-4 pb-3 flex flex-wrap gap-1.5 border-b border-border">
                   {ALL_DAYS.map((day) => {
@@ -298,7 +304,8 @@ function ShiftFormModal({ modal, onClose, onSaved }) {
   const toast = useToast();
   const empty = {
     shift_name: '', start_time: '09:00', end_time: '18:00',
-    working_days_preset: 'mon_fri', working_days: '0,1,2,3,4', description: '',
+    working_days_preset: 'mon_fri', working_days: '0,1,2,3,4',
+    late_grace_minutes: '15', overtime_threshold_minutes: '30', description: '',
   };
   const [form, setForm]         = useState(empty);
   const [submitting, setSubmitting] = useState(false);
@@ -308,12 +315,14 @@ function ShiftFormModal({ modal, onClose, onSaved }) {
     if (!modal) return;
     if (modal.mode === 'edit') {
       setForm({
-        shift_name:          modal.data.shift_name          || '',
-        start_time:          modal.data.start_time          || '09:00',
-        end_time:            modal.data.end_time            || '18:00',
-        working_days_preset: modal.data.working_days_preset || 'mon_fri',
-        working_days:        modal.data.working_days        || '0,1,2,3,4',
-        description:         modal.data.description         || '',
+        shift_name:                  modal.data.shift_name                  || '',
+        start_time:                  modal.data.start_time                  || '09:00',
+        end_time:                    modal.data.end_time                    || '18:00',
+        working_days_preset:         modal.data.working_days_preset         || 'mon_fri',
+        working_days:                modal.data.working_days                || '0,1,2,3,4',
+        late_grace_minutes:          String(modal.data.late_grace_minutes         ?? 15),
+        overtime_threshold_minutes:  String(modal.data.overtime_threshold_minutes ?? 30),
+        description:                 modal.data.description                 || '',
       });
     } else {
       setForm(empty);
@@ -339,6 +348,8 @@ function ShiftFormModal({ modal, onClose, onSaved }) {
     try {
       const payload = {
         ...form,
+        late_grace_minutes:         parseInt(form.late_grace_minutes)         || 15,
+        overtime_threshold_minutes: parseInt(form.overtime_threshold_minutes) || 30,
         working_days: form.working_days_preset === 'custom' ? form.working_days : undefined,
       };
       if (modal.mode === 'edit') {
@@ -412,6 +423,15 @@ function ShiftFormModal({ modal, onClose, onSaved }) {
             </span>
           </div>
         )}
+
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Late Grace (minutes)" hint="Check-in within this window of shift start is not late">
+            <Input type="number" min="0" max="120" value={form.late_grace_minutes} onChange={set('late_grace_minutes')} />
+          </Field>
+          <Field label="OT Threshold (minutes)" hint="Check-out beyond this window of shift end counts as overtime">
+            <Input type="number" min="0" max="240" value={form.overtime_threshold_minutes} onChange={set('overtime_threshold_minutes')} />
+          </Field>
+        </div>
 
         <Field label="Working Days">
           <Select value={form.working_days_preset} onChange={(e) => {

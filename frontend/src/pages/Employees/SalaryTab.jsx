@@ -17,6 +17,7 @@ import {
   listEmployees,
   listAdvances, createAdvance, updateAdvance, deleteAdvance,
   listTransactions, createTransaction, updateTransaction, deleteTransaction,
+  computeSalary,
 } from '../../api/employees';
 import { extractError } from '../../api/axios';
 
@@ -388,6 +389,8 @@ function TransactionFormModal({ modal, onClose, onSaved, employees, currentMonth
   const [errors, setErrors]               = useState({});
   const [approvedAdvances, setApprovedAdvances] = useState([]);
   const [loadingAdvances, setLoadingAdvances]   = useState(false);
+  const [attendanceSummary, setAttendanceSummary] = useState(null);
+  const [computeLoading, setComputeLoading]       = useState(false);
 
   useEffect(() => {
     if (!modal) return;
@@ -403,19 +406,43 @@ function TransactionFormModal({ modal, onClose, onSaved, employees, currentMonth
         notes:             modal.data.notes             || '',
       });
       setApprovedAdvances([]);
+      setAttendanceSummary(null);
     } else {
       setForm(buildEmpty());
       setApprovedAdvances([]);
+      setAttendanceSummary(null);
     }
     setErrors({});
   }, [modal]); // eslint-disable-line
 
+  // Re-compute attendance-based salary whenever employee or month changes (create mode only)
+  useEffect(() => {
+    if (modal?.mode !== 'create' || !form.employee || !form.month) {
+      setAttendanceSummary(null);
+      return;
+    }
+    const parts = form.month.split('-');
+    const y = parseInt(parts[0]);
+    const m = parseInt(parts[1]);
+    setComputeLoading(true);
+    computeSalary({ employee: form.employee, month: m, year: y })
+      .then((data) => {
+        setAttendanceSummary(data);
+        setForm((f) => ({ ...f, base_salary: data.computed_salary }));
+      })
+      .catch(() => {
+        setAttendanceSummary(null);
+        const emp = employees.find((e) => String(e.id) === String(form.employee));
+        if (emp?.salary) setForm((f) => ({ ...f, base_salary: String(emp.salary) }));
+      })
+      .finally(() => setComputeLoading(false));
+  }, [form.employee, form.month, modal?.mode]); // eslint-disable-line
+
   const handleEmployeeChange = (empId) => {
     if (modal?.mode === 'edit') { setForm((f) => ({ ...f, employee: empId })); return; }
-    const emp = employees.find((e) => String(e.id) === String(empId));
-    const salary = emp?.salary ? String(emp.salary) : '';
-    setForm((f) => ({ ...f, employee: empId, base_salary: salary, advance_deduction: '0' }));
+    setForm((f) => ({ ...f, employee: empId, base_salary: '', advance_deduction: '0' }));
     setApprovedAdvances([]);
+    setAttendanceSummary(null);
     if (!empId) return;
     setLoadingAdvances(true);
     listAdvances({ employee: empId, status: 'approved' })
@@ -531,12 +558,51 @@ function TransactionFormModal({ modal, onClose, onSaved, employees, currentMonth
         <div className="bg-bg-elev rounded-xl p-4 space-y-3 border border-border">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Salary Calculation</p>
 
+          {/* Attendance summary — shown in create mode when employee + month are selected */}
+          {modal?.mode === 'create' && form.employee && (
+            computeLoading ? (
+              <div className="rounded-lg px-4 py-2.5 bg-bg-card border border-border text-xs text-gray-500">
+                Computing from attendance…
+              </div>
+            ) : attendanceSummary ? (
+              <div className={`rounded-lg px-4 py-3 border text-xs space-y-1.5 ${
+                attendanceSummary.no_shift
+                  ? 'bg-yellow-900/10 border-yellow-700/30'
+                  : 'bg-blue-900/10 border-blue-700/30'
+              }`}>
+                {attendanceSummary.no_shift ? (
+                  <p className="text-yellow-400 font-medium">No shift assigned — using profile salary as base</p>
+                ) : (
+                  <>
+                    <p className="text-blue-300 font-semibold">Attendance-based calculation</p>
+                    <div className="grid grid-cols-3 gap-x-4 text-gray-400">
+                      <div><span className="text-gray-500">Expected</span><br /><span className="font-medium text-gray-200">{attendanceSummary.expected_hours}h</span></div>
+                      <div><span className="text-gray-500">Worked</span><br /><span className="font-medium text-gray-200">{attendanceSummary.actual_hours}h</span></div>
+                      <div><span className="text-gray-500">Overtime</span><br /><span className={`font-medium ${attendanceSummary.overtime_hours > 0 ? 'text-emerald-400' : 'text-gray-200'}`}>{attendanceSummary.overtime_hours}h</span></div>
+                    </div>
+                    <p className="text-gray-500">
+                      ({attendanceSummary.actual_hours}h ÷ {attendanceSummary.expected_hours}h) × ₹{Number(attendanceSummary.base_salary).toLocaleString('en-IN')}
+                      {' = '}
+                      <span className="text-blue-300 font-semibold">₹{Number(attendanceSummary.computed_salary).toLocaleString('en-IN')}</span>
+                      <span className="ml-1 text-gray-600">(editable below)</span>
+                    </p>
+                  </>
+                )}
+              </div>
+            ) : null
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Field
               label="Base Salary (₹)"
               required
               error={errors.base_salary}
-              hint={modal?.mode !== 'edit' && selectedEmp?.salary ? 'Auto-filled from profile' : undefined}
+              hint={
+                modal?.mode !== 'edit' && computeLoading ? 'Computing…'
+                : modal?.mode !== 'edit' && attendanceSummary && !attendanceSummary.no_shift ? 'Auto-filled from attendance'
+                : modal?.mode !== 'edit' && selectedEmp?.salary ? 'Auto-filled from profile'
+                : undefined
+              }
             >
               <Input type="number" step="0.01" min="0" placeholder="e.g. 15000" value={form.base_salary} onChange={set('base_salary')} />
             </Field>

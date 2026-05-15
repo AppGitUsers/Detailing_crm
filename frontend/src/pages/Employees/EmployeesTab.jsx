@@ -22,6 +22,12 @@ const TYPE_LABEL = {
   contractor: { label: 'Contractor', variant: 'purple' },
 };
 
+const STATUS_LABEL = {
+  active:   { label: 'Active',    variant: 'green'  },
+  inactive: { label: 'Inactive',  variant: 'red'    },
+  on_leave: { label: 'On Leave',  variant: 'yellow' },
+};
+
 const TYPE_LEFT_BORDER = {
   full_time:  'border-l-emerald-500/70',
   part_time:  'border-l-blue-500/70',
@@ -220,7 +226,8 @@ function NewJoinersBanner({ employees }) {
 // ── Employee Card ─────────────────────────────────────────────────────────────
 
 function EmployeeCard({ emp, onEdit, onDelete }) {
-  const t          = TYPE_LABEL[emp.employee_type] || { label: emp.employee_type, variant: 'default' };
+  const t          = TYPE_LABEL[emp.employee_type]  || { label: emp.employee_type,  variant: 'default' };
+  const st         = STATUS_LABEL[emp.status]        || { label: emp.status,         variant: 'default' };
   const color      = AVATAR_COLORS[(emp.id || 0) % AVATAR_COLORS.length];
   const tenure     = getTenure(emp.joining_date);
   const bday       = isBirthdayThisMonth(emp.dob);
@@ -255,6 +262,7 @@ function EmployeeCard({ emp, onEdit, onDelete }) {
           </div>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             <Badge variant={t.variant}>{t.label}</Badge>
+            {emp.status !== 'active' && <Badge variant={st.variant}>{st.label}</Badge>}
             <span className="text-[10px] font-mono text-gray-600 bg-bg-elev border border-border px-1.5 py-0.5 rounded">
               {emp.employee_code}
             </span>
@@ -518,7 +526,7 @@ export default function EmployeesTab() {
         </div>
       )}
 
-      <EmployeeFormModal modal={modal} onClose={() => setModal(null)} onSaved={load} />
+      <EmployeeFormModal modal={modal} onClose={() => setModal(null)} onSaved={load} employees={employees} />
       <ConfirmDialog
         open={!!confirmDel}
         onClose={() => setConfirmDel(null)}
@@ -541,12 +549,22 @@ function SectionLabel({ children }) {
 
 // ── Employee Form Modal ───────────────────────────────────────────────────────
 
-function EmployeeFormModal({ modal, onClose, onSaved }) {
+function generateNextCode(employees) {
+  const nums = employees
+    .map((e) => e.employee_code)
+    .filter((c) => /^EMP\d+$/i.test(c))
+    .map((c) => parseInt(c.replace(/^EMP/i, ''), 10))
+    .filter((n) => !isNaN(n));
+  const max = nums.length > 0 ? Math.max(...nums) : 0;
+  return `EMP${String(max + 1).padStart(3, '0')}`;
+}
+
+function EmployeeFormModal({ modal, onClose, onSaved, employees = [] }) {
   const toast = useToast();
   const empty = {
     employee_code: '', employee_name: '', employee_phone_number: '', employee_email: '',
-    employee_address: '', employee_type: 'full_time', dob: '', joining_date: '', salary: '',
-    shift: '',
+    employee_address: '', employee_type: 'full_time', status: 'active',
+    dob: '', joining_date: '', salary: '', shift: '',
   };
   const [form, setForm]             = useState(empty);
   const [shifts, setShifts]         = useState([]);
@@ -569,13 +587,14 @@ function EmployeeFormModal({ modal, onClose, onSaved }) {
         employee_email:        modal.data.employee_email        || '',
         employee_address:      modal.data.employee_address      || '',
         employee_type:         modal.data.employee_type         || 'full_time',
+        status:                modal.data.status                || 'active',
         dob:                   modal.data.dob                   || '',
         joining_date:          modal.data.joining_date          || '',
         salary:                modal.data.salary                || '',
         shift:                 modal.data.shift                 || '',
       });
     } else {
-      setForm(empty);
+      setForm({ ...empty, employee_code: generateNextCode(employees) });
     }
     setErrors({});
     // eslint-disable-next-line
@@ -637,8 +656,18 @@ function EmployeeFormModal({ modal, onClose, onSaved }) {
         <div>
           <SectionLabel>Identity</SectionLabel>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Employee Code" required error={errors.employee_code}>
-              <Input placeholder="e.g. EMP001" value={form.employee_code} onChange={set('employee_code')} />
+            <Field
+              label="Employee Code"
+              required
+              error={errors.employee_code}
+              hint={modal?.mode === 'create' ? 'Auto-generated — you can change it' : undefined}
+            >
+              <Input
+                placeholder="e.g. EMP001"
+                value={form.employee_code}
+                onChange={set('employee_code')}
+                className="font-mono"
+              />
             </Field>
             <Field label="Full Name" required error={errors.employee_name}>
               <Input placeholder="e.g. Ravi Kumar" value={form.employee_name} onChange={set('employee_name')} />
@@ -671,6 +700,13 @@ function EmployeeFormModal({ modal, onClose, onSaved }) {
                 <option value="full_time">Full-time</option>
                 <option value="part_time">Part-time</option>
                 <option value="contractor">Contractor</option>
+              </Select>
+            </Field>
+            <Field label="Status">
+              <Select value={form.status} onChange={set('status')}>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="on_leave">On Leave</option>
               </Select>
             </Field>
             <Field label="Assigned Shift">

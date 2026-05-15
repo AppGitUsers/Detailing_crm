@@ -1,6 +1,9 @@
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from datetime import date, datetime
+from decimal import Decimal
+import calendar
 
 from .models import Employee, Shift, Attendance, SalaryAdvance, SalaryTransaction
 from .serializers import (
@@ -258,3 +261,189 @@ class SalaryTransactionDetailView(APIView):
             return Response({'error': 'Transaction not found'}, status=status.HTTP_404_NOT_FOUND)
         obj.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# ── Salary Compute (attendance-based) ─────────────────────────────────────────
+
+class SalaryComputeView(APIView):
+    def get(self, request):
+        emp_id = request.query_params.get('employee')
+        month  = request.query_params.get('month')
+        year   = request.query_params.get('year')
+        if not emp_id or not month or not year:
+            return Response({'error': 'employee, month, year required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            emp = Employee.objects.select_related('shift').get(pk=emp_id)
+        except Employee.DoesNotExist:
+            return Response({'error': 'Employee not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        month_int = int(month)
+        year_int  = int(year)
+        shift     = emp.shift
+
+        if not shift:
+            return Response({
+                'no_shift': True,
+                'employee_name': emp.employee_name,
+                'base_salary': str(emp.salary),
+                'computed_salary': str(emp.salary),
+                'expected_hours': 0,
+                'actual_hours': 0,
+                'overtime_hours': 0,
+                'working_days_in_month': 0,
+                'shift_hours_per_day': 0,
+            })
+
+        # Shift duration in hours
+        start_dt = datetime.combine(date.today(), shift.start_time)
+        end_dt   = datetime.combine(date.today(), shift.end_time)
+        shift_hours_per_day = (end_dt - start_dt).total_seconds() / 3600
+        shift_hrs_dec       = Decimal(str(shift_hours_per_day))
+
+        # Count working days in the month based on the shift's working_days config
+        days_in_month      = calendar.monthrange(year_int, month_int)[1]
+        working_days_count = sum(
+            1 for d in range(1, days_in_month + 1)
+            if date(year_int, month_int, d).weekday() in shift.working_days_list
+        )
+        expected_hours = shift_hrs_dec * working_days_count
+
+        records        = Attendance.objects.filter(employee=emp, date__month=month_int, date__year=year_int)
+        actual_hours   = Decimal('0')
+        overtime_hours = Decimal('0')
+
+        for r in records:
+            if r.check_in and r.check_out:
+                ci  = datetime.combine(date.today(), r.check_in)
+                co  = datetime.combine(date.today(), r.check_out)
+                hrs = Decimal(str((co - ci).total_seconds() / 3600))
+                actual_hours += hrs
+                if hrs > shift_hrs_dec:
+                    overtime_hours += hrs - shift_hrs_dec
+            elif r.status in ('present', 'late'):
+                actual_hours += shift_hrs_dec
+            elif r.status == 'half_day':
+                actual_hours += shift_hrs_dec / 2
+            # absent / leave → 0 hours
+
+        if expected_hours > 0:
+            computed_salary = (actual_hours / expected_hours * emp.salary).quantize(Decimal('0.01'))
+        else:
+            computed_salary = emp.salary
+
+        return Response({
+            'no_shift': False,
+            'employee_name': emp.employee_name,
+            'base_salary': str(emp.salary),
+            'computed_salary': str(computed_salary),
+            'expected_hours': round(float(expected_hours), 2),
+            'actual_hours': round(float(actual_hours), 2),
+            'overtime_hours': round(float(overtime_hours), 2),
+            'working_days_in_month': working_days_count,
+            'shift_hours_per_day': round(shift_hours_per_day, 2),
+        })
+
+
+# ── Kiosk Lookup (confirm step before marking attendance) ─────────────────────
+
+class AttendanceKioskLookupView(APIView):
+    def post(self, request):
+        emp_code = request.data.get('employee_code', '').strip().upper()
+        if not emp_code:
+            return Response({'error': 'Employee code is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            emp = Employee.objects.select_related('shift').get(employee_code=emp_code)
+        except Employee.DoesNotExist:
+            return Response({'error': f'No employee found with code "{emp_code}"'}, status=status.HTTP_404_NOT_FOUND)
+
+        today = date.today()
+        try:
+            record = Attendance.objects.get(employee=emp, date=today)
+        except Attendance.DoesNotExist:
+            record = None
+
+        if record is None:
+            next_action = 'check_in'
+        elif record.check_out is None:
+            next_action = 'check_out'
+        else:
+            next_action = 'update_checkout'
+
+        return Response({
+            'employee_id':   emp.id,
+            'employee_name': emp.employee_name,
+            'employee_code': emp.employee_code,
+            'employee_type': emp.employee_type,
+            'emp_status':    emp.status,
+            'shift_name':    emp.shift.shift_name if emp.shift else None,
+            'next_action':   next_action,
+            'check_in_time':  record.check_in.strftime('%H:%M')  if record and record.check_in  else None,
+            'check_out_time': record.check_out.strftime('%H:%M') if record and record.check_out else None,
+        })
+
+
+# ── Kiosk (employee self check-in / check-out) ────────────────────────────────
+
+class AttendanceKioskView(APIView):
+    def post(self, request):
+        emp_code = request.data.get('employee_code', '').strip().upper()
+        if not emp_code:
+            return Response({'error': 'Employee code is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            emp = Employee.objects.select_related('shift').get(employee_code=emp_code)
+        except Employee.DoesNotExist:
+            return Response({'error': f'No employee found with code "{emp_code}"'}, status=status.HTTP_404_NOT_FOUND)
+
+        today    = date.today()
+        now_time = datetime.now().time().replace(second=0, microsecond=0)
+
+        is_late = False
+        if emp.shift and emp.shift.start_time:
+            is_late = now_time > emp.shift.start_time
+
+        try:
+            record = Attendance.objects.get(employee=emp, date=today)
+        except Attendance.DoesNotExist:
+            record = None
+
+        if record is None:
+            att_status = 'late' if is_late else 'present'
+            Attendance.objects.create(
+                employee=emp, date=today, status=att_status,
+                check_in=now_time, check_out=None,
+            )
+            return Response({
+                'action': 'checked_in',
+                'employee_name': emp.employee_name,
+                'employee_code': emp.employee_code,
+                'time': now_time.strftime('%H:%M'),
+                'status': att_status,
+                'message': f'{"Late check-in" if is_late else "Checked in"} at {now_time.strftime("%H:%M")}',
+            })
+
+        if record.check_out is None:
+            record.check_out = now_time
+            record.save()
+            return Response({
+                'action': 'checked_out',
+                'employee_name': emp.employee_name,
+                'employee_code': emp.employee_code,
+                'time': now_time.strftime('%H:%M'),
+                'status': record.status,
+                'message': f'Checked out at {now_time.strftime("%H:%M")}',
+            })
+
+        # Third+ scan: update check-out time
+        record.check_out = now_time
+        record.save()
+        return Response({
+            'action': 'checkout_updated',
+            'employee_name': emp.employee_name,
+            'employee_code': emp.employee_code,
+            'time': now_time.strftime('%H:%M'),
+            'status': record.status,
+            'message': f'Check-out updated to {now_time.strftime("%H:%M")}',
+        })
