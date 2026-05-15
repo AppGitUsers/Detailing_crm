@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "PowerShell(& \"d:\\\\Projects\\\\Detailing_crm\\\\backend\\\\venv\\\\Scripts\\\\python.exe\" \"d:\\\\Projects\\\\Detailing_crm\\\\backend\\\\manage.py\" migrate 2>&1)"
+      "PowerShell(& \"d:\\\\Projects\\\\Detailing_crm\\\\backend\\\\venv\\\\Scripts\\\\python.exe\" \"d:\\\\Projects\\\\Detailing_crm\\\\backend\\\\manage.py\" migrate 2>&1)",
+      "Bash(d:\\\\Projects\\\\Detailing_crm\\\\backend\\\\venv\\\\Scripts\\\\python.exe manage.py migrate vendors)"
     ],
     "additionalDirectories": [
       "C:\\Users\\HP-PC\\.claude\\projects\\d--Projects-Detailing-crm"

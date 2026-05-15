@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus, Package, Pencil, Trash2, Search, Settings2, X, Tag } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Button from '../../components/Button';
@@ -247,30 +248,50 @@ function ProductFormModal({ modal, onClose, onSaved, types }) {
   const empty = {
     product_name: '', hsn_code: '',
     product_description: '',
-    product_unit: 'l', product_type: '', category: 'consumption',
+    product_unit: 'l', category: 'consumption',
   };
   const [form, setForm] = useState(empty);
+  const [typeInput, setTypeInput] = useState('');
+  const [typeId, setTypeId] = useState('');
+  const [localTypes, setLocalTypes] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
     if (!modal) return;
+    setLocalTypes(types);
     if (modal.mode === 'edit') {
       const d = modal.data;
+      const matched = types.find((t) => t.id === d.product_type);
       setForm({
         product_name:        d.product_name || '',
         hsn_code:            d.hsn_code || '',
         product_description: d.product_description || '',
         product_unit:        d.product_unit || 'l',
-        product_type:        d.product_type ? String(d.product_type) : '',
         category:            d.category || 'consumption',
       });
-    } else { setForm(empty); }
+      setTypeInput(matched?.name || '');
+      setTypeId(d.product_type ? String(d.product_type) : '');
+    } else {
+      setForm(empty);
+      setTypeInput(''); setTypeId('');
+    }
     setErrors({});
     // eslint-disable-next-line
   }, [modal]);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const handleSelectType = (type) => {
+    setTypeInput(type.name);
+    setTypeId(String(type.id));
+  };
+
+  const handleNewType = async (name) => {
+    const newType = await createProductType({ name, description: '' });
+    setLocalTypes((prev) => [...prev, newType]);
+    return newType;
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -286,7 +307,7 @@ function ProductFormModal({ modal, onClose, onSaved, types }) {
       hsn_code:            form.hsn_code.trim(),
       product_description: form.product_description.trim(),
       product_unit:        form.product_unit,
-      product_type:        form.product_type ? Number(form.product_type) : null,
+      product_type:        typeId ? Number(typeId) : null,
       category:            form.category,
     };
 
@@ -331,11 +352,15 @@ function ProductFormModal({ modal, onClose, onSaved, types }) {
               {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
             </Select>
           </Field>
-          <Field label="Type" hint="Manage types via the button in the header">
-            <Select value={form.product_type} onChange={set('product_type')}>
-              <option value="">— No type —</option>
-              {types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </Select>
+          <Field label="Type" hint="Type to search or create a new type">
+            <TypeCombobox
+              value={typeInput}
+              onChange={(v) => { setTypeInput(v); if (!v) setTypeId(''); }}
+              selectedId={typeId}
+              onSelect={handleSelectType}
+              types={localTypes}
+              onCreateType={handleNewType}
+            />
           </Field>
           <Field label="Unit" required error={errors.product_unit}>
             <Select value={form.product_unit} onChange={set('product_unit')}>
@@ -344,7 +369,7 @@ function ProductFormModal({ modal, onClose, onSaved, types }) {
           </Field>
         </div>
 
-        {/* Row 4 */}
+        {/* Row 3 */}
         <Field label="Description">
           <Textarea value={form.product_description} onChange={set('product_description')} placeholder="Optional notes about this product…" />
         </Field>
@@ -452,6 +477,110 @@ function ManageTypesModal({ open, onClose, onChanged }) {
           : 'This action cannot be undone.'}
       />
     </>
+  );
+}
+
+// ─── Type Combobox ────────────────────────────────────
+// Portal-based dropdown: filters existing types, offers "Create '...'" when no exact match.
+
+function TypeCombobox({ value, onChange, selectedId, onSelect, types, onCreateType }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+  const [creating, setCreating] = useState(false);
+  const wrapRef = useRef(null);
+  const toast = useToast();
+
+  const reposition = () => {
+    if (wrapRef.current) {
+      const r = wrapRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom, left: r.left, width: r.width });
+    }
+  };
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = () => reposition();
+    window.addEventListener('scroll', handler, true);
+    return () => window.removeEventListener('scroll', handler, true);
+  }, [open]);
+
+  const trimmed = value.trim();
+
+  const suggestions = useMemo(() => {
+    if (!trimmed) return types;
+    const q = trimmed.toLowerCase();
+    return types.filter((t) => t.name.toLowerCase().includes(q));
+  }, [value, types]);
+
+  const exactMatch = types.some((t) => t.name.toLowerCase() === trimmed.toLowerCase());
+  const showCreate = trimmed && !exactMatch;
+  const showDropdown = open && (suggestions.length > 0 || showCreate);
+
+  const handleCreate = async () => {
+    setOpen(false);
+    setCreating(true);
+    try {
+      const newType = await onCreateType(trimmed);
+      onSelect(newType);
+    } catch (err) {
+      toast.error(extractError(err));
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const dropdown = showDropdown && createPortal(
+    <ul
+      style={{ position: 'fixed', top: pos.top + 4, left: pos.left, width: pos.width, zIndex: 9999 }}
+      className="bg-bg-card border border-border rounded-lg shadow-2xl overflow-hidden max-h-48 overflow-y-auto"
+    >
+      {suggestions.map((t) => (
+        <li key={t.id}>
+          <button
+            type="button"
+            onMouseDown={(e) => { e.preventDefault(); onSelect(t); setOpen(false); }}
+            className={`w-full text-left px-3 py-2 text-sm transition-colors hover:bg-bg-elev ${
+              selectedId === String(t.id) ? 'text-accent bg-accent/10' : 'text-gray-200'
+            }`}
+          >
+            {t.name}
+          </button>
+        </li>
+      ))}
+      {showCreate && (
+        <li>
+          <button
+            type="button"
+            onMouseDown={(e) => { e.preventDefault(); handleCreate(); }}
+            className="w-full text-left px-3 py-2 text-sm text-accent hover:bg-accent/10 flex items-center gap-1.5 border-t border-border"
+          >
+            <Plus size={12} /> Create &ldquo;{trimmed}&rdquo;
+          </button>
+        </li>
+      )}
+    </ul>,
+    document.body,
+  );
+
+  return (
+    <div ref={wrapRef}>
+      <Input
+        value={value}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); reposition(); }}
+        onFocus={() => { setOpen(true); reposition(); }}
+        placeholder="Type or pick a type…"
+        disabled={creating}
+      />
+      {dropdown}
+    </div>
   );
 }
 
