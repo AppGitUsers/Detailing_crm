@@ -88,10 +88,28 @@ class Inventory(models.Model):
         return self.quantity_available <= self.minimum_threshold
     
 class Invoice(models.Model):
-    invoice_number = models.CharField(max_length=255, unique=True)
-    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
+    invoice_number    = models.CharField(max_length=255, unique=True, blank=True)
+    vendor_invoice_id = models.CharField(max_length=255, blank=True, default='')
+    vendor       = models.ForeignKey(Vendor, on_delete=models.CASCADE)
     invoice_date = models.DateField()
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def save(self, *args, **kwargs):
+        if not self.invoice_number:
+            date_str = self.invoice_date.strftime('%Y%m%d') if self.invoice_date else 'NODATE'
+            prefix = f'INV-V{self.vendor_id}-{date_str}-'
+            existing = Invoice.objects.filter(
+                invoice_number__startswith=prefix
+            ).values_list('invoice_number', flat=True)
+            nums = []
+            for num in existing:
+                try:
+                    nums.append(int(num[len(prefix):]))
+                except (ValueError, IndexError):
+                    pass
+            n = (max(nums) + 1) if nums else 1
+            self.invoice_number = f'{prefix}{n:03d}'
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.invoice_number
@@ -129,12 +147,22 @@ class InvoiceItem(models.Model):
 
 
 class InvoicePayment(models.Model):
-    invoice = models.ForeignKey(Invoice, related_name='payments', on_delete=models.CASCADE)
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
-    payment_date = models.DateField()
+    PAYMENT_METHOD_CHOICES = [
+        ('cash',       'Cash'),
+        ('upi',        'UPI'),
+        ('card',       'Card'),
+        ('netbanking', 'Net Banking'),
+        ('cheque',     'Cheque'),
+        ('other',      'Other'),
+    ]
+
+    invoice           = models.ForeignKey(Invoice, related_name='payments', on_delete=models.CASCADE)
+    amount            = models.DecimalField(max_digits=10, decimal_places=2)
+    payment_date      = models.DateField()
+    payment_method    = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, default='cash')
     payment_reference = models.CharField(max_length=255, blank=True)
-    notes = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    notes             = models.TextField(blank=True)
+    created_at        = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"Payment ₹{self.amount} for {self.invoice.invoice_number}"

@@ -29,6 +29,20 @@ function StatusBadge({ status }) {
   return <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${c.cls}`}>{c.label}</span>;
 }
 
+const METHOD_CFG = {
+  cash:       { label: 'Cash',        cls: 'bg-green-900/30 text-green-400 border-green-800' },
+  upi:        { label: 'UPI',         cls: 'bg-purple-900/30 text-purple-400 border-purple-800' },
+  card:       { label: 'Card',        cls: 'bg-blue-900/30 text-blue-400 border-blue-800' },
+  netbanking: { label: 'Net Banking', cls: 'bg-cyan-900/30 text-cyan-400 border-cyan-800' },
+  cheque:     { label: 'Cheque',      cls: 'bg-amber-900/30 text-amber-400 border-amber-800' },
+  other:      { label: 'Other',       cls: 'bg-gray-700/40 text-gray-400 border-gray-600' },
+};
+
+function MethodBadge({ method }) {
+  const c = METHOD_CFG[method] || METHOD_CFG.other;
+  return <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium border ${c.cls}`}>{c.label}</span>;
+}
+
 const printWindow = (html) => {
   const w = window.open('', '_blank', 'width=900,height=700');
   w.document.write(`<!DOCTYPE html><html><head><title>Print</title><style>
@@ -295,6 +309,7 @@ function PayInvoiceModal({ modal, onClose, onSuccess }) {
 
   const [amount, setAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
+  const [paymentMethod, setPaymentMethod] = useState('cash');
   const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -304,6 +319,7 @@ function PayInvoiceModal({ modal, onClose, onSuccess }) {
     if (!modal) return;
     setAmount('');
     setPaymentDate(new Date().toISOString().slice(0, 10));
+    setPaymentMethod('cash');
     setReference('');
     setNotes('');
     setErrors({});
@@ -324,6 +340,7 @@ function PayInvoiceModal({ modal, onClose, onSuccess }) {
       const res = await createPayment(invoice.id, {
         amount: amt,
         payment_date: paymentDate,
+        payment_method: paymentMethod,
         payment_reference: reference.trim(),
         notes: notes.trim(),
       });
@@ -376,9 +393,21 @@ function PayInvoiceModal({ modal, onClose, onSuccess }) {
           </Field>
         </div>
 
-        <Field label="Reference #" hint="Cheque no., UPI ID, transaction ID…">
-          <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Optional" />
-        </Field>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Payment Method" required>
+            <Select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+              <option value="cash">Cash</option>
+              <option value="upi">UPI</option>
+              <option value="card">Card</option>
+              <option value="netbanking">Net Banking</option>
+              <option value="cheque">Cheque</option>
+              <option value="other">Other</option>
+            </Select>
+          </Field>
+          <Field label="Reference #" hint="UPI ID, cheque no., txn ID…">
+            <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Optional" />
+          </Field>
+        </div>
 
         <Field label="Notes">
           <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes…" />
@@ -395,9 +424,11 @@ function ReceiptModal({ receipt, onClose }) {
   const { invoice, newPaymentId } = receipt;
 
   const handlePrint = () => {
+    const methodLabel = { cash: 'Cash', upi: 'UPI', card: 'Card', netbanking: 'Net Banking', cheque: 'Cheque', other: 'Other' };
     const rows = (invoice.payments || []).map((p) => `
       <tr class="${p.id === newPaymentId ? 'hi' : ''}">
         <td>${p.payment_date}</td>
+        <td>${methodLabel[p.payment_method] || p.payment_method || '—'}</td>
         <td>${p.payment_reference || '—'}</td>
         <td>${p.notes || '—'}</td>
         <td class="r">${fmt(p.amount)}</td>
@@ -412,7 +443,7 @@ function ReceiptModal({ receipt, onClose }) {
       </div>
       <h2>Payment Installments</h2>
       <table>
-        <thead><tr><th>Date</th><th>Reference</th><th>Notes</th><th style="text-align:right">Amount</th></tr></thead>
+        <thead><tr><th>Date</th><th>Method</th><th>Reference</th><th>Notes</th><th style="text-align:right">Amount</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
       <div class="sum">
@@ -458,6 +489,7 @@ function ReceiptModal({ receipt, onClose }) {
               <thead className="bg-bg-elev">
                 <tr>
                   <th className="text-left px-3 py-2 text-gray-300 font-medium">Date</th>
+                  <th className="text-left px-3 py-2 text-gray-300 font-medium">Method</th>
                   <th className="text-left px-3 py-2 text-gray-300 font-medium">Reference</th>
                   <th className="text-left px-3 py-2 text-gray-300 font-medium">Notes</th>
                   <th className="text-right px-3 py-2 text-gray-300 font-medium">Amount</th>
@@ -467,8 +499,9 @@ function ReceiptModal({ receipt, onClose }) {
                 {(invoice.payments || []).map((p) => (
                   <tr key={p.id} className={`border-t border-border ${p.id === newPaymentId ? 'bg-amber-900/20' : ''}`}>
                     <td className="px-3 py-2 text-gray-200">{p.payment_date}</td>
+                    <td className="px-3 py-2"><MethodBadge method={p.payment_method} /></td>
                     <td className="px-3 py-2 text-gray-400">{p.payment_reference || '—'}</td>
-                    <td className="px-3 py-2 text-gray-400 max-w-[140px] truncate">{p.notes || '—'}</td>
+                    <td className="px-3 py-2 text-gray-400 max-w-[120px] truncate">{p.notes || '—'}</td>
                     <td className="px-3 py-2 text-right font-medium text-gray-100">{fmt(p.amount)}</td>
                   </tr>
                 ))}
@@ -506,6 +539,10 @@ function ViewInvoiceModal({ invoice, onClose }) {
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div><div className="text-xs text-gray-500">Vendor</div><div className="text-gray-200">{invoice.vendor_name}</div></div>
             <div><div className="text-xs text-gray-500">Invoice Date</div><div className="text-gray-200">{invoice.invoice_date}</div></div>
+            <div><div className="text-xs text-gray-500">Invoice #</div><div className="font-mono text-gray-300 text-xs">{invoice.invoice_number}</div></div>
+            {invoice.vendor_invoice_id && (
+              <div><div className="text-xs text-gray-500">Vendor Ref #</div><div className="text-gray-200">{invoice.vendor_invoice_id}</div></div>
+            )}
           </div>
 
           <div className="border border-border rounded-lg overflow-hidden">
@@ -539,6 +576,7 @@ function ViewInvoiceModal({ invoice, onClose }) {
                 <thead className="bg-bg-elev border-t border-border">
                   <tr>
                     <th className="text-left px-3 py-2 text-gray-300 font-medium">Date</th>
+                    <th className="text-left px-3 py-2 text-gray-300 font-medium">Method</th>
                     <th className="text-left px-3 py-2 text-gray-300 font-medium">Reference</th>
                     <th className="text-right px-3 py-2 text-gray-300 font-medium">Amount</th>
                   </tr>
@@ -547,6 +585,7 @@ function ViewInvoiceModal({ invoice, onClose }) {
                   {invoice.payments.map((p) => (
                     <tr key={p.id} className="border-t border-border">
                       <td className="px-3 py-2 text-gray-200">{p.payment_date}</td>
+                      <td className="px-3 py-2"><MethodBadge method={p.payment_method} /></td>
                       <td className="px-3 py-2 text-gray-400">{p.payment_reference || '—'}</td>
                       <td className="px-3 py-2 text-right font-medium text-gray-100">{fmt(p.amount)}</td>
                     </tr>
@@ -584,17 +623,15 @@ function CreateInvoiceModal({ open, onClose, onSaved, vendors, products, brands 
   const toast = useToast();
   const emptyItem = { product: '', quantity: '', unit_price: '', product_brand: '' };
   const [vendorId, setVendorId] = useState('');
-  const [invoiceNumber, setInvoiceNumber] = useState('');
+  const [vendorInvoiceId, setVendorInvoiceId] = useState('');
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
   const [items, setItems] = useState([{ ...emptyItem }]);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
 
-  // brands prop already comes from inventory; no extra derivation needed
-
   useEffect(() => {
     if (!open) return;
-    setVendorId(''); setInvoiceNumber('');
+    setVendorId(''); setVendorInvoiceId('');
     setInvoiceDate(new Date().toISOString().slice(0, 10));
     setItems([{ ...emptyItem }]); setErrors({});
     // eslint-disable-next-line
@@ -614,7 +651,6 @@ function CreateInvoiceModal({ open, onClose, onSaved, vendors, products, brands 
     e.preventDefault();
     const eMap = {};
     if (!vendorId) eMap.vendor = 'Select vendor';
-    if (!invoiceNumber.trim()) eMap.invoice_number = 'Required';
     if (!invoiceDate) eMap.invoice_date = 'Required';
     const validItems = items.filter((it) => it.product && it.quantity && it.unit_price);
     if (validItems.length === 0) eMap.items = 'Add at least one item';
@@ -625,7 +661,7 @@ function CreateInvoiceModal({ open, onClose, onSaved, vendors, products, brands 
     try {
       await createInvoice({
         vendor: Number(vendorId),
-        invoice_number: invoiceNumber.trim(),
+        vendor_invoice_id: vendorInvoiceId.trim(),
         invoice_date: invoiceDate,
         total_amount: total,
         items: validItems.map((it) => ({
@@ -657,11 +693,11 @@ function CreateInvoiceModal({ open, onClose, onSaved, vendors, products, brands 
               {vendors.map((v) => <option key={v.id} value={v.id}>{v.vendor_name}</option>)}
             </Select>
           </Field>
-          <Field label="Invoice Number" required error={errors.invoice_number}>
-            <Input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} />
-          </Field>
           <Field label="Invoice Date" required error={errors.invoice_date}>
             <Input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
+          </Field>
+          <Field label="Vendor Invoice ID" hint="Reference # from the vendor (optional)">
+            <Input value={vendorInvoiceId} onChange={(e) => setVendorInvoiceId(e.target.value)} placeholder="e.g. INV-2025-001" />
           </Field>
         </div>
 

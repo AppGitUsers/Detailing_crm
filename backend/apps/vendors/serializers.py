@@ -133,6 +133,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
 
 class InvoiceCreateSerializer(serializers.ModelSerializer):
     items = InvoiceItemSerializer(many=True)
+    invoice_number = serializers.CharField(read_only=True)
 
     class Meta:
         model = Invoice
@@ -181,10 +182,10 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
                 pass
         instance.items.all().delete()
 
-        instance.vendor = validated_data.get('vendor', instance.vendor)
-        instance.invoice_number = validated_data.get('invoice_number', instance.invoice_number)
-        instance.total_amount = validated_data.get('total_amount', instance.total_amount)
-        instance.invoice_date = validated_data.get('invoice_date', instance.invoice_date)
+        instance.vendor           = validated_data.get('vendor', instance.vendor)
+        instance.vendor_invoice_id = validated_data.get('vendor_invoice_id', instance.vendor_invoice_id)
+        instance.total_amount     = validated_data.get('total_amount', instance.total_amount)
+        instance.invoice_date     = validated_data.get('invoice_date', instance.invoice_date)
         instance.save()
 
         for item_data in items_data:
