@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Boxes, Pencil, AlertTriangle, Search, X, Tag } from 'lucide-react';
+import { Boxes, Pencil, AlertTriangle, Search, X, Tag, FileSpreadsheet } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Loading from '../../components/Loading';
 import EmptyState from '../../components/EmptyState';
@@ -9,6 +9,7 @@ import { Field, Input } from '../../components/Field';
 import { useToast } from '../../components/Toast';
 import { listInventory, updateInventory } from '../../api/inventory';
 import { extractError } from '../../api/axios';
+import { exportInventoryExcel } from '../../utils/export';
 
 const CATEGORIES = [
   { value: 'consumption',  label: 'Consumption',  cls: 'bg-blue-900/40 text-blue-400 border border-blue-800' },
@@ -146,13 +147,24 @@ export default function InventoryTab() {
               <X size={12} /> Clear
             </button>
           )}
-          {!loading && (
-            <span className="text-xs text-gray-500 ml-auto">
-              {filtered.length === items.length
-                ? `${items.length} items`
-                : `${filtered.length} of ${items.length}`}
-            </span>
-          )}
+          <div className="ml-auto flex items-center gap-3">
+            {!loading && (
+              <span className="text-xs text-gray-500">
+                {filtered.length === items.length
+                  ? `${items.length} items`
+                  : `${filtered.length} of ${items.length}`}
+              </span>
+            )}
+            {!loading && filtered.length > 0 && (
+              <button
+                onClick={() => exportInventoryExcel(filtered)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs border border-border text-gray-400 hover:text-green-400 hover:border-green-700 transition-colors"
+                title="Export current view to Excel"
+              >
+                <FileSpreadsheet size={13} /> Export Excel
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Row 2: Category */}

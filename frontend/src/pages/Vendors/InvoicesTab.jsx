@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Receipt, Trash2, Eye, CreditCard, Printer, X } from 'lucide-react';
+import { Plus, Receipt, Trash2, Eye, CreditCard, Printer, X, Download, FileSpreadsheet, Search } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Button from '../../components/Button';
 import Loading from '../../components/Loading';
@@ -14,6 +14,7 @@ import { listVendors } from '../../api/vendors';
 import { listProducts } from '../../api/products';
 import { listInventory } from '../../api/inventory';
 import { extractError } from '../../api/axios';
+import { downloadInvoicePdf, exportInvoicesExcel } from '../../utils/export';
 
 const fmt = (n) =>
   `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -86,6 +87,7 @@ export default function InvoicesTab() {
   const [inventoryBrands, setInventoryBrands] = useState([]);
 
   // ── filters ──
+  const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [vendorFilter, setVendorFilter] = useState('');  // vendor id as string, '' = all
   const [dateMode, setDateMode] = useState('all');   // 'all' | 'single' | 'range' | 'month'
@@ -95,16 +97,24 @@ export default function InvoicesTab() {
   const [selectedMonth, setSelectedMonth] = useState('');
 
   const resetFilters = () => {
-    setStatusFilter('all'); setVendorFilter('');
+    setSearch(''); setStatusFilter('all'); setVendorFilter('');
     setDateMode('all'); setSingleDate('');
     setDateFrom(''); setDateTo(''); setSelectedMonth('');
   };
 
-  const hasFilters = statusFilter !== 'all' || vendorFilter ||
+  const hasFilters = search.trim() || statusFilter !== 'all' || vendorFilter ||
     (dateMode !== 'all' && (singleDate || dateFrom || dateTo || selectedMonth));
 
   const filteredInvoices = useMemo(() => {
     let r = invoices;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      r = r.filter((inv) =>
+        inv.invoice_number?.toLowerCase().includes(q) ||
+        inv.vendor_invoice_id?.toLowerCase().includes(q) ||
+        inv.vendor_name?.toLowerCase().includes(q)
+      );
+    }
     if (statusFilter !== 'all') r = r.filter((inv) => inv.payment_status === statusFilter);
     if (vendorFilter) {
       r = r.filter((inv) => String(inv.vendor) === vendorFilter);
@@ -121,7 +131,7 @@ export default function InvoicesTab() {
       r = r.filter((inv) => inv.invoice_date?.startsWith(selectedMonth));
     }
     return r;
-  }, [invoices, statusFilter, vendorFilter, dateMode, singleDate, dateFrom, dateTo, selectedMonth]);
+  }, [invoices, search, statusFilter, vendorFilter, dateMode, singleDate, dateFrom, dateTo, selectedMonth]);
 
   const load = async () => {
     setLoading(true);
@@ -156,7 +166,13 @@ export default function InvoicesTab() {
   };
 
   const columns = [
-    { key: 'invoice_number', header: 'Invoice #', render: (r) => <span className="font-medium text-gray-100">{r.invoice_number}</span> },
+    { key: 'invoice_number', header: 'Invoice #', render: (r) => <span className="font-medium font-mono text-xs text-gray-100">{r.invoice_number}</span> },
+    {
+      key: 'vendor_invoice_id', header: 'Vendor Ref',
+      render: (r) => r.vendor_invoice_id
+        ? <span className="text-gray-300 text-xs">{r.vendor_invoice_id}</span>
+        : <span className="text-gray-600">—</span>,
+    },
     { key: 'vendor_name', header: 'Vendor' },
     { key: 'invoice_date', header: 'Date' },
     { key: 'total_amount', header: 'Total', render: (r) => fmt(r.total_amount) },
@@ -174,8 +190,14 @@ export default function InvoicesTab() {
       key: 'actions', header: '',
       render: (r) => (
         <div className="flex justify-end gap-1">
-          <button onClick={() => openView(r.id)} className="p-1.5 text-gray-400 hover:text-accent" title="View">
+          <button onClick={() => openView(r.id)} className="p-1.5 text-gray-400 hover:text-accent" title="View invoice">
             <Eye size={14} />
+          </button>
+          <button
+            onClick={() => downloadInvoicePdf(r)}
+            className="p-1.5 text-gray-400 hover:text-blue-400" title="Download PDF"
+          >
+            <Download size={14} />
           </button>
           {r.payment_status !== 'paid' && (
             <button onClick={() => setPayModal({ invoice: r })} className="p-1.5 text-gray-400 hover:text-green-400" title="Record Payment">
@@ -197,6 +219,17 @@ export default function InvoicesTab() {
 
       {/* ── Filter Bar ── */}
       <div className="bg-bg-card border border-border rounded-xl p-4 mb-4 space-y-3">
+        {/* Row 0: search */}
+        <div className="relative">
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search invoice #, vendor ref, vendor name…"
+            className="w-full bg-bg-elev border border-border rounded-lg pl-8 pr-3 py-1.5 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-accent"
+          />
+        </div>
+
         {/* Row 1: vendor dropdown + status chips */}
         <div className="flex flex-wrap items-center gap-3">
           <Select
@@ -273,11 +306,22 @@ export default function InvoicesTab() {
               className="ml-2 bg-bg-elev border border-border rounded px-2 py-1 text-xs text-gray-200 focus:outline-none focus:border-accent" />
           )}
 
-          {!loading && hasFilters && (
-            <span className="ml-auto text-xs text-gray-500">
-              {filteredInvoices.length} of {invoices.length} invoices
-            </span>
-          )}
+          <div className="ml-auto flex items-center gap-3">
+            {!loading && hasFilters && (
+              <span className="text-xs text-gray-500">
+                {filteredInvoices.length} of {invoices.length} invoices
+              </span>
+            )}
+            {!loading && filteredInvoices.length > 0 && (
+              <button
+                onClick={() => exportInvoicesExcel(filteredInvoices)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs border border-border text-gray-400 hover:text-green-400 hover:border-green-700 transition-colors"
+                title="Export current view to Excel"
+              >
+                <FileSpreadsheet size={13} /> Export Excel
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -533,7 +577,20 @@ function ReceiptModal({ receipt, onClose }) {
 
 function ViewInvoiceModal({ invoice, onClose }) {
   return (
-    <Modal open={!!invoice} onClose={onClose} size="lg" title={invoice ? `Invoice ${invoice.invoice_number}` : ''}>
+    <Modal
+      open={!!invoice} onClose={onClose} size="lg"
+      title={invoice ? `Invoice ${invoice.invoice_number}` : ''}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Close</Button>
+          {invoice && (
+            <Button onClick={() => downloadInvoicePdf(invoice)}>
+              <Download size={15} /> Download PDF
+            </Button>
+          )}
+        </>
+      }
+    >
       {invoice && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3 text-sm">
