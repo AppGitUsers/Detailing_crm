@@ -1,7 +1,7 @@
 import axios from 'axios';
-
+const API_URL = import.meta.env.VITE_API_URL;
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:8000/api/',
+  baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
   timeout: 15000,
 });
@@ -27,7 +27,7 @@ const refreshAccessToken = async () => {
   const refresh = localStorage.getItem(REFRESH_KEY);
   if (!refresh) throw new Error('No refresh token');
   refreshPromise = axios
-    .post('http://127.0.0.1:8000/api/token/refresh/', { refresh })
+    .post(`${API_URL}token/refresh/`, { refresh })
     .then((res) => {
       localStorage.setItem(ACCESS_KEY, res.data.access);
       return res.data.access;
