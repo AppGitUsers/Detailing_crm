@@ -1,5 +1,8 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, ClipboardList, Users, Wrench, UserCog, Truck, Sparkles, LogOut, User } from 'lucide-react';
+import {
+  LayoutDashboard, ClipboardList, Users, Wrench,
+  UserCog, Truck, ScanLine, Sparkles, LogOut, User,
+} from 'lucide-react';
 import { tokens, logout } from '../api/auth';
 
 const links = [
@@ -9,6 +12,7 @@ const links = [
   { to: '/services', icon: Wrench, label: 'Services' },
   { to: '/employees', icon: UserCog, label: 'Employees' },
   { to: '/vendors', icon: Truck, label: 'Vendors' },
+  { to: '/kiosk', icon: ScanLine, label: 'Kiosk' },
 ];
 
 export default function Sidebar() {
@@ -22,6 +26,7 @@ export default function Sidebar() {
 
   return (
     <aside className="w-60 shrink-0 bg-bg-card border-r border-border flex flex-col">
+      {/* Logo */}
       <div className="px-5 py-5 border-b border-border flex items-center gap-2">
         <div className="w-8 h-8 rounded-lg bg-accent/20 flex items-center justify-center">
           <Sparkles size={18} className="text-accent" />
@@ -31,12 +36,14 @@ export default function Sidebar() {
           <div className="text-[10px] text-gray-500 uppercase tracking-wider">Workshop</div>
         </div>
       </div>
-      <nav className="flex-1 px-3 py-4 space-y-1">
-        {links.map(({ to, icon: Icon, label, end }) => (
+
+      {/* Nav */}
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        {links.map((link) => (
           <NavLink
-            key={to}
-            to={to}
-            end={end}
+            key={link.to}
+            to={link.to}
+            end={link.end}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
                 isActive
@@ -45,11 +52,13 @@ export default function Sidebar() {
               }`
             }
           >
-            <Icon size={16} />
-            <span>{label}</span>
+            <link.icon size={16} />
+            <span>{link.label}</span>
           </NavLink>
         ))}
       </nav>
+
+      {/* User + logout */}
       <div className="px-3 py-3 border-t border-border space-y-2">
         {username && (
           <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-400">

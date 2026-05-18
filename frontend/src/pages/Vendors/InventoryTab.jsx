@@ -1,27 +1,53 @@
-import { useEffect, useState } from 'react';
-import { Boxes, Pencil, AlertTriangle } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Boxes, Pencil, AlertTriangle, Search, X, Tag, FileSpreadsheet } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
-import Button from '../../components/Button';
 import Loading from '../../components/Loading';
 import EmptyState from '../../components/EmptyState';
 import Modal from '../../components/Modal';
+import Button from '../../components/Button';
 import { Field, Input } from '../../components/Field';
 import { useToast } from '../../components/Toast';
 import { listInventory, updateInventory } from '../../api/inventory';
 import { extractError } from '../../api/axios';
+import { exportInventoryExcel } from '../../utils/export';
+
+const CATEGORIES = [
+  { value: 'consumption',  label: 'Consumption',  cls: 'bg-blue-900/40 text-blue-400 border border-blue-800' },
+  { value: 'sales',        label: 'Sales',         cls: 'bg-purple-900/40 text-purple-400 border border-purple-800' },
+  { value: 'fixed_assets', label: 'Fixed Assets',  cls: 'bg-teal-900/40 text-teal-400 border border-teal-800' },
+  { value: 'other',        label: 'Other',         cls: 'bg-gray-700/40 text-gray-400 border border-gray-700' },
+];
+const catCfg = Object.fromEntries(CATEGORIES.map(c => [c.value, c]));
+
+function CategoryBadge({ value }) {
+  const c = catCfg[value] || catCfg.other;
+  return (
+    <span className={`inline-flex px-2 py-0.5 rounded text-xs font-semibold tracking-wide ${c.cls}`}>
+      {c.label}
+    </span>
+  );
+}
+
+// ─── Main Tab ─────────────────────────────────────────
 
 export default function InventoryTab() {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState([]);
-  const [showLowOnly, setShowLowOnly] = useState(false);
   const [editItem, setEditItem] = useState(null);
+
+  // filters
+  const [search, setSearch] = useState('');
+  const [catFilter, setCatFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [lowOnly, setLowOnly] = useState(false);
+  const [qtyMax, setQtyMax] = useState('');
+  const [updatedAfter, setUpdatedAfter] = useState('');
 
   const load = async () => {
     setLoading(true);
     try {
-      const params = showLowOnly ? { low_stock: 'true' } : undefined;
-      const data = await listInventory(params);
+      const data = await listInventory();
       setItems(Array.isArray(data) ? data : (data.results || []));
     } catch (err) {
       toast.error(extractError(err));
@@ -30,25 +56,183 @@ export default function InventoryTab() {
     }
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [showLowOnly]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
-  const lowCount = items.filter((i) => i.is_low_stock).length;
+  // derive available type names from loaded items
+  const allTypes = useMemo(() => {
+    const seen = new Set();
+    for (const item of items) {
+      if (item.type_name) seen.add(item.type_name);
+    }
+    return [...seen].sort();
+  }, [items]);
+
+  const filtered = useMemo(() => {
+    let r = items;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      r = r.filter(i =>
+        i.product_name?.toLowerCase().includes(q) ||
+        i.product_code?.toLowerCase().includes(q) ||
+        i.brand?.toLowerCase().includes(q)
+      );
+    }
+    if (lowOnly) r = r.filter(i => i.is_low_stock);
+    if (catFilter !== 'all') r = r.filter(i => i.category === catFilter);
+    if (typeFilter !== 'all') r = r.filter(i => i.type_name === typeFilter);
+    if (qtyMax !== '') {
+      const max = Number(qtyMax);
+      if (!isNaN(max)) r = r.filter(i => Number(i.quantity_available) < max);
+    }
+    if (updatedAfter) r = r.filter(i => i.last_updated?.slice(0, 10) >= updatedAfter);
+    return r;
+  }, [items, search, lowOnly, catFilter, typeFilter, qtyMax, updatedAfter]);
+
+  // split into in-stock vs zero-quantity, then group each by category
+  const { grouped, zeroGrouped } = useMemo(() => {
+    const inStock  = filtered.filter(i => Number(i.quantity_available) > 0);
+    const outStock = filtered.filter(i => Number(i.quantity_available) <= 0);
+    const buildMap = (list) => {
+      const map = {};
+      for (const cat of CATEGORIES) {
+        const group = list.filter(i => i.category === cat.value);
+        if (group.length > 0) map[cat.value] = group;
+      }
+      return map;
+    };
+    return { grouped: buildMap(inStock), zeroGrouped: buildMap(outStock) };
+  }, [filtered]);
+
+  const hasFilters = search.trim() || lowOnly || catFilter !== 'all' || typeFilter !== 'all' || qtyMax !== '' || updatedAfter;
+  const lowCount = items.filter(i => i.is_low_stock).length;
+
+  const clearFilters = () => {
+    setSearch(''); setLowOnly(false); setCatFilter('all');
+    setTypeFilter('all'); setQtyMax(''); setUpdatedAfter('');
+  };
 
   return (
     <div>
       <PageHeader
         title="Inventory"
         subtitle={`${items.length} items · ${lowCount} below threshold`}
-        actions={
-          <Button
-            variant={showLowOnly ? 'danger' : 'secondary'}
-            onClick={() => setShowLowOnly((v) => !v)}
-          >
-            <AlertTriangle size={14} /> {showLowOnly ? 'Showing low stock' : 'Show low stock only'}
-          </Button>
-        }
       />
 
+      {/* ── Filter Bar ── */}
+      <div className="bg-bg-card border border-border rounded-xl p-4 mb-4 space-y-3">
+
+        {/* Row 1: search + low stock toggle */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+            <Input
+              placeholder="Search by name, brand or code…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8 h-8 text-sm"
+            />
+          </div>
+          <button
+            onClick={() => setLowOnly(v => !v)}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium border transition-colors ${
+              lowOnly
+                ? 'bg-red-900/50 text-red-400 border-red-700'
+                : 'border-border text-gray-400 hover:text-gray-200 hover:border-gray-600'
+            }`}
+          >
+            <AlertTriangle size={12} /> Low stock
+          </button>
+          {hasFilters && (
+            <button onClick={clearFilters} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300">
+              <X size={12} /> Clear
+            </button>
+          )}
+          <div className="ml-auto flex items-center gap-3">
+            {!loading && (
+              <span className="text-xs text-gray-500">
+                {filtered.length === items.length
+                  ? `${items.length} items`
+                  : `${filtered.length} of ${items.length}`}
+              </span>
+            )}
+            {!loading && filtered.length > 0 && (
+              <button
+                onClick={() => exportInventoryExcel(filtered)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs border border-border text-gray-400 hover:text-green-400 hover:border-green-700 transition-colors"
+                title="Export current view to Excel"
+              >
+                <FileSpreadsheet size={13} /> Export Excel
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Row 2: Category */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-gray-500 mr-1 shrink-0">Category:</span>
+          {[{ value: 'all', label: 'All' }, ...CATEGORIES].map(({ value, label, cls }) => (
+            <button
+              key={value}
+              onClick={() => setCatFilter(value)}
+              className={`px-2.5 py-1 rounded text-xs border transition-colors ${
+                catFilter === value
+                  ? cls || 'bg-accent/20 text-accent border-accent/50'
+                  : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-border'
+              }`}
+            >{label}</button>
+          ))}
+        </div>
+
+        {/* Row 3: Type (only shown when types exist) */}
+        {allTypes.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs text-gray-500 mr-1 shrink-0">Type:</span>
+            <button
+              onClick={() => setTypeFilter('all')}
+              className={`px-2.5 py-1 rounded text-xs border transition-colors ${
+                typeFilter === 'all'
+                  ? 'bg-accent/20 text-accent border-accent/50'
+                  : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-border'
+              }`}
+            >All</button>
+            {allTypes.map(t => (
+              <button
+                key={t}
+                onClick={() => setTypeFilter(t)}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs border transition-colors ${
+                  typeFilter === t
+                    ? 'bg-accent/20 text-accent border-accent/50'
+                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-border'
+                }`}
+              >
+                <Tag size={10} />{t}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Row 4: Advanced quantity + date filters */}
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500 whitespace-nowrap">Qty less than:</span>
+            <Input
+              type="number" step="0.01" value={qtyMax}
+              onChange={(e) => setQtyMax(e.target.value)}
+              placeholder="e.g. 5" className="h-7 text-xs w-24"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500 whitespace-nowrap">Updated after:</span>
+            <input
+              type="date" value={updatedAfter}
+              onChange={(e) => setUpdatedAfter(e.target.value)}
+              className="bg-bg-elev border border-border rounded px-2 py-1 text-xs text-gray-200 h-7 focus:outline-none focus:border-accent"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Content ── */}
       {loading ? (
         <Loading />
       ) : items.length === 0 ? (
@@ -57,44 +241,35 @@ export default function InventoryTab() {
           title="No inventory items"
           message="Inventory is created automatically when you create invoices."
         />
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-12 text-gray-500 text-sm">No items match the current filters.</div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {items.map((item) => (
-            <div
-              key={item.id}
-              className={`bg-bg-card border rounded-xl p-4 ${item.is_low_stock ? 'border-red-700/60' : 'border-border'}`}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-medium text-gray-100 truncate">{item.product_name}</h3>
-                    {item.is_low_stock && (
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-red-400 bg-red-900/40 px-1.5 py-0.5 rounded">
-                        Low
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-xs text-gray-500 mt-0.5">Last updated {item.last_updated?.slice(0, 10)}</div>
-                </div>
-                <button
-                  onClick={() => setEditItem(item)}
-                  className="text-gray-400 hover:text-accent p-1"
-                  title="Adjust stock"
-                >
-                  <Pencil size={14} />
-                </button>
-              </div>
-              <div className="mt-4 flex items-end justify-between">
-                <div>
-                  <div className={`text-2xl font-semibold ${item.is_low_stock ? 'text-red-300' : 'text-gray-100'}`}>
-                    {item.quantity_available}
-                    <span className="text-sm font-normal text-gray-500 ml-1">{item.unit}</span>
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">Threshold: {item.minimum_threshold} {item.unit}</div>
-                </div>
-              </div>
-            </div>
+        <div className="space-y-8">
+
+          {/* ── In-stock items grouped by category ── */}
+          {CATEGORIES.filter(cat => grouped[cat.value]).map(cat => (
+            <CategorySection key={cat.value} cat={cat} group={grouped[cat.value]} onEdit={setEditItem} />
           ))}
+
+          {/* ── Zero-quantity separator + section ── */}
+          {Object.keys(zeroGrouped).length > 0 && (
+            <>
+              <div className="flex items-center gap-3 pt-2">
+                <div className="flex-1 h-px bg-border" />
+                <span className="flex items-center gap-1.5 text-xs font-medium text-gray-500 px-2 py-0.5 bg-bg-elev border border-border rounded-full whitespace-nowrap">
+                  Out of Stock
+                </span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+
+              <div className="space-y-8 opacity-60">
+                {CATEGORIES.filter(cat => zeroGrouped[cat.value]).map(cat => (
+                  <CategorySection key={cat.value} cat={cat} group={zeroGrouped[cat.value]} onEdit={setEditItem} />
+                ))}
+              </div>
+            </>
+          )}
+
         </div>
       )}
 
@@ -103,16 +278,139 @@ export default function InventoryTab() {
   );
 }
 
+// ─── Category Section ─────────────────────────────────
+
+function CategorySection({ cat, group, onEdit }) {
+  return (
+    <div>
+      <div className="flex items-center gap-3 mb-3">
+        <CategoryBadge value={cat.value} />
+        <span className="text-xs text-gray-500">
+          {group.length} item{group.length !== 1 ? 's' : ''}
+        </span>
+        <div className="flex-1 h-px bg-border" />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {group.map(item => (
+          <InventoryCard key={item.id} item={item} onEdit={() => onEdit(item)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Inventory Card ───────────────────────────────────
+
+const fmtPrice = (n) => n != null ? `₹${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : null;
+
+function InventoryCard({ item, onEdit }) {
+  const pct = Number(item.minimum_threshold) > 0
+    ? Math.min(100, (Number(item.quantity_available) / Number(item.minimum_threshold)) * 100)
+    : null;
+
+  return (
+    <div className={`bg-bg-card border rounded-xl p-4 ${item.is_low_stock ? 'border-red-700/60' : 'border-border'}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-medium text-gray-100 truncate">{item.product_name}</h3>
+            {item.is_low_stock && (
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-red-400 bg-red-900/40 px-1.5 py-0.5 rounded">
+                Low
+              </span>
+            )}
+          </div>
+          {/* Brand as prominent subtitle */}
+          {item.brand && (
+            <div className="text-xs font-medium text-gray-400 mt-0.5">{item.brand}</div>
+          )}
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            {item.product_code && (
+              <span className="text-[10px] font-mono text-gray-500 bg-bg-elev px-1.5 py-0.5 rounded">
+                {item.product_code}
+              </span>
+            )}
+            {item.type_name && (
+              <span className="flex items-center gap-0.5 text-[10px] text-accent bg-accent/10 border border-accent/20 px-1.5 py-0.5 rounded">
+                <Tag size={8} />{item.type_name}
+              </span>
+            )}
+          </div>
+          <div className="text-[10px] text-gray-600 mt-0.5">
+            Updated {item.last_updated?.slice(0, 10)}
+          </div>
+        </div>
+        <button
+          onClick={onEdit}
+          className="text-gray-400 hover:text-accent p-1 shrink-0"
+          title="Adjust stock"
+        >
+          <Pencil size={14} />
+        </button>
+      </div>
+
+      {/* Cost / Selling price row */}
+      {(item.cost_price != null || item.selling_price != null) && (
+        <div className="mt-3 flex items-center gap-3 text-xs border-t border-border/50 pt-2">
+          {item.cost_price != null && (
+            <div>
+              <span className="text-gray-600">Cost </span>
+              <span className="text-gray-300 font-medium">{fmtPrice(item.cost_price)}</span>
+            </div>
+          )}
+          {item.cost_price != null && item.selling_price != null && (
+            <span className="text-gray-700">·</span>
+          )}
+          {item.selling_price != null && (
+            <div>
+              <span className="text-gray-600">Sell </span>
+              <span className="text-green-400 font-medium">{fmtPrice(item.selling_price)}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="mt-3 flex items-end justify-between gap-3">
+        <div>
+          <div className={`text-2xl font-semibold ${item.is_low_stock ? 'text-red-300' : 'text-gray-100'}`}>
+            {item.quantity_available}
+            <span className="text-sm font-normal text-gray-500 ml-1">{item.unit}</span>
+          </div>
+          <div className="text-xs text-gray-500 mt-1">
+            Threshold: {item.minimum_threshold} {item.unit}
+          </div>
+        </div>
+
+        {pct !== null && (
+          <div className="w-16 shrink-0">
+            <div className="text-[10px] text-gray-600 text-right mb-1">{Math.round(pct)}%</div>
+            <div className="h-1.5 bg-border rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${item.is_low_stock ? 'bg-red-500' : 'bg-green-500'}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Adjust Stock Modal ───────────────────────────────
+
 function AdjustStockModal({ item, onClose, onSaved }) {
   const toast = useToast();
   const [qty, setQty] = useState('');
   const [threshold, setThreshold] = useState('');
+  const [sellingPrice, setSellingPrice] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!item) return;
     setQty(item.quantity_available ?? '');
     setThreshold(item.minimum_threshold ?? '');
+    setSellingPrice(item.selling_price ?? '');
   }, [item]);
 
   const submit = async (e) => {
@@ -122,6 +420,7 @@ function AdjustStockModal({ item, onClose, onSaved }) {
       await updateInventory(item.id, {
         quantity_available: Number(qty),
         minimum_threshold: Number(threshold),
+        selling_price: sellingPrice !== '' ? Number(sellingPrice) : null,
       });
       toast.success('Inventory updated');
       onSaved();
@@ -133,11 +432,15 @@ function AdjustStockModal({ item, onClose, onSaved }) {
     }
   };
 
+  const title = item
+    ? `Adjust: ${item.product_name}${item.brand ? ` · ${item.brand}` : ''}${item.cost_price != null ? ` @ ₹${item.cost_price}` : ''}`
+    : '';
+
   return (
     <Modal
       open={!!item}
       onClose={onClose}
-      title={item ? `Adjust: ${item.product_name}` : ''}
+      title={title}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
@@ -146,11 +449,16 @@ function AdjustStockModal({ item, onClose, onSaved }) {
       }
     >
       <form onSubmit={submit} className="space-y-4">
-        <Field label={`Quantity Available (${item?.unit || ''})`}>
-          <Input type="number" step="0.01" value={qty} onChange={(e) => setQty(e.target.value)} />
-        </Field>
-        <Field label={`Minimum Threshold (${item?.unit || ''})`}>
-          <Input type="number" step="0.01" value={threshold} onChange={(e) => setThreshold(e.target.value)} />
+        <div className="grid grid-cols-2 gap-4">
+          <Field label={`Quantity Available (${item?.unit || ''})`}>
+            <Input type="number" step="0.01" value={qty} onChange={(e) => setQty(e.target.value)} />
+          </Field>
+          <Field label={`Minimum Threshold (${item?.unit || ''})`}>
+            <Input type="number" step="0.01" value={threshold} onChange={(e) => setThreshold(e.target.value)} />
+          </Field>
+        </div>
+        <Field label="Selling Price (₹)" hint="Update the price at which this batch is sold">
+          <Input type="number" step="0.01" value={sellingPrice} onChange={(e) => setSellingPrice(e.target.value)} placeholder="Optional" />
         </Field>
       </form>
     </Modal>
