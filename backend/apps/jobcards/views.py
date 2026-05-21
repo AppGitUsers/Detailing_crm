@@ -67,6 +67,7 @@ class JobCardDetailView(APIView):
 
     def put(self, request, pk):
         jobcard = self.get_object(pk)
+
         if not jobcard:
             return Response(
                 {'error': 'Job card not found'},
@@ -74,6 +75,7 @@ class JobCardDetailView(APIView):
             )
 
         old_status = jobcard.job_card_status
+
         serializer = JobCardSerializer(jobcard, data=request.data, partial=True)
 
         if serializer.is_valid():
@@ -83,6 +85,12 @@ class JobCardDetailView(APIView):
             if old_status != 'COMPLETED' and updated_jobcard.job_card_status == 'COMPLETED':
                 updated_jobcard.vehicle_exit_time = timezone.now()
                 updated_jobcard.save()
+
+                vehicle = updated_jobcard.customer_asset
+                if vehicle:
+                    vehicle.last_service_date = timezone.now().date()
+                    vehicle.save(update_fields=['last_service_date'])
+
                 self.deduct_inventory(updated_jobcard)
 
             return Response(JobCardSerializer(updated_jobcard).data)
@@ -221,3 +229,14 @@ class JobCardEmployeeDeleteView(APIView):
             )
         jce.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+class FetchVehicleType(APIView):
+    def get_object(self, vehicle_type):
+        try:
+            return JobCard.objects.filter(customer_asset__vehicle_type=vehicle_type)
+        except JobCard.DoesNotExist:
+            return None
+    def get(self, request, vehicle_type):
+        jobcards_count = self.get_object(vehicle_type).count()
+        return Response({'vehicle_type': vehicle_type, 'count': jobcards_count} )
+    

@@ -6,6 +6,7 @@ export default function PageHeader({ title, subtitle, actions, breadcrumbs }) {
         <h1 className="text-2xl font-semibold text-gray-100">{title}</h1>
         {subtitle && <p className="text-sm text-gray-400 mt-1">{subtitle}</p>}
       </div>
+
       {actions && <div className="flex items-center gap-2 flex-wrap">{actions}</div>}
     </div>
   );

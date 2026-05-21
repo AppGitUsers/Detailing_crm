@@ -6,6 +6,7 @@ import Button from '../../components/Button';
 import Loading from '../../components/Loading';
 import Badge from '../../components/Badge';
 import Modal from '../../components/Modal';
+import { Select } from '../../components/Field';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { Field, Input } from '../../components/Field';
 import { useToast } from '../../components/Toast';
@@ -21,6 +22,7 @@ export default function CustomerDetail() {
   const [jobs, setJobs] = useState([]);
   const [vehicleModal, setVehicleModal] = useState(null); // null | { mode, data }
   const [confirmDel, setConfirmDel] = useState(null);
+  const [vehicleType, setVehicleType] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -85,7 +87,9 @@ export default function CustomerDetail() {
                   <div>
                     <div className="font-medium text-gray-100">{v.vehicle_number}</div>
                     <div className="text-xs text-gray-400">{v.vehicle_name}</div>
+                    <div className="text-xs text-white-400">{v.vehicle_type}</div>
                   </div>
+                  <div className='text-xs text-gray-400'> {v.last_service_date}</div>
                   <div className="flex gap-1">
                     <button onClick={() => setVehicleModal({ mode: 'edit', data: v })} className="p-1.5 text-gray-400 hover:text-accent">
                       <Pencil size={14} />
@@ -152,19 +156,20 @@ export default function CustomerDetail() {
 
 function VehicleModal({ modal, onClose, onSaved, customerId }) {
   const toast = useToast();
-  const [form, setForm] = useState({ vehicle_number: '', vehicle_name: '' });
+  const [form, setForm] = useState({ vehicle_number: '', vehicle_name: '', vehicle_type: '' });
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
-
+  const [vehicleType, setVehicleType] = useState('');
   useEffect(() => {
     if (!modal) return;
     if (modal.mode === 'edit') {
       setForm({
         vehicle_number: modal.data.vehicle_number || '',
         vehicle_name: modal.data.vehicle_name || '',
+        vehicle_type: modal.data.vehicle_type || '',
       });
     } else {
-      setForm({ vehicle_number: '', vehicle_name: '' });
+      setForm({ vehicle_number: '', vehicle_name: '', vehicle_type: '' });
     }
     setErrors({});
   }, [modal]);
@@ -174,6 +179,7 @@ function VehicleModal({ modal, onClose, onSaved, customerId }) {
     const eMap = {};
     if (!form.vehicle_number.trim()) eMap.vehicle_number = 'Required';
     if (!form.vehicle_name.trim()) eMap.vehicle_name = 'Required';
+    if (!form.vehicle_type.trim()) eMap.vehicle_type = 'Required';
     setErrors(eMap);
     if (Object.keys(eMap).length) return;
     setSubmitting(true);
@@ -220,6 +226,14 @@ function VehicleModal({ modal, onClose, onSaved, customerId }) {
             value={form.vehicle_name}
             onChange={(e) => setForm({ ...form, vehicle_name: e.target.value })}
           />
+        </Field>
+        <Field label="Vehicle Type" required error={errors.vehicle_type}>
+          <Select value={form.vehicle_type} onChange={(e) => setForm({ ...form, vehicle_type: e.target.value })}>
+            <option value="">Select type</option>
+            <option value="two_wheeler">Two Wheeler</option>
+            <option value="four_wheeler">Four Wheeler</option>
+            <option value="three_wheeler">Three Wheeler</option>
+          </Select>
         </Field>
       </form>
     </Modal>

@@ -9,7 +9,7 @@ import EmptyState from '../../components/EmptyState';
 import Table from '../../components/Table';
 import { Input, Select } from '../../components/Field';
 import { useToast } from '../../components/Toast';
-import { listJobCards } from '../../api/jobcards';
+import { listJobCards, listJobCardsByType } from '../../api/jobcards';
 import { extractError } from '../../api/axios';
 import { jobCardTotal } from '../../utils/jobcard';
 
@@ -20,22 +20,41 @@ export default function JobCardsList() {
   const [jobs, setJobs] = useState([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [stats, setStats] = useState({ active: 0, completed: 0, twoWheeler: 0, fourWheeler: 0, threeWheeler: 0 });
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const params = statusFilter ? { status: statusFilter } : undefined;
-      const data = await listJobCards(params);
-      const arr = Array.isArray(data) ? data : (data.results || []);
-      setJobs(arr);
-    } catch (err) {
-      toast.error(extractError(err));
-    } finally {
-      setLoading(false);
+
+
+  useEffect(() => {
+    async function loadAll() {
+      setLoading(true);
+      try {
+        const params = statusFilter ? { status: statusFilter } : undefined;
+        const [jobsData, twoWheeler, fourWheeler, threeWheeler, active, completed] =
+          await Promise.all([
+            listJobCards(params),
+            listJobCardsByType('two_wheeler'),
+            listJobCardsByType('four_wheeler'),
+            listJobCardsByType('three_wheeler'),
+            listJobCards({ status: 'IN_PROGRESS' }),
+            listJobCards({ status: 'COMPLETED' }),
+          ]);
+        setJobs(Array.isArray(jobsData) ? jobsData : (jobsData.results || []));
+        setStats({
+          twoWheeler: twoWheeler.count,
+          fourWheeler: fourWheeler.count,
+          threeWheeler: threeWheeler.count,
+          active: Array.isArray(active) ? active.length : (active.count || 0),
+          completed: Array.isArray(completed) ? completed.length : (completed.count || 0),
+        });
+      } catch (err) {
+        toast.error(extractError(err));
+      } finally {
+        setLoading(false);
+      }
     }
-  };
+    loadAll();
+  }, [statusFilter]);
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [statusFilter]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return jobs;
@@ -80,6 +99,14 @@ export default function JobCardsList() {
         }
       />
 
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
+        <StatCard label="Two Wheelers" value={stats.twoWheeler} />
+        <StatCard label="Three Wheelers" value={stats.threeWheeler} />
+        <StatCard label="Four Wheelers" value={stats.fourWheeler} />
+        <StatCard label="In Progress" value={stats.active} />
+        <StatCard label="Completed" value={stats.completed} />
+      </div>
+
       <div className="bg-bg-card border border-border rounded-xl p-4 mb-4 flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
@@ -118,6 +145,15 @@ export default function JobCardsList() {
           onRowClick={(r) => navigate(`/jobcards/${r.id}`)}
         />
       )}
+    </div>
+  );
+}
+
+function StatCard({ label, value }) {
+  return (
+    <div className="bg-bg-card border border-border rounded-xl p-4">
+      <div className="text-xs text-gray-400">{label}</div>
+      <div className="text-2xl font-semibold text-gray-100 mt-1">{value}</div>
     </div>
   );
 }

@@ -6,7 +6,7 @@ export const createFullJobCard = (data) => api.post('jobcards/create-full/', dat
 export const getJobCard = (id) => api.get(`jobcards/${id}/`).then(r => r.data);
 export const updateJobCard = (id, data) => api.put(`jobcards/${id}/`, data).then(r => r.data);
 export const deleteJobCard = (id) => api.delete(`jobcards/${id}/`).then(r => r.data);
-
+export const listJobCardsByType = (vehicleType) => api.get(`jobcards/by-vehicle/${vehicleType}/`).then(r => r.data);
 export const listJobCardServices = (id) => api.get(`jobcards/${id}/services/`).then(r => r.data);
 export const addJobCardService = (id, data) => api.post(`jobcards/${id}/services/`, data).then(r => r.data);
 export const removeJobCardService = (serviceLinkId) => api.delete(`jobcards/services/${serviceLinkId}/`).then(r => r.data);

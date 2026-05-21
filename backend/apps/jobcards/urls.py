@@ -2,7 +2,7 @@ from django.urls import path
 from .views import (
     JobCardListCreateView, JobCardDetailView, FullJobCardCreateView,
     JobCardServiceListCreateView, JobCardServiceDeleteView,
-    JobCardEmployeeListCreateView, JobCardEmployeeDeleteView
+    JobCardEmployeeListCreateView, JobCardEmployeeDeleteView, FetchVehicleType
 )
 
 urlpatterns = [
@@ -18,4 +18,6 @@ urlpatterns = [
     # JobCard Employees
     path('services/<int:jcservice_pk>/employees/', JobCardEmployeeListCreateView.as_view(), name='jobcard-employee-list'),
     path('services/employees/<int:pk>/', JobCardEmployeeDeleteView.as_view(), name='jobcard-employee-delete'),
+
+    path('by-vehicle/<str:vehicle_type>/', FetchVehicleType.as_view(), name='jobcard-by-vehicle-type'),
 ]

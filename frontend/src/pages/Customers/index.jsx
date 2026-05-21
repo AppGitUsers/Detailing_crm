@@ -72,6 +72,9 @@ export default function CustomersList() {
       header: '',
       render: (r) => (
         <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+          <button className="p-1.5 text-white bg-purple-500" onClick={() => navigate(`/customers/${r.id}`)}>
+            View Details
+          </button>
           <button onClick={() => setModal({ mode: 'edit', data: r })} className="p-1.5 text-gray-400 hover:text-accent" title="Edit">
             <Pencil size={14} />
           </button>
