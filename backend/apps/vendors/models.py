@@ -70,6 +70,7 @@ class Product(models.Model):
 class Inventory(models.Model):
     product           = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='inventory_records')
     brand             = models.CharField(max_length=255, blank=True, default='')
+    unit_amount       = models.DecimalField(max_digits=10, decimal_places=2, default=1)
     cost_price        = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     selling_price     = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     quantity_available = models.DecimalField(max_digits=10, decimal_places=2, default=0)
@@ -77,7 +78,7 @@ class Inventory(models.Model):
     last_updated      = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = [('product', 'brand', 'cost_price')]
+        unique_together = [('product', 'brand', 'unit_amount', 'cost_price')]
 
     def __str__(self):
         brand_str = f' [{self.brand}]' if self.brand else ''
@@ -134,6 +135,7 @@ class Invoice(models.Model):
 class InvoiceItem(models.Model):
     invoice       = models.ForeignKey(Invoice, related_name='items', on_delete=models.CASCADE)
     product       = models.ForeignKey(Product, on_delete=models.CASCADE)
+    unit_amount   = models.DecimalField(max_digits=10, decimal_places=2, default=1)
     quantity      = models.DecimalField(max_digits=10, decimal_places=2)
     unit_price    = models.DecimalField(max_digits=10, decimal_places=2)   # cost / purchase price
     selling_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)

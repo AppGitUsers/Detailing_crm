@@ -139,11 +139,12 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
         model = Invoice
         fields = '__all__'
 
-    def _upsert_inventory(self, product, brand, cost_price, selling_price, delta):
+    def _upsert_inventory(self, product, brand, unit_amount, cost_price, selling_price, delta):
         brand = brand or ''
         inv, _ = Inventory.objects.get_or_create(
             product=product,
             brand=brand,
+            unit_amount=unit_amount,
             cost_price=cost_price,
             defaults={'quantity_available': 0, 'minimum_threshold': 0, 'selling_price': selling_price},
         )
@@ -160,6 +161,7 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
             self._upsert_inventory(
                 product=item_data['product'],
                 brand=item_data.get('product_brand'),
+                unit_amount=item_data.get('unit_amount', 1),
                 cost_price=item_data['unit_price'],
                 selling_price=item_data.get('selling_price'),
                 delta=item_data['quantity'],
@@ -174,6 +176,7 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
                 inv = Inventory.objects.get(
                     product=old.product,
                     brand=old.product_brand or '',
+                    unit_amount=old.unit_amount,
                     cost_price=old.unit_price,
                 )
                 inv.quantity_available -= old.quantity
@@ -193,6 +196,7 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
             self._upsert_inventory(
                 product=item_data['product'],
                 brand=item_data.get('product_brand'),
+                unit_amount=item_data.get('unit_amount', 1),
                 cost_price=item_data['unit_price'],
                 selling_price=item_data.get('selling_price'),
                 delta=item_data['quantity'],

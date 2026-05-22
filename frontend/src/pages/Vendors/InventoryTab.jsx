@@ -320,9 +320,14 @@ function InventoryCard({ item, onEdit }) {
               </span>
             )}
           </div>
-          {/* Brand as prominent subtitle */}
-          {item.brand && (
-            <div className="text-xs font-medium text-gray-400 mt-0.5">{item.brand}</div>
+          {/* Brand + unit_amount subtitle */}
+          {(item.brand || item.unit_amount != null) && (
+            <div className="text-xs font-medium text-gray-400 mt-0.5 flex items-center gap-2">
+              {item.brand && <span>{item.brand}</span>}
+              {item.unit_amount != null && (
+                <span className="text-gray-500">{item.unit_amount} {item.unit} / pkg</span>
+              )}
+            </div>
           )}
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             {item.product_code && (
@@ -374,10 +379,18 @@ function InventoryCard({ item, onEdit }) {
         <div>
           <div className={`text-2xl font-semibold ${item.is_low_stock ? 'text-red-300' : 'text-gray-100'}`}>
             {item.quantity_available}
-            <span className="text-sm font-normal text-gray-500 ml-1">{item.unit}</span>
+            <span className="text-sm font-normal text-gray-500 ml-1">
+              {item.unit_amount != null ? 'pcs' : item.unit}
+            </span>
           </div>
+          {item.unit_amount != null && Number(item.quantity_available) > 0 && (
+            <div className="text-xs text-gray-500 mt-0.5">
+              {item.quantity_available} × {item.unit_amount} {item.unit}{' '}
+              <span className="text-gray-400">= {Number(item.quantity_available) * Number(item.unit_amount)} {item.unit}</span>
+            </div>
+          )}
           <div className="text-xs text-gray-500 mt-1">
-            Threshold: {item.minimum_threshold} {item.unit}
+            Threshold: {item.minimum_threshold} {item.unit_amount != null ? 'pcs' : item.unit}
           </div>
         </div>
 
@@ -433,7 +446,7 @@ function AdjustStockModal({ item, onClose, onSaved }) {
   };
 
   const title = item
-    ? `Adjust: ${item.product_name}${item.brand ? ` · ${item.brand}` : ''}${item.cost_price != null ? ` @ ₹${item.cost_price}` : ''}`
+    ? `Adjust: ${item.product_name}${item.brand ? ` · ${item.brand}` : ''}${item.unit_amount != null ? ` · ${item.unit_amount} ${item.unit}` : ''}${item.cost_price != null ? ` @ ₹${item.cost_price}` : ''}`
     : '';
 
   return (

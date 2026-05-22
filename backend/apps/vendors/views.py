@@ -278,6 +278,7 @@ class InvoiceItemDeleteView(APIView):
             inv = Inventory.objects.get(
                 product=item.product,
                 brand=item.product_brand or '',
+                unit_amount=item.unit_amount,
                 cost_price=item.unit_price,
             )
             inv.quantity_available -= item.quantity
