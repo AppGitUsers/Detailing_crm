@@ -27,10 +27,16 @@ def _parse_month(param):
 
 
 def _jc_financials(jc):
-    base  = sum(s.price_at_time for s in jc.job_card_services.all())
-    gst   = (base * jc.gst_percent / Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    total = base + gst
-    paid  = sum(p.amount for p in jc.payments.all())
+    # Service prices are GST-inclusive; back-calculate base and GST portion
+    total = sum(s.price_at_time for s in jc.job_card_services.all())
+    if jc.gst_percent > 0:
+        divisor = Decimal('1') + jc.gst_percent / Decimal('100')
+        base = (total / divisor).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        gst  = total - base
+    else:
+        base = total
+        gst  = Decimal('0')
+    paid = sum(p.amount for p in jc.payments.all())
     return base, gst, total, paid
 
 
@@ -102,9 +108,7 @@ class FinanceDashboardView(APIView):
         ).prefetch_related('job_card_services')
         yearly_income = Decimal('0')
         for jc in year_jcs:
-            base  = sum(s.price_at_time for s in jc.job_card_services.all())
-            gst   = (base * jc.gst_percent / Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            yearly_income += base + gst
+            yearly_income += sum(s.price_at_time for s in jc.job_card_services.all())
 
         # ── Monthly chart (12 months of current year) ────
         monthly_chart = []

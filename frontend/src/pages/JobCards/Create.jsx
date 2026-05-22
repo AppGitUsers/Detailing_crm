@@ -9,6 +9,7 @@ import { useToast } from '../../components/Toast';
 import { checkVehicle, checkCustomer } from '../../api/customers';
 import { createFullJobCard } from '../../api/jobcards';
 import { listServices } from '../../api/services';
+import { getSettings } from '../../api/settings';
 import { extractError } from '../../api/axios';
 
 const nowLocal = () => {
@@ -61,6 +62,17 @@ export default function JobCardCreate() {
   const [loadingServices, setLoadingServices] = useState(false);
   const [selectedServiceIds, setSelectedServiceIds] = useState([]);
   const [gstPercent, setGstPercent] = useState('18');
+
+  // Pull default GST from settings on mount; fall back to 18 if unavailable
+  useEffect(() => {
+    getSettings()
+      .then(data => {
+        const s = data.find(d => d.field_name === 'default_gst_percent');
+        if (s?.value) setGstPercent(s.value);
+      })
+      .catch(() => {}); // silently ignore — default stays 18
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const updateJobCard = (k, v) => setJobCard((f) => ({ ...f, [k]: v }));
   const updateCustomer = (k, v) => setCustomer((f) => ({ ...f, [k]: v }));

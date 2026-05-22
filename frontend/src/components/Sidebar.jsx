@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, ClipboardList, Users, Wrench,
-  UserCog, Truck, ScanLine, Sparkles, LogOut, User, TrendingUp,
+  UserCog, Truck, ScanLine, Sparkles, LogOut, User, TrendingUp, Settings2,
 } from 'lucide-react';
 import { tokens, logout } from '../api/auth';
 
@@ -14,6 +14,7 @@ const links = [
   { to: '/vendors', icon: Truck, label: 'Vendors' },
   { to: '/finance', icon: TrendingUp, label: 'Finance' },
   { to: '/kiosk', icon: ScanLine, label: 'Kiosk' },
+  { to: '/settings', icon: Settings2, label: 'Settings' },
 ];
 
 export default function Sidebar() {

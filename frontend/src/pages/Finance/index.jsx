@@ -315,10 +315,10 @@ export default function FinanceDashboard() {
                   { key: 'customer_name', label: 'Customer' },
                   { key: 'vehicle_number', label: 'Vehicle' },
                   { key: 'services', label: 'Services' },
+                  { key: 'total_amount', label: 'Total (₹)' },
                   { key: 'base_amount', label: 'Base (₹)' },
                   { key: 'gst_percent', label: 'GST %' },
-                  { key: 'gst_amount', label: 'GST (₹)' },
-                  { key: 'total_amount', label: 'Total (₹)' },
+                  { key: 'gst_amount', label: 'GST Amt (₹)' },
                   { key: 'paid_amount', label: 'Paid (₹)' },
                   { key: 'outstanding', label: 'Outstanding (₹)' },
                   { key: 'payment_status', label: 'Status' },
@@ -336,7 +336,7 @@ export default function FinanceDashboard() {
               <table className="w-full text-xs">
                 <thead className="sticky top-0 bg-bg-card border-b border-border">
                   <tr>
-                    {['Date', 'Job Card', 'Customer', 'Base', 'GST%', 'Total', 'Paid', 'Status'].map(h => (
+                    {['Date', 'Job Card', 'Customer', 'Total', 'Base', 'GST%', 'GST Amt', 'Paid', 'Status'].map(h => (
                       <th key={h} className="px-3 py-2.5 text-left text-gray-400 font-medium whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -347,9 +347,10 @@ export default function FinanceDashboard() {
                       <td className="px-3 py-2.5 text-gray-400 whitespace-nowrap">{r.date}</td>
                       <td className="px-3 py-2.5 text-gray-200 font-medium whitespace-nowrap">{r.job_card_number}</td>
                       <td className="px-3 py-2.5 text-gray-300 max-w-[120px] truncate">{r.customer_name}</td>
+                      <td className="px-3 py-2.5 text-gray-100 font-medium whitespace-nowrap">{fmt(r.total_amount)}</td>
                       <td className="px-3 py-2.5 text-gray-300 whitespace-nowrap">{fmt(r.base_amount)}</td>
                       <td className="px-3 py-2.5 text-gray-400 whitespace-nowrap">{r.gst_percent}%</td>
-                      <td className="px-3 py-2.5 text-gray-100 font-medium whitespace-nowrap">{fmt(r.total_amount)}</td>
+                      <td className="px-3 py-2.5 text-indigo-300 whitespace-nowrap">{fmt(r.gst_amount)}</td>
                       <td className="px-3 py-2.5 text-emerald-400 whitespace-nowrap">{fmt(r.paid_amount)}</td>
                       <td className="px-3 py-2.5">
                         <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] border capitalize ${STATUS_CLS[r.payment_status] || ''}`}>

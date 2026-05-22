@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     'apps.customers',
     'apps.jobcards',
     'apps.finance',
+    'apps.site_settings',
 ]
 
 MIDDLEWARE = [

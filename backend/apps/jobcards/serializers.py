@@ -57,10 +57,16 @@ class JobCardSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def _financials(self, obj):
-        base = sum(s.price_at_time for s in obj.job_card_services.all())
-        gst  = (base * obj.gst_percent / Decimal('100')).quantize(Decimal('0.01'))
-        total = base + gst
-        paid  = sum(p.amount for p in obj.payments.all())
+        # Service prices are GST-inclusive; back-calculate base and GST portion
+        total = sum(s.price_at_time for s in obj.job_card_services.all())
+        if obj.gst_percent > 0:
+            divisor = Decimal('1') + obj.gst_percent / Decimal('100')
+            base = (total / divisor).quantize(Decimal('0.01'))
+            gst  = total - base
+        else:
+            base = total
+            gst  = Decimal('0')
+        paid = sum(p.amount for p in obj.payments.all())
         return base, gst, total, paid
 
     def get_base_amount(self, obj):

@@ -16,6 +16,7 @@ import Employees from './pages/Employees';
 import Vendors from './pages/Vendors';
 import Finance from './pages/Finance';
 import Kiosk from './pages/Kiosk';
+import Settings from './pages/Settings';
 
 export default function App() {
   return (
@@ -36,6 +37,7 @@ export default function App() {
             <Route path="vendors/*" element={<Vendors />} />
             <Route path="finance" element={<Finance />} />
             <Route path="kiosk" element={<Kiosk />} />
+            <Route path="settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
