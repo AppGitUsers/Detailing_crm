@@ -18,7 +18,7 @@ import {
   listAttendance,
   listAdvances, createAdvance, updateAdvance, deleteAdvance,
   listTransactions, createTransaction, updateTransaction, deleteTransaction,
-  computeSalary,
+  computeSalary, computeIncentive,
 } from '../../api/employees';
 import { extractError } from '../../api/axios';
 
@@ -290,10 +290,12 @@ function TransactionsTab({ month, year, onDataChange, employees }) {
         <span className="text-gray-500">) ÷ Scheduled</span>
         <span className="text-gray-600">×</span>
         <span className="text-blue-400 font-semibold">Base Salary</span>
-        <span className="text-gray-600">−</span>
-        <span className="text-red-400 font-semibold">Advance</span>
         <span className="text-gray-600">+</span>
         <span className="text-emerald-400 font-semibold">Bonus</span>
+        <span className="text-gray-600">+</span>
+        <span className="text-teal-400 font-semibold">Incentive</span>
+        <span className="text-gray-600">−</span>
+        <span className="text-red-400 font-semibold">Advance</span>
         <span className="text-gray-600">=</span>
         <span className="font-semibold text-gray-100">Net to Pay</span>
       </div>
@@ -422,8 +424,8 @@ function TransactionFormModal({ modal, onClose, onSaved, employees, currentMonth
   const buildEmpty = () => ({
     employee: '',
     month: `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`,
-    base_salary: '', bonus: '0', advance_deduction: '0',
-    status: 'pending', payment_date: '', notes: '',
+    base_salary: '', bonus: '0', incentive: '0', advance_deduction: '0',
+    status: 'paid', payment_date: todayStr(), notes: '',
   });
 
   const [form, setForm]                         = useState(buildEmpty);
@@ -433,6 +435,7 @@ function TransactionFormModal({ modal, onClose, onSaved, employees, currentMonth
   const [loadingAdvances, setLoadingAdvances]   = useState(false);
   const [attendanceSummary, setAttendanceSummary] = useState(null);
   const [computeLoading, setComputeLoading]       = useState(false);
+  const [incentiveData, setIncentiveData]         = useState(null);
 
   useEffect(() => {
     if (!modal) return;
@@ -442,22 +445,25 @@ function TransactionFormModal({ modal, onClose, onSaved, employees, currentMonth
         month:             modal.data.month             || buildEmpty().month,
         base_salary:       modal.data.base_salary       || '',
         bonus:             modal.data.bonus             || '0',
+        incentive:         modal.data.incentive         || '0',
         advance_deduction: modal.data.advance_deduction || '0',
-        status:            modal.data.status            || 'pending',
-        payment_date:      modal.data.payment_date      || '',
+        status:            'paid',
+        payment_date:      modal.data.payment_date      || todayStr(),
         notes:             modal.data.notes             || '',
       });
       setApprovedAdvances([]);
       setAttendanceSummary(null);
+      setIncentiveData(null);
     } else {
       const empty = buildEmpty();
       const defaultEmp = modal.defaultEmployee || '';
       setForm({ ...empty, employee: defaultEmp, base_salary: '' });
       setApprovedAdvances([]);
       setAttendanceSummary(null);
+      setIncentiveData(null);
       if (defaultEmp) {
         setLoadingAdvances(true);
-        listAdvances({ employee: defaultEmp, status: 'approved' })
+        listAdvances({ employee: defaultEmp, status: 'approved', salary_month: empty.month })
           .then((data) => {
             const advs = Array.isArray(data) ? data : (data.results || []);
             setApprovedAdvances(advs);
@@ -494,14 +500,32 @@ function TransactionFormModal({ modal, onClose, onSaved, employees, currentMonth
       .finally(() => setComputeLoading(false));
   }, [form.employee, form.month, modal?.mode]); // eslint-disable-line
 
+  // Re-compute incentive when employee or month changes (create mode only)
+  useEffect(() => {
+    if (modal?.mode !== 'create' || !form.employee || !form.month) {
+      setIncentiveData(null);
+      return;
+    }
+    const parts = form.month.split('-');
+    const y = parseInt(parts[0]);
+    const m = parseInt(parts[1]);
+    computeIncentive({ employee: form.employee, month: m, year: y })
+      .then((data) => {
+        setIncentiveData(data);
+        setForm((f) => ({ ...f, incentive: data.threshold_met ? String(data.incentive_amount) : '0' }));
+      })
+      .catch(() => setIncentiveData(null));
+  }, [form.employee, form.month, modal?.mode]); // eslint-disable-line
+
   const handleEmployeeChange = (empId) => {
     if (modal?.mode === 'edit') { setForm((f) => ({ ...f, employee: empId })); return; }
     setForm((f) => ({ ...f, employee: empId, base_salary: '', advance_deduction: '0' }));
     setApprovedAdvances([]);
     setAttendanceSummary(null);
+    setIncentiveData(null);
     if (!empId) return;
     setLoadingAdvances(true);
-    listAdvances({ employee: empId, status: 'approved' })
+    listAdvances({ employee: empId, status: 'approved', salary_month: form.month })
       .then((data) => {
         const advs = Array.isArray(data) ? data : (data.results || []);
         setApprovedAdvances(advs);
@@ -517,7 +541,8 @@ function TransactionFormModal({ modal, onClose, onSaved, employees, currentMonth
   const base = Number(form.base_salary) || 0;
   const adv  = Number(form.advance_deduction) || 0;
   const bon  = Number(form.bonus) || 0;
-  const net  = base + bon - adv;
+  const inc  = Number(form.incentive) || 0;
+  const net  = base + bon + inc - adv;
 
   const selectedEmp = employees.find((e) => String(e.id) === String(form.employee));
 
@@ -527,11 +552,18 @@ function TransactionFormModal({ modal, onClose, onSaved, employees, currentMonth
     if (!form.employee)                          eMap.employee    = 'Select an employee';
     if (!form.base_salary || Number(form.base_salary) <= 0) eMap.base_salary = 'Enter a salary greater than ₹0';
     if (modal?.mode === 'create' && form.employee) {
-      const dup = records.find((r) => String(r.employee) === String(form.employee));
-      if (dup) eMap.employee = `Salary already recorded for ${MONTHS[currentMonth - 1]} ${currentYear}`;
+      const formParts     = (form.month || '').split('-');
+      const formMonthInt  = parseInt(formParts[1], 10);
+      const formYearInt   = parseInt(formParts[0], 10);
+      // Only check client-side when form month matches the loaded records month;
+      // otherwise the backend UniqueConstraint will catch duplicates.
+      if (formMonthInt === currentMonth && formYearInt === currentYear) {
+        const dup = records.find((r) => String(r.employee) === String(form.employee));
+        if (dup) eMap.employee = `Salary already recorded for ${MONTHS[currentMonth - 1]} ${currentYear}`;
+      }
     }
     if (net < 0) {
-      eMap.advance_deduction = `Advance exceeds salary+bonus by ₹${Math.abs(net).toLocaleString('en-IN')} — reduce the deduction and carry the balance to next month`;
+      eMap.advance_deduction = `Advance exceeds salary+bonus+incentive by ₹${Math.abs(net).toLocaleString('en-IN')} — reduce the deduction and carry the balance to next month`;
     }
     setErrors(eMap);
     if (Object.keys(eMap).length) return;
@@ -540,8 +572,10 @@ function TransactionFormModal({ modal, onClose, onSaved, employees, currentMonth
       const payload = {
         ...form,
         base_salary:       Number(form.base_salary),
-        bonus:             Number(form.bonus) || 0,
+        bonus:             Number(form.bonus)      || 0,
+        incentive:         Number(form.incentive)  || 0,
         advance_deduction: Number(form.advance_deduction) || 0,
+        status:            'paid',
         payment_date:      form.payment_date || null,
         notes:             form.notes || null,
       };
@@ -550,14 +584,18 @@ function TransactionFormModal({ modal, onClose, onSaved, employees, currentMonth
         toast.success('Payment updated');
       } else {
         await createTransaction(payload);
-        if (approvedAdvances.length > 0 && Number(form.advance_deduction) > 0) {
+        const approvedTotal = approvedAdvances.reduce((s, a) => s + Number(a.amount), 0);
+        const deductionMatchesTotal = Math.abs(Number(form.advance_deduction) - approvedTotal) <= 0.01;
+        if (approvedAdvances.length > 0 && deductionMatchesTotal) {
           await Promise.allSettled(
             approvedAdvances.map((a) =>
               updateAdvance(a.id, { employee: a.employee, date: a.date, amount: Number(a.amount), reason: a.reason || null, status: 'deducted' })
             )
           );
+          toast.success('Payment added — advances marked as deducted');
+        } else {
+          toast.success('Payment added');
         }
-        toast.success('Payment added — advances marked as deducted');
       }
       onSaved();
       onClose();
@@ -660,7 +698,7 @@ function TransactionFormModal({ modal, onClose, onSaved, employees, currentMonth
             ) : null
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field
               label="Base Salary (₹)"
               required
@@ -674,12 +712,27 @@ function TransactionFormModal({ modal, onClose, onSaved, employees, currentMonth
             >
               <Input type="number" step="0.01" min="0" placeholder="e.g. 15000" value={form.base_salary} onChange={set('base_salary')} />
             </Field>
+            <Field label="Bonus (+₹)">
+              <Input type="number" step="0.01" min="0" placeholder="0" value={form.bonus} onChange={set('bonus')} />
+            </Field>
+            <Field
+              label="Incentive (+₹)"
+              hint={
+                modal?.mode !== 'edit' && incentiveData
+                  ? incentiveData.threshold_met
+                    ? `Auto-filled — ${incentiveData.order_count} orders ≥ threshold`
+                    : `${incentiveData.order_count}/${incentiveData.order_threshold} orders — threshold not met`
+                  : undefined
+              }
+            >
+              <Input type="number" step="0.01" min="0" placeholder="0" value={form.incentive} onChange={set('incentive')} />
+            </Field>
             <Field
               label="Advance Deduction (−₹)"
               hint={
                 loadingAdvances ? 'Loading advances…'
-                : approvedAdvances.length > 0 ? 'Auto-filled from approved advances'
-                : modal?.mode !== 'edit' && form.employee ? 'No approved advances'
+                : approvedAdvances.length > 0 ? 'Auto-filled from approved advances for this month'
+                : modal?.mode !== 'edit' && form.employee ? 'No approved advances for this month'
                 : undefined
               }
             >
@@ -689,9 +742,6 @@ function TransactionFormModal({ modal, onClose, onSaved, employees, currentMonth
                 onChange={set('advance_deduction')}
                 disabled={loadingAdvances}
               />
-            </Field>
-            <Field label="Bonus (+₹)">
-              <Input type="number" step="0.01" min="0" placeholder="0" value={form.bonus} onChange={set('bonus')} />
             </Field>
           </div>
 
@@ -707,8 +757,9 @@ function TransactionFormModal({ modal, onClose, onSaved, employees, currentMonth
             {base > 0 && (
               <div className="text-right text-xs text-gray-500 space-y-0.5">
                 <div className="text-blue-400">Salary: ₹{base.toLocaleString('en-IN')}</div>
-                {adv > 0 && <div className="text-red-400">Advance: −₹{adv.toLocaleString('en-IN')}</div>}
                 {bon > 0 && <div className="text-emerald-400">Bonus: +₹{bon.toLocaleString('en-IN')}</div>}
+                {inc > 0 && <div className="text-teal-400">Incentive: +₹{inc.toLocaleString('en-IN')}</div>}
+                {adv > 0 && <div className="text-red-400">Advance: −₹{adv.toLocaleString('en-IN')}</div>}
               </div>
             )}
           </div>
@@ -748,23 +799,15 @@ function TransactionFormModal({ modal, onClose, onSaved, employees, currentMonth
             <div>
               <p className="text-xs font-semibold text-red-300 mb-0.5">Advance exceeds salary — cannot save</p>
               <p className="text-xs text-red-400/80">
-                Reduce the deduction to ₹{(base + bon).toLocaleString('en-IN')} or less, and add a new advance of ₹{Math.abs(net).toLocaleString('en-IN')} next month to carry the balance forward.
+                Reduce the deduction to ₹{(base + bon + inc).toLocaleString('en-IN')} or less, and add a new advance of ₹{Math.abs(net).toLocaleString('en-IN')} next month to carry the balance forward.
               </p>
             </div>
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Payment Status">
-            <Select value={form.status} onChange={set('status')}>
-              <option value="pending">Pending — not yet paid</option>
-              <option value="paid">Paid — salary disbursed</option>
-            </Select>
-          </Field>
-          <Field label="Payment Date" hint={form.status === 'paid' ? 'Set when marking as Paid' : undefined}>
-            <Input type="date" value={form.payment_date} onChange={set('payment_date')} />
-          </Field>
-        </div>
+        <Field label="Payment Date" hint="Date salary was disbursed">
+          <Input type="date" value={form.payment_date} onChange={set('payment_date')} />
+        </Field>
 
         <Field label="Notes (optional)">
           <Input placeholder="Any remarks…" value={form.notes} onChange={set('notes')} />
@@ -789,7 +832,7 @@ function AdvancesTab({ onDataChange, employees }) {
   const load = async () => {
     setLoading(true);
     try {
-      const advs = await listAdvances();
+      const advs = await listAdvances({ limit: 500 });
       setRecords(Array.isArray(advs) ? advs : (advs.results || []));
     } catch (err) {
       toast.error(extractError(err));
@@ -859,6 +902,12 @@ function AdvancesTab({ onDataChange, employees }) {
     {
       key: 'amount', header: 'Amount',
       render: (r) => <span className="font-semibold text-yellow-300">₹{Number(r.amount).toLocaleString('en-IN')}</span>,
+    },
+    {
+      key: 'salary_month_display', header: 'For Month',
+      render: (r) => r.salary_month_display
+        ? <span className="text-blue-300 text-xs">{r.salary_month_display}</span>
+        : <span className="text-gray-600 text-xs">—</span>,
     },
     {
       key: 'reason', header: 'Reason',
@@ -1006,8 +1055,7 @@ function AdvancesTab({ onDataChange, employees }) {
         <EmptyState
           icon={Wallet}
           title="No advance records"
-          message={filterStatus || selectedEmp ? 'No records match the current filters.' : 'No salary advance records yet.'}
-          action={!filterStatus && !selectedEmp && <Button onClick={() => setModal({ mode: 'create' })}><Plus size={16} /> Add Advance</Button>}
+          message={filterStatus || selectedEmp ? 'No records match the current filters.' : 'Use the + Advance button on an employee card above to add an advance.'}
         />
       ) : (
         <Table columns={columns} rows={displayedRecords} />
@@ -1039,7 +1087,7 @@ function AllTransactionsTab({ employees }) {
   const load = async () => {
     setLoading(true);
     try {
-      const [txns, advs] = await Promise.all([listTransactions(), listAdvances()]);
+      const [txns, advs] = await Promise.all([listTransactions({ limit: 500 }), listAdvances({ limit: 500 })]);
       setSalaries(Array.isArray(txns) ? txns : (txns.results || []));
       setAdvances(Array.isArray(advs) ? advs : (advs.results || []));
     } catch (err) {
@@ -1158,7 +1206,7 @@ function AllTransactionsTab({ employees }) {
 function AdvanceFormModal({ modal, onClose, onSaved, employees }) {
   const toast  = useToast();
   const today  = todayStr();
-  const empty  = { employee: '', date: today, amount: '', reason: '', status: 'approved' };
+  const empty  = { employee: '', date: today, salary_month: today.slice(0, 7), amount: '', reason: '', status: 'approved' };
 
   const [form, setForm]             = useState(empty);
   const [submitting, setSubmitting] = useState(false);
@@ -1168,14 +1216,15 @@ function AdvanceFormModal({ modal, onClose, onSaved, employees }) {
     if (!modal) return;
     if (modal.mode === 'edit') {
       setForm({
-        employee: String(modal.data.employee || ''),
-        date:     modal.data.date   || today,
-        amount:   modal.data.amount || '',
-        reason:   modal.data.reason || '',
-        status:   modal.data.status || 'pending',
+        employee:     String(modal.data.employee || ''),
+        date:         modal.data.date         || today,
+        salary_month: modal.data.salary_month ? modal.data.salary_month.slice(0, 7) : today.slice(0, 7),
+        amount:       modal.data.amount       || '',
+        reason:       modal.data.reason       || '',
+        status:       modal.data.status       || 'approved',
       });
     } else {
-      setForm({ ...empty, date: today, employee: modal.defaultEmployee || '' });
+      setForm({ ...empty, date: today, salary_month: today.slice(0, 7), employee: modal.defaultEmployee || '' });
     }
     setErrors({});
   }, [modal]); // eslint-disable-line
@@ -1194,7 +1243,12 @@ function AdvanceFormModal({ modal, onClose, onSaved, employees }) {
     if (Object.keys(eMap).length) return;
     setSubmitting(true);
     try {
-      const payload = { ...form, amount: Number(form.amount), reason: form.reason || null };
+      const payload = {
+        ...form,
+        salary_month: form.salary_month ? form.salary_month + '-01' : null,
+        amount: Number(form.amount),
+        reason: form.reason || null,
+      };
       if (modal.mode === 'edit') {
         await updateAdvance(modal.data.id, payload);
         toast.success('Advance updated');
@@ -1227,21 +1281,20 @@ function AdvanceFormModal({ modal, onClose, onSaved, employees }) {
       }
     >
       <form onSubmit={submit} className="space-y-4">
-        <Field label="Employee" required error={errors.employee}>
-          <Select value={form.employee} onChange={set('employee')}>
-            <option value="">Select an employee…</option>
-            {employees.map((emp) => (
-              <option key={emp.id} value={emp.id}>
-                {emp.employee_name}{emp.salary ? ` — ₹${Number(emp.salary).toLocaleString('en-IN')}/mo` : ''}
-              </option>
-            ))}
-          </Select>
-          {selectedEmp?.salary && (
-            <span className="block text-xs text-gray-500 mt-1">
-              Fixed salary: ₹{Number(selectedEmp.salary).toLocaleString('en-IN')}/month
-            </span>
+        {/* Read-only employee display — employee is always pre-selected from the card */}
+        <div className="bg-bg-elev border border-border rounded-xl px-4 py-3">
+          <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">Employee</div>
+          {selectedEmp ? (
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-gray-100">{selectedEmp.employee_name}</span>
+              {selectedEmp.salary && (
+                <span className="text-xs text-gray-500">₹{Number(selectedEmp.salary).toLocaleString('en-IN')}/mo</span>
+              )}
+            </div>
+          ) : (
+            <span className="text-sm text-gray-500 italic">No employee selected</span>
           )}
-        </Field>
+        </div>
 
         <div className="grid grid-cols-2 gap-4">
           <Field label="Date" required error={errors.date} hint="Defaults to today">
@@ -1252,6 +1305,10 @@ function AdvanceFormModal({ modal, onClose, onSaved, employees }) {
           </Field>
         </div>
 
+        <Field label="Apply to Salary Month" hint="Which month's salary this advance will be deducted from">
+          <Input type="month" value={form.salary_month} onChange={set('salary_month')} />
+        </Field>
+
         {selectedEmp?.salary && Number(form.amount) > Number(selectedEmp.salary) && (
           <div className="bg-red-900/20 border border-red-700/40 rounded-lg px-3 py-2 flex items-center gap-2">
             <AlertTriangle size={13} className="text-red-400 shrink-0" />
@@ -1259,15 +1316,7 @@ function AdvanceFormModal({ modal, onClose, onSaved, employees }) {
           </div>
         )}
 
-        {modal?.mode === 'edit' ? (
-          <Field label="Status">
-            <Select value={form.status} onChange={set('status')}>
-              <option value="approved">Approved — amount given to employee</option>
-              <option value="deducted">Deducted — already deducted from salary</option>
-              <option value="rejected">Rejected / Voided</option>
-            </Select>
-          </Field>
-        ) : (
+        {modal?.mode === 'create' && (
           <div className="flex items-center gap-2 px-3 py-2.5 bg-emerald-900/15 border border-emerald-700/30 rounded-xl">
             <CheckCircle size={14} className="text-emerald-400 shrink-0" />
             <span className="text-xs text-emerald-300 font-medium">Advance will be marked <strong>Approved</strong> immediately — money is given to employee</span>
