@@ -608,8 +608,9 @@ function ViewInvoiceModal({ invoice, onClose }) {
               <thead className="bg-bg-elev border-t border-border">
                 <tr>
                   <th className="text-left px-3 py-2 text-gray-300 font-medium">Product</th>
+                  <th className="text-right px-3 py-2 text-gray-300 font-medium">Amt/pkg</th>
                   <th className="text-right px-3 py-2 text-gray-300 font-medium">Qty</th>
-                  <th className="text-right px-3 py-2 text-gray-300 font-medium">Unit Price</th>
+                  <th className="text-right px-3 py-2 text-gray-300 font-medium">Cost/pkg</th>
                   <th className="text-left px-3 py-2 text-gray-300 font-medium">Brand</th>
                 </tr>
               </thead>
@@ -617,6 +618,7 @@ function ViewInvoiceModal({ invoice, onClose }) {
                 {(invoice.items || []).map((it) => (
                   <tr key={it.id} className="border-t border-border">
                     <td className="px-3 py-2 text-gray-200">{it.product_name}</td>
+                    <td className="px-3 py-2 text-right text-gray-400">{it.unit_amount != null ? it.unit_amount : 1}</td>
                     <td className="px-3 py-2 text-right text-gray-200">{it.quantity}</td>
                     <td className="px-3 py-2 text-right text-gray-200">{fmt(it.unit_price)}</td>
                     <td className="px-3 py-2 text-gray-200">{it.product_brand || '—'}</td>
@@ -678,7 +680,7 @@ function ViewInvoiceModal({ invoice, onClose }) {
 
 function CreateInvoiceModal({ open, onClose, onSaved, vendors, products, brands }) {
   const toast = useToast();
-  const emptyItem = { product: '', quantity: '', unit_price: '', product_brand: '' };
+  const emptyItem = { product: '', unit_amount: '', quantity: '', unit_price: '', product_brand: '' };
   const [vendorId, setVendorId] = useState('');
   const [vendorInvoiceId, setVendorInvoiceId] = useState('');
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
@@ -699,7 +701,12 @@ function CreateInvoiceModal({ open, onClose, onSaved, vendors, products, brands 
   const removeRow = (i) => setItems((arr) => arr.length > 1 ? arr.filter((_, idx) => idx !== i) : arr);
 
   const selectProduct = (i, productId) => {
-    setItems(arr => arr.map((row, idx) => idx !== i ? row : { ...row, product: productId }));
+    setItems(arr => arr.map((row, idx) => idx !== i ? row : { ...row, product: productId, unit_amount: '' }));
+  };
+
+  const getProductUnit = (productId) => {
+    const p = products.find(p => String(p.id) === String(productId));
+    return p?.product_unit || '';
   };
 
   const total = items.reduce((s, it) => s + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0), 0);
@@ -723,6 +730,7 @@ function CreateInvoiceModal({ open, onClose, onSaved, vendors, products, brands 
         total_amount: total,
         items: validItems.map((it) => ({
           product: Number(it.product),
+          unit_amount: it.unit_amount ? Number(it.unit_amount) : 1,
           quantity: Number(it.quantity),
           unit_price: Number(it.unit_price),
           product_brand: it.product_brand || '',
@@ -764,10 +772,15 @@ function CreateInvoiceModal({ open, onClose, onSaved, vendors, products, brands 
             <Button size="sm" variant="secondary" onClick={addRow}><Plus size={12} /> Add Row</Button>
           </div>
           <div className="divide-y divide-border">
-            {items.map((it, idx) => (
+            {items.map((it, idx) => {
+              const unit = getProductUnit(it.product);
+              const unitAmountLabel = idx === 0
+                ? (unit ? `Amt / pkg (${unit})` : 'Amt / pkg')
+                : null;
+              return (
               <div key={idx} className="grid grid-cols-12 gap-2 p-3 items-end">
                 {/* Product */}
-                <div className="col-span-12 md:col-span-4">
+                <div className="col-span-12 md:col-span-3">
                   <Field label={idx === 0 ? 'Product' : null}>
                     <Select value={it.product} onChange={(e) => selectProduct(idx, e.target.value)}>
                       <option value="">Select…</option>
@@ -776,7 +789,7 @@ function CreateInvoiceModal({ open, onClose, onSaved, vendors, products, brands 
                   </Field>
                 </div>
                 {/* Brand */}
-                <div className="col-span-12 md:col-span-3">
+                <div className="col-span-12 md:col-span-2">
                   <Field label={idx === 0 ? 'Brand' : null}>
                     <BrandCombobox
                       value={it.product_brand}
@@ -785,15 +798,26 @@ function CreateInvoiceModal({ open, onClose, onSaved, vendors, products, brands 
                     />
                   </Field>
                 </div>
+                {/* Unit Amount */}
+                <div className="col-span-6 md:col-span-2">
+                  <Field label={unitAmountLabel}>
+                    <Input
+                      type="number" step="0.01" min="0.01"
+                      value={it.unit_amount}
+                      onChange={(e) => updateItem(idx, 'unit_amount', e.target.value)}
+                      placeholder="e.g. 500"
+                    />
+                  </Field>
+                </div>
                 {/* Qty */}
                 <div className="col-span-6 md:col-span-2">
-                  <Field label={idx === 0 ? 'Qty' : null}>
+                  <Field label={idx === 0 ? 'Qty (pkgs)' : null}>
                     <Input type="number" step="0.01" value={it.quantity} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} />
                   </Field>
                 </div>
                 {/* Cost price */}
                 <div className="col-span-6 md:col-span-2">
-                  <Field label={idx === 0 ? 'Cost Price (₹)' : null}>
+                  <Field label={idx === 0 ? 'Cost / pkg (₹)' : null}>
                     <Input type="number" step="0.01" value={it.unit_price} onChange={(e) => updateItem(idx, 'unit_price', e.target.value)} />
                   </Field>
                 </div>
@@ -805,7 +829,8 @@ function CreateInvoiceModal({ open, onClose, onSaved, vendors, products, brands 
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
           {errors.items && <div className="px-4 py-2 text-xs text-red-400">{errors.items}</div>}
         </div>

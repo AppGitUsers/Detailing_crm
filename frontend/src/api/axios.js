@@ -50,12 +50,16 @@ api.interceptors.response.use(
         const newToken = await refreshAccessToken();
         original.headers.Authorization = `Bearer ${newToken}`;
         return api(original);
-      } catch {
-        localStorage.removeItem(ACCESS_KEY);
-        localStorage.removeItem(REFRESH_KEY);
-        localStorage.removeItem('crm_username');
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login';
+      } catch (refreshError) {
+        // Only force logout when the refresh token itself is rejected (genuinely expired/invalid).
+        // Network errors, timeouts, or server hiccups must NOT log the user out.
+        if (refreshError?.response?.status === 401) {
+          localStorage.removeItem(ACCESS_KEY);
+          localStorage.removeItem(REFRESH_KEY);
+          localStorage.removeItem('crm_username');
+          if (window.location.pathname !== '/login') {
+            window.location.href = '/login';
+          }
         }
       }
     }
