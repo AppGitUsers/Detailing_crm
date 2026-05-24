@@ -100,9 +100,9 @@ export default function JobCardsList() {
       />
 
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
-        <StatCard label="Two Wheelers" value={stats.twoWheeler} />
-        <StatCard label="Three Wheelers" value={stats.threeWheeler} />
-        <StatCard label="Four Wheelers" value={stats.fourWheeler} />
+        <StatCard label="Two Wheelers" value={stats.twoWheeler} onClick={() => navigate('/jobcards/by-vehicle/two_wheeler')} />
+        <StatCard label="Three Wheelers" value={stats.threeWheeler} onClick={() => navigate('/jobcards/by-vehicle/three_wheeler')} />
+        <StatCard label="Four Wheelers" value={stats.fourWheeler} onClick={() => navigate('/jobcards/by-vehicle/four_wheeler')} />
         <StatCard label="In Progress" value={stats.active} />
         <StatCard label="Completed" value={stats.completed} />
       </div>
@@ -149,9 +149,9 @@ export default function JobCardsList() {
   );
 }
 
-function StatCard({ label, value }) {
+function StatCard({ label, value, onClick }) {
   return (
-    <div className="bg-bg-card border border-border rounded-xl p-4">
+    <div className={`bg-bg-card border border-border rounded-xl p-4 ${onClick ? 'cursor-pointer hover:border-gray-500' : ''}`} onClick={onClick}>
       <div className="text-xs text-gray-400">{label}</div>
       <div className="text-2xl font-semibold text-gray-100 mt-1">{value}</div>
     </div>

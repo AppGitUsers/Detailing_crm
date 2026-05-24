@@ -239,4 +239,14 @@ class FetchVehicleType(APIView):
     def get(self, request, vehicle_type):
         jobcards_count = self.get_object(vehicle_type).count()
         return Response({'vehicle_type': vehicle_type, 'count': jobcards_count} )
-    
+
+class FetchVehicleTypeList(APIView):
+    def get_object(self, vehicle_type):
+        try:
+            return JobCard.objects.filter(customer_asset__vehicle_type=vehicle_type)
+        except JobCard.DoesNotExist:
+            return None
+    def get(self, request, vehicle_type):
+        jobcards = self.get_object(vehicle_type)
+        serializer = JobCardSerializer(jobcards, many=True)
+        return Response(serializer.data , status=status.HTTP_200_OK)
