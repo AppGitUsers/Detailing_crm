@@ -76,6 +76,9 @@ const AVATAR_COLORS = [
 // Statuses that require check_in time
 const REQUIRES_CHECK_IN = ['present', 'late', 'overtime', 'late_overtime', 'half_day'];
 
+// Statuses that show check-in / check-out times in the calendar cell
+const SHOW_TIMES_IN_CELL = ['present', 'half_day', 'late', 'overtime', 'late_overtime'];
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function todayStr() {
@@ -787,7 +790,7 @@ function DayCell({ dayInfo, today, onDayClick, onDeleteRecord }) {
 
   return (
     <div
-      className={`border-r border-b border-border/30 min-h-[90px] p-1.5 flex flex-col relative group transition-colors
+      className={`border-r border-b border-border/30 min-h-[110px] p-1.5 flex flex-col relative group transition-colors
         ${cellBg}
         ${is_future ? 'opacity-40' : ''}
         ${canCreate ? 'cursor-pointer hover:bg-bg-elev/30' : ''}
@@ -811,17 +814,30 @@ function DayCell({ dayInfo, today, onDayClick, onDeleteRecord }) {
             {STATUS_LABEL[record.status] || record.status}
           </span>
 
-          {(record.check_in || record.check_out) && (
-            <span className="text-[10px] text-gray-500 leading-tight mt-0.5">
-              {record.check_in ? fmtTime(record.check_in) : '—'}
-              {record.check_out ? ` – ${fmtTime(record.check_out)}` : ''}
-            </span>
+          {/* Check-in / Check-out — shown for time-tracked statuses */}
+          {SHOW_TIMES_IN_CELL.includes(record.status) && (
+            <div className="mt-1 space-y-0.5">
+              <div className="flex items-center gap-1">
+                <span className="text-[8px] font-bold text-gray-600 w-5 shrink-0 uppercase">IN</span>
+                <span className="text-[9px] text-gray-300 leading-none font-medium">
+                  {record.check_in ? fmtTime(record.check_in) : <span className="text-gray-600">—</span>}
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-[8px] font-bold text-gray-600 w-5 shrink-0 uppercase">OUT</span>
+                <span className="text-[9px] text-gray-300 leading-none font-medium">
+                  {record.check_out ? fmtTime(record.check_out) : <span className="text-gray-600">—</span>}
+                </span>
+              </div>
+            </div>
           )}
 
+          {/* Worked time */}
           {record.worked_minutes > 0 && (
-            <span className="text-[10px] text-gray-600 leading-tight">{fmtMins(record.worked_minutes)}</span>
+            <span className="text-[9px] text-gray-600 leading-tight mt-0.5">{fmtMins(record.worked_minutes)}</span>
           )}
 
+          {/* Late / OT badges */}
           <div className="flex flex-wrap gap-x-1 mt-auto pt-0.5">
             {record.late_minutes > 0 && (
               <span className="text-[9px] text-yellow-500 leading-none">+{fmtMins(record.late_minutes)} late</span>
