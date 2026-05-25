@@ -749,7 +749,15 @@ function EmployeeFormModal({ modal, onClose, onSaved }) {
           <SectionLabel>Employment Details</SectionLabel>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Role">
-              <Input placeholder="e.g. Detailer, Manager, Receptionist" value={form.role} onChange={set('role')} />
+              <Select value={form.role} onChange={set('role')}>
+                <option value="">— Select role —</option>
+                <option value="Cleaner">Cleaner</option>
+                <option value="Worker">Worker</option>
+                <option value="Mechanic">Mechanic</option>
+                <option value="Detailer">Detailer</option>
+                <option value="Manager">Manager</option>
+                <option value="Receptionist">Receptionist</option>
+              </Select>
             </Field>
             <Field label="Employee Type">
               <Select value={form.employee_type} onChange={set('employee_type')}>
