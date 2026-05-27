@@ -1,0 +1,710 @@
+import { useState, useEffect } from 'react';
+import {
+  Download, Calendar, TrendingUp, Car, AlertCircle,
+  Wallet, CreditCard, Banknote, ArrowUpCircle, ArrowDownCircle,
+  CheckCircle2, Clock,
+} from 'lucide-react';
+import * as XLSX from 'xlsx';
+import {
+  ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RechartsTip,
+} from 'recharts';
+import { getDailyReport } from '../../api/finance';
+import Loading from '../../components/Loading';
+import { useToast } from '../../components/Toast';
+import { extractError } from '../../api/axios';
+
+/* ─── helpers ──────────────────────────────────────────────────────────────── */
+const fmt = (n) =>
+  `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const todayStr = () => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+};
+
+const PAYMENT_LABEL = {
+  cash: 'Cash', upi: 'UPI', card: 'Card',
+  netbanking: 'Net Banking', cheque: 'Cheque', other: 'Other',
+};
+const PAYMENT_COLOR = {
+  cash: '#10b981', upi: '#6366f1', card: '#f59e0b',
+  netbanking: '#06b6d4', cheque: '#8b5cf6', other: '#94a3b8',
+};
+const PIE_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#06b6d4', '#8b5cf6', '#f43f5e', '#94a3b8'];
+
+/* ─── SummaryCard ───────────────────────────────────────────────────────────── */
+function SummaryCard({ label, value, icon: Icon, sub, accent = 'indigo' }) {
+  const cfg = {
+    indigo: { bg: 'bg-indigo-500/10',  border: 'border-indigo-500/25', text: 'text-indigo-400' },
+    green:  { bg: 'bg-emerald-500/10', border: 'border-emerald-500/25', text: 'text-emerald-400' },
+    red:    { bg: 'bg-red-500/10',     border: 'border-red-500/25',    text: 'text-red-400' },
+    amber:  { bg: 'bg-amber-500/10',   border: 'border-amber-500/25',  text: 'text-amber-400' },
+  }[accent] || {};
+  return (
+    <div className={`rounded-xl border p-4 ${cfg.bg} ${cfg.border}`}>
+      <div className="flex items-center gap-2 mb-2">
+        <div className={`w-7 h-7 rounded-lg bg-bg-elev flex items-center justify-center ${cfg.text}`}>
+          <Icon size={15} />
+        </div>
+        <span className="text-xs text-gray-400">{label}</span>
+      </div>
+      <div className="text-xl font-bold text-gray-100">{value}</div>
+      {sub && <div className="text-[11px] text-gray-500 mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+
+/* ─── HTML Report generator ─────────────────────────────────────────────────── */
+function generateHTML(r) {
+  const fmtN = (n) =>
+    `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  const payRows = r.payment_breakdown.map(p => `
+    <tr>
+      <td>${PAYMENT_LABEL[p.method] || p.method}</td>
+      <td style="text-align:right">${fmtN(p.amount)}</td>
+      <td style="text-align:center">${p.count}</td>
+    </tr>`).join('');
+
+  const svcRows = r.service_revenue.map(s => {
+    const pct = Number(s.billed) > 0
+      ? Math.round((Number(s.collected) / Number(s.billed)) * 100) : 0;
+    const bar = `<div style="height:8px;background:#2a2a3a;border-radius:4px;overflow:hidden">
+      <div style="height:100%;width:${pct}%;background:#10b981;border-radius:4px"></div></div>`;
+    return `<tr>
+      <td>${s.service_name}</td>
+      <td style="text-align:center">${s.jobs}</td>
+      <td style="text-align:right">${fmtN(s.billed)}</td>
+      <td style="text-align:right;color:#10b981">${fmtN(s.collected)}</td>
+      <td style="text-align:right;color:#f43f5e">${fmtN(s.outstanding)}</td>
+      <td style="min-width:120px">${bar} <small style="color:#9ca3af">${pct}%</small></td>
+    </tr>`;
+  }).join('');
+
+  const pendRows = r.pending_sales.map(p => `
+    <tr>
+      <td>${p.job_card_number}</td>
+      <td>${p.customer}</td>
+      <td>${p.vehicle}</td>
+      <td style="text-align:right">${fmtN(p.total)}</td>
+      <td style="text-align:right;color:#10b981">${fmtN(p.paid)}</td>
+      <td style="text-align:right;color:#f59e0b">${fmtN(p.outstanding)}</td>
+    </tr>`).join('');
+
+  const expRows = r.cash_expenses.items.map(e => `
+    <tr>
+      <td>${e.description}</td>
+      <td><span class="badge">${e.category}</span></td>
+      <td style="text-align:right;color:#f43f5e">${fmtN(e.amount)}</td>
+    </tr>`).join('');
+
+  // Simple donut chart as SVG
+  const total = r.payment_breakdown.reduce((s, p) => s + Number(p.amount), 0);
+  let cumulative = 0;
+  const pieSegments = r.payment_breakdown.map((p, i) => {
+    const pct  = total > 0 ? Number(p.amount) / total : 0;
+    const start = cumulative;
+    cumulative += pct;
+    const startAngle = start * 2 * Math.PI - Math.PI / 2;
+    const endAngle   = cumulative * 2 * Math.PI - Math.PI / 2;
+    const r2 = 70;
+    const x1 = 80 + r2 * Math.cos(startAngle);
+    const y1 = 80 + r2 * Math.sin(startAngle);
+    const x2 = 80 + r2 * Math.cos(endAngle);
+    const y2 = 80 + r2 * Math.sin(endAngle);
+    const large = pct > 0.5 ? 1 : 0;
+    const color = PIE_COLORS[i % PIE_COLORS.length];
+    if (pct === 0) return '';
+    return `<path d="M80,80 L${x1.toFixed(1)},${y1.toFixed(1)} A${r2},${r2} 0 ${large},1 ${x2.toFixed(1)},${y2.toFixed(1)} Z"
+      fill="${color}" stroke="#13161d" stroke-width="2"/>`;
+  }).join('');
+
+  const pieLabels = r.payment_breakdown.map((p, i) => `
+    <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#9ca3af">
+      <span style="width:10px;height:10px;border-radius:2px;background:${PIE_COLORS[i % PIE_COLORS.length]};flex-shrink:0"></span>
+      ${PAYMENT_LABEL[p.method] || p.method}: ${fmtN(p.amount)}
+    </div>`).join('');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Daily Closing Report – ${r.date}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #0b0d12; color: #e5e7eb; padding: 32px; }
+  .page { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 700; color: #fff; }
+  h2 { font-size: 13px; font-weight: 600; color: #c4b5fd; text-transform: uppercase; letter-spacing: .06em; margin: 0 0 12px; }
+  .header { background: linear-gradient(135deg, #1a1e27, #13161d); border: 1px solid #252a36; border-radius: 12px; padding: 24px 28px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-start; }
+  .header .meta { font-size: 12px; color: #9ca3af; margin-top: 4px; }
+  .stamp { text-align: right; font-size: 11px; color: #6b7280; }
+  .stamp .date { font-size: 20px; font-weight: 700; color: #7c5cff; }
+  .section { background: #13161d; border: 1px solid #252a36; border-radius: 12px; padding: 20px 24px; margin-bottom: 20px; }
+  .grid4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 20px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+  .kpi { background: #1a1e27; border: 1px solid #252a36; border-radius: 10px; padding: 16px; }
+  .kpi .lbl { font-size: 11px; color: #9ca3af; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .05em; }
+  .kpi .val { font-size: 20px; font-weight: 700; color: #fff; }
+  .kpi.green .val { color: #10b981; }
+  .kpi.red .val   { color: #f43f5e; }
+  .kpi.amber .val { color: #f59e0b; }
+  .kpi.purple .val { color: #c4b5fd; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; padding: 8px 10px; color: #9ca3af; font-weight: 500; border-bottom: 1px solid #252a36; }
+  td { padding: 8px 10px; border-bottom: 1px solid #1a1e27; }
+  tr:hover td { background: #1a1e27; }
+  .badge { display: inline-block; padding: 2px 8px; background: rgba(99,102,241,0.15); border: 1px solid rgba(99,102,241,0.3); border-radius: 20px; font-size: 10px; color: #818cf8; }
+  .cf-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #252a36; font-size: 13px; }
+  .cf-row:last-child { border-bottom: none; font-size: 16px; font-weight: 700; }
+  .cf-total { font-size: 22px; font-weight: 800; color: #10b981; }
+  .no-data { text-align: center; color: #6b7280; padding: 24px; font-size: 13px; }
+  @media print { body { background: #fff; color: #111; } .section,.kpi,.header { background: #fff; border-color: #e5e7eb; } h2 { color: #4f46e5; } }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <h1>🚗 Detailing CRM</h1>
+      <p class="meta">Daily Closing Report · Generated on ${new Date().toLocaleString('en-IN')}</p>
+    </div>
+    <div class="stamp">
+      <div class="date">${r.date}</div>
+      <div style="color:#9ca3af;font-size:11px;margin-top:4px">${r.summary.vehicles_serviced} vehicles serviced</div>
+    </div>
+  </div>
+
+  <!-- KPI Row -->
+  <div class="grid4">
+    <div class="kpi purple"><div class="lbl">Total Billed</div><div class="val">${fmtN(r.summary.total_billed)}</div></div>
+    <div class="kpi green"><div class="lbl">Total Collected</div><div class="val">${fmtN(r.summary.total_collected)}</div></div>
+    <div class="kpi red"><div class="lbl">Outstanding</div><div class="val">${fmtN(r.summary.outstanding)}</div></div>
+    <div class="kpi amber"><div class="lbl">Vehicles Serviced</div><div class="val">${r.summary.vehicles_serviced}</div></div>
+  </div>
+
+  <!-- Payment + Cash Flow -->
+  <div class="grid2">
+    <!-- Payment Breakdown -->
+    <div class="section">
+      <h2>Payment Mode Breakdown</h2>
+      ${r.payment_breakdown.length === 0
+        ? '<p class="no-data">No payments recorded today</p>'
+        : `<div style="display:flex;align-items:flex-start;gap:20px">
+            <svg width="160" height="160" viewBox="0 0 160 160">
+              <circle cx="80" cy="80" r="42" fill="#1a1e27"/>
+              ${pieSegments}
+            </svg>
+            <div style="flex:1;padding-top:8px;display:flex;flex-direction:column;gap:6px">${pieLabels}</div>
+          </div>
+          <table style="margin-top:14px">
+            <thead><tr><th>Method</th><th style="text-align:right">Amount</th><th style="text-align:center">Txns</th></tr></thead>
+            <tbody>${payRows}</tbody>
+          </table>`
+      }
+    </div>
+
+    <!-- Cash Flow -->
+    <div class="section">
+      <h2>Cash Flow Statement</h2>
+      <div class="cf-row"><span style="color:#9ca3af">Opening Cash Balance</span><span>${fmtN(r.cash_flow.opening_balance)}</span></div>
+      <div class="cf-row"><span style="color:#10b981">＋ Cash Collected Today</span><span style="color:#10b981">${fmtN(r.cash_flow.cash_collected)}</span></div>
+      <div class="cf-row"><span style="color:#f43f5e">− Cash Expenses Today</span><span style="color:#f43f5e">${fmtN(r.cash_flow.cash_expenses)}</span></div>
+      <div class="cf-row"><span>Closing Cash Balance</span><span class="cf-total">${fmtN(r.cash_flow.closing_balance)}</span></div>
+    </div>
+  </div>
+
+  <!-- Service Revenue -->
+  <div class="section">
+    <h2>Service Revenue Breakdown &amp; Variance</h2>
+    ${r.service_revenue.length === 0
+      ? '<p class="no-data">No services billed today</p>'
+      : `<table>
+          <thead><tr>
+            <th>Service</th><th style="text-align:center">Jobs</th>
+            <th style="text-align:right">Billed</th>
+            <th style="text-align:right">Collected</th>
+            <th style="text-align:right">Outstanding</th>
+            <th>Collection %</th>
+          </tr></thead>
+          <tbody>${svcRows}</tbody>
+        </table>`
+    }
+  </div>
+
+  <!-- Pending Sales -->
+  ${r.pending_sales.length > 0 ? `
+  <div class="section" style="border-color:rgba(245,158,11,0.3)">
+    <h2 style="color:#f59e0b">⚠ Pending / Credit Sales (${r.pending_sales.length})</h2>
+    <table>
+      <thead><tr>
+        <th>Job Card</th><th>Customer</th><th>Vehicle</th>
+        <th style="text-align:right">Total</th>
+        <th style="text-align:right">Paid</th>
+        <th style="text-align:right">Outstanding</th>
+      </tr></thead>
+      <tbody>${pendRows}</tbody>
+    </table>
+  </div>` : ''}
+
+  <!-- Cash Expenses -->
+  ${r.cash_expenses.items.length > 0 ? `
+  <div class="section">
+    <h2>Cash Expenses Paid Out — ${fmtN(r.cash_expenses.total)}</h2>
+    <table>
+      <thead><tr><th>Description</th><th>Category</th><th style="text-align:right">Amount</th></tr></thead>
+      <tbody>${expRows}</tbody>
+    </table>
+  </div>` : ''}
+
+  <!-- Footer -->
+  <div style="text-align:center;color:#374151;font-size:11px;margin-top:24px;padding-top:16px;border-top:1px solid #1a1e27">
+    Generated by Detailing CRM · ${r.date} · Confidential
+  </div>
+
+</div>
+</body>
+</html>`;
+}
+
+/* ─── Excel export ──────────────────────────────────────────────────────────── */
+function exportExcel(r) {
+  const wb = XLSX.utils.book_new();
+  const money = (n) => Number(Number(n || 0).toFixed(2));
+
+  // Sheet 1 — Summary
+  const ws1 = XLSX.utils.aoa_to_sheet([
+    ['Daily Closing Report', r.date],
+    [],
+    ['Metric', 'Value'],
+    ['Total Billed (₹)',     money(r.summary.total_billed)],
+    ['Total Collected (₹)',  money(r.summary.total_collected)],
+    ['Outstanding (₹)',      money(r.summary.outstanding)],
+    ['Vehicles Serviced',    r.summary.vehicles_serviced],
+  ]);
+  XLSX.utils.book_append_sheet(wb, ws1, 'Summary');
+
+  // Sheet 2 — Payment Breakdown
+  const ws2 = XLSX.utils.aoa_to_sheet([
+    ['Payment Method', 'Amount (₹)', 'Transactions'],
+    ...r.payment_breakdown.map(p => [PAYMENT_LABEL[p.method] || p.method, money(p.amount), p.count]),
+  ]);
+  XLSX.utils.book_append_sheet(wb, ws2, 'Payment Breakdown');
+
+  // Sheet 3 — Service Revenue
+  const ws3 = XLSX.utils.aoa_to_sheet([
+    ['Service', 'Jobs', 'Billed (₹)', 'Collected (₹)', 'Outstanding (₹)', 'Collection %'],
+    ...r.service_revenue.map(s => {
+      const pct = Number(s.billed) > 0
+        ? Math.round((Number(s.collected) / Number(s.billed)) * 100) : 0;
+      return [s.service_name, s.jobs, money(s.billed), money(s.collected), money(s.outstanding), `${pct}%`];
+    }),
+  ]);
+  XLSX.utils.book_append_sheet(wb, ws3, 'Service Revenue');
+
+  // Sheet 4 — Pending Sales
+  const ws4 = XLSX.utils.aoa_to_sheet([
+    ['Job Card #', 'Customer', 'Vehicle', 'Services', 'Total (₹)', 'Paid (₹)', 'Outstanding (₹)'],
+    ...r.pending_sales.map(p => [p.job_card_number, p.customer, p.vehicle, p.services, money(p.total), money(p.paid), money(p.outstanding)]),
+  ]);
+  XLSX.utils.book_append_sheet(wb, ws4, 'Pending Sales');
+
+  // Sheet 5 — Cash Flow
+  const ws5 = XLSX.utils.aoa_to_sheet([
+    ['Item', 'Amount (₹)'],
+    ['Opening Cash Balance',  money(r.cash_flow.opening_balance)],
+    ['(+) Cash Collected',    money(r.cash_flow.cash_collected)],
+    ['(-) Cash Expenses',     money(r.cash_flow.cash_expenses)],
+    ['Closing Cash Balance',  money(r.cash_flow.closing_balance)],
+  ]);
+  XLSX.utils.book_append_sheet(wb, ws5, 'Cash Flow');
+
+  // Sheet 6 — Expenses
+  const ws6 = XLSX.utils.aoa_to_sheet([
+    ['Description', 'Category', 'Amount (₹)'],
+    ...r.cash_expenses.items.map(e => [e.description, e.category, money(e.amount)]),
+  ]);
+  XLSX.utils.book_append_sheet(wb, ws6, 'Cash Expenses');
+
+  XLSX.writeFile(wb, `daily-report-${r.date}.xlsx`);
+}
+
+/* ─── Main component ────────────────────────────────────────────────────────── */
+export default function DailyReport() {
+  const toast   = useToast();
+  const [date, setDate]     = useState(todayStr);
+  const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!date) return;          // guard: ignore empty date strings
+    let cancelled = false;
+    setReport(null);            // clear stale data immediately so old date's numbers never linger
+    setLoading(true);
+    getDailyReport(date)
+      .then(d => { if (!cancelled) setReport(d); })
+      .catch(err => { if (!cancelled) toast.error(extractError(err)); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date]);
+
+  const handleHTMLDownload = () => {
+    if (!report) return;
+    const blob = new Blob([generateHTML(report)], { type: 'text/html;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `daily-report-${report.date}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="bg-bg-card border border-border rounded-xl overflow-hidden">
+
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <div className="px-5 py-4 border-b border-border flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-violet-500/15 border border-violet-500/20 flex items-center justify-center">
+            <Calendar size={16} className="text-violet-400" />
+          </div>
+          <div>
+            <h2 className="text-base font-semibold text-gray-100">Daily Closing Report</h2>
+            <p className="text-[11px] text-gray-500">End-of-day snapshot — all figures for selected date</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={date}
+            onChange={e => setDate(e.target.value)}
+            className="bg-bg-elev border border-border rounded-lg px-3 py-1.5 text-sm text-gray-100 focus:outline-none focus:border-accent"
+          />
+          <button
+            onClick={handleHTMLDownload}
+            disabled={!report || loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-elev border border-border rounded-lg text-xs text-gray-300 hover:text-gray-100 hover:bg-bg-hover disabled:opacity-40 transition"
+          >
+            <Download size={12} /> HTML
+          </button>
+          <button
+            onClick={() => report && exportExcel(report)}
+            disabled={!report || loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-900/30 border border-emerald-700/40 rounded-lg text-xs text-emerald-300 hover:bg-emerald-900/50 disabled:opacity-40 transition"
+          >
+            <Download size={12} /> Excel
+          </button>
+        </div>
+      </div>
+
+      {/* ── Body ───────────────────────────────────────────────────────── */}
+      {loading ? (
+        <div className="py-12"><Loading /></div>
+      ) : !report ? null : (
+        <div className="p-5 space-y-5">
+
+          {/* Date confirmation banner */}
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-500/10 border border-violet-500/20">
+            <Calendar size={13} className="text-violet-400 shrink-0" />
+            <span className="text-xs text-violet-300 font-medium">
+              Showing report for&nbsp;
+              <span className="font-bold text-violet-200">
+                {new Date(report.date + 'T00:00:00').toLocaleDateString('en-IN', {
+                  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+                })}
+              </span>
+            </span>
+          </div>
+
+          {/* ── 1. Summary KPI Row ───────────────────────────── */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <SummaryCard
+              label="Total Billed"
+              value={fmt(report.summary.total_billed)}
+              icon={TrendingUp}
+              accent="indigo"
+            />
+            <SummaryCard
+              label="Total Collected"
+              value={fmt(report.summary.total_collected)}
+              icon={Wallet}
+              accent="green"
+              sub={`${report.summary.total_billed > 0
+                ? Math.round((Number(report.summary.total_collected) / Number(report.summary.total_billed)) * 100)
+                : 0}% of billed`}
+            />
+            <SummaryCard
+              label="Outstanding"
+              value={fmt(report.summary.outstanding)}
+              icon={AlertCircle}
+              accent="red"
+            />
+            <SummaryCard
+              label="Vehicles Serviced"
+              value={report.summary.vehicles_serviced}
+              icon={Car}
+              accent="amber"
+            />
+          </div>
+
+          {/* ── 2 & 7. Payment Breakdown + Cash Flow ─────────── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+            {/* 2. Payment Mode Breakdown */}
+            <div className="bg-bg rounded-xl border border-border p-4">
+              <h3 className="text-sm font-semibold text-gray-200 mb-4 flex items-center gap-2">
+                <CreditCard size={14} className="text-accent" />
+                Payment Mode Breakdown
+              </h3>
+              {report.payment_breakdown.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-6">No payments recorded today</p>
+              ) : (
+                <div className="flex flex-col sm:flex-row items-start gap-4">
+                  {/* Donut */}
+                  <div className="shrink-0 mx-auto sm:mx-0">
+                    <ResponsiveContainer width={130} height={130}>
+                      <PieChart>
+                        <Pie
+                          data={report.payment_breakdown}
+                          dataKey="amount"
+                          nameKey="method"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={38}
+                          outerRadius={58}
+                          strokeWidth={2}
+                          stroke="#13161d"
+                        >
+                          {report.payment_breakdown.map((_, i) => (
+                            <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <RechartsTip
+                          contentStyle={{ background: '#1a1e27', border: '1px solid #252a36', borderRadius: 8, fontSize: 11 }}
+                          formatter={(v, n) => [fmt(v), PAYMENT_LABEL[n] || n]}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  {/* Bars */}
+                  <div className="flex-1 space-y-2.5 w-full">
+                    {report.payment_breakdown.map((pm, i) => {
+                      const max = Math.max(...report.payment_breakdown.map(p => Number(p.amount)));
+                      const pct = max > 0 ? (Number(pm.amount) / max) * 100 : 0;
+                      const clr = PIE_COLORS[i % PIE_COLORS.length];
+                      return (
+                        <div key={pm.method}>
+                          <div className="flex items-center justify-between text-xs mb-1">
+                            <span className="text-gray-300 flex items-center gap-1.5">
+                              <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ background: clr }} />
+                              {PAYMENT_LABEL[pm.method] || pm.method}
+                            </span>
+                            <span className="text-gray-100 font-medium">
+                              {fmt(pm.amount)}&nbsp;
+                              <span className="text-gray-500">({pm.count} txn)</span>
+                            </span>
+                          </div>
+                          <div className="h-1.5 bg-bg-elev rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${pct}%`, background: clr }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 7. Cash Flow Statement */}
+            <div className="bg-bg rounded-xl border border-border p-4">
+              <h3 className="text-sm font-semibold text-gray-200 mb-4 flex items-center gap-2">
+                <Banknote size={14} className="text-emerald-400" />
+                Cash Flow Statement
+              </h3>
+              <div className="space-y-0">
+                {[
+                  {
+                    label: 'Opening Cash Balance',
+                    value: report.cash_flow.opening_balance,
+                    icon: Clock,
+                    cls: 'text-gray-300',
+                  },
+                  {
+                    label: 'Cash Collected Today',
+                    value: report.cash_flow.cash_collected,
+                    icon: ArrowUpCircle,
+                    cls: 'text-emerald-400',
+                    prefix: '+',
+                  },
+                  {
+                    label: 'Cash Expenses Paid Out',
+                    value: report.cash_flow.cash_expenses,
+                    icon: ArrowDownCircle,
+                    cls: 'text-red-400',
+                    prefix: '−',
+                  },
+                ].map(row => (
+                  <div key={row.label} className="flex items-center justify-between py-3 border-b border-border">
+                    <div className="flex items-center gap-2 text-xs text-gray-400">
+                      <row.icon size={14} className={row.cls} />
+                      {row.label}
+                    </div>
+                    <span className={`text-sm font-semibold ${row.cls}`}>
+                      {row.prefix}{fmt(row.value)}
+                    </span>
+                  </div>
+                ))}
+                {/* Closing */}
+                <div className="flex items-center justify-between pt-4">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-gray-100">
+                    <CheckCircle2 size={15} className={Number(report.cash_flow.closing_balance) >= 0 ? 'text-emerald-400' : 'text-red-400'} />
+                    Closing Cash Balance
+                  </div>
+                  <span className={`text-2xl font-bold ${Number(report.cash_flow.closing_balance) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {fmt(report.cash_flow.closing_balance)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── 3. Service Revenue + Variance ──────────────────── */}
+          <div className="bg-bg rounded-xl border border-border p-4">
+            <h3 className="text-sm font-semibold text-gray-200 mb-4 flex items-center gap-2">
+              <TrendingUp size={14} className="text-indigo-400" />
+              Service Revenue &amp; Collection Variance
+            </h3>
+            {report.service_revenue.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-6">No services billed today</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border">
+                      {['Service', 'Jobs', 'Billed', 'Collected', 'Outstanding', 'Collection Rate'].map(h => (
+                        <th key={h} className="pb-2.5 pr-5 text-left text-gray-400 font-medium whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {report.service_revenue.map(s => {
+                      const billedN = Number(s.billed);
+                      const colN    = Number(s.collected);
+                      const pct     = billedN > 0 ? Math.round((colN / billedN) * 100) : 0;
+                      const clr     = pct >= 80 ? 'bg-emerald-500' : pct >= 50 ? 'bg-yellow-500' : 'bg-red-500';
+                      const txtClr  = pct >= 80 ? 'text-emerald-400' : pct >= 50 ? 'text-yellow-400' : 'text-red-400';
+                      return (
+                        <tr key={s.service_name} className="hover:bg-bg-hover transition-colors">
+                          <td className="py-2.5 pr-5 text-gray-200 font-medium">{s.service_name}</td>
+                          <td className="py-2.5 pr-5 text-gray-400">{s.jobs}</td>
+                          <td className="py-2.5 pr-5 text-gray-100 font-semibold">{fmt(s.billed)}</td>
+                          <td className="py-2.5 pr-5 text-emerald-400 font-semibold">{fmt(s.collected)}</td>
+                          <td className="py-2.5 pr-5 text-red-400">{fmt(s.outstanding)}</td>
+                          <td className="py-2.5 pr-5">
+                            <div className="flex items-center gap-2 min-w-[100px]">
+                              <div className="flex-1 h-2 bg-bg-elev rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full ${clr}`} style={{ width: `${pct}%` }} />
+                              </div>
+                              <span className={`text-[10px] font-bold ${txtClr} w-7 text-right`}>{pct}%</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  {/* Totals row */}
+                  <tfoot>
+                    <tr className="border-t-2 border-border bg-bg-elev/50">
+                      <td className="py-2.5 pr-5 text-gray-200 font-semibold">TOTAL</td>
+                      <td className="py-2.5 pr-5 text-gray-300 font-semibold">
+                        {report.service_revenue.reduce((s, r) => s + r.jobs, 0)}
+                      </td>
+                      <td className="py-2.5 pr-5 text-gray-100 font-bold">{fmt(report.summary.total_billed)}</td>
+                      <td className="py-2.5 pr-5 text-emerald-400 font-bold">{fmt(report.summary.total_collected)}</td>
+                      <td className="py-2.5 pr-5 text-red-400 font-bold">{fmt(report.summary.outstanding)}</td>
+                      <td className="py-2.5 pr-5 text-gray-400 text-[10px]">
+                        {Number(report.summary.total_billed) > 0
+                          ? Math.round((Number(report.summary.total_collected) / Number(report.summary.total_billed)) * 100)
+                          : 0}% overall
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* ── 5. Pending / Credit Sales ───────────────────────── */}
+          {report.pending_sales.length > 0 && (
+            <div className="bg-bg rounded-xl border border-amber-700/30 p-4">
+              <h3 className="text-sm font-semibold text-amber-300 mb-3 flex items-center gap-2">
+                <AlertCircle size={14} />
+                Pending / Credit Sales — {report.pending_sales.length} job card{report.pending_sales.length !== 1 ? 's' : ''}
+                <span className="ml-auto text-xs font-medium text-amber-400">
+                  Total outstanding: {fmt(report.pending_sales.reduce((s, p) => s + Number(p.outstanding), 0))}
+                </span>
+              </h3>
+              <div className="divide-y divide-border">
+                {report.pending_sales.map(ps => (
+                  <div key={ps.job_card_number} className="flex items-center justify-between py-2.5 gap-4">
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold text-gray-200">
+                        {ps.job_card_number}
+                        <span className="text-gray-400 font-normal"> · {ps.customer}</span>
+                      </div>
+                      <div className="text-[10px] text-gray-500 truncate">{ps.vehicle} · {ps.services}</div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-xs font-bold text-amber-300">{fmt(ps.outstanding)} due</div>
+                      <div className="text-[10px] text-gray-500">{fmt(ps.paid)} paid of {fmt(ps.total)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── 6. Cash Expenses ────────────────────────────────── */}
+          {report.cash_expenses.items.length > 0 && (
+            <div className="bg-bg rounded-xl border border-border p-4">
+              <h3 className="text-sm font-semibold text-gray-200 mb-3 flex items-center gap-2">
+                <ArrowDownCircle size={14} className="text-red-400" />
+                Cash Expenses Paid Out
+                <span className="ml-auto text-sm font-bold text-red-400">{fmt(report.cash_expenses.total)}</span>
+              </h3>
+              <div className="divide-y divide-border">
+                {report.cash_expenses.items.map((e, i) => (
+                  <div key={i} className="flex items-center justify-between py-2 gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="px-1.5 py-0.5 rounded text-[9px] border border-indigo-500/30 bg-indigo-500/10 text-indigo-300 shrink-0">
+                        {e.category}
+                      </span>
+                      <span className="text-xs text-gray-300 truncate">{e.description}</span>
+                    </div>
+                    <span className="text-xs font-semibold text-red-400 shrink-0">{fmt(e.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Empty state */}
+          {report.summary.vehicles_serviced === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              <Car size={36} className="mx-auto mb-3 opacity-30" />
+              <p className="text-sm">No job cards found for {report.date}.</p>
+              <p className="text-xs mt-1">Select a different date or create job cards for this day.</p>
+            </div>
+          )}
+
+        </div>
+      )}
+    </div>
+  );
+}

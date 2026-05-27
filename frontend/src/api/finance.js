@@ -8,3 +8,6 @@ export const getFinanceIncome = (params) =>
 
 export const getFinanceExpense = (params) =>
   api.get('finance/expense/', { params }).then(r => r.data);
+
+export const getDailyReport = (date) =>
+  api.get('finance/daily-report/', { params: date ? { date } : {} }).then(r => r.data);

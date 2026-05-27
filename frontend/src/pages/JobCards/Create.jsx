@@ -25,6 +25,118 @@ const VEHICLE_TYPES = [
   { value: 'other', label: 'Other' },
 ];
 
+/* ─── Real photo vehicle type options ────────────────────────────────────── */
+
+/* ─── Local image paths ─────────────────────────────────────────────────────
+   Same images used on the Job Cards list page stat cards.
+   Place files in:  frontend/public/images/
+     two-wheeler.jpg    – motorcycle / scooter
+     three-wheeler.jpg  – auto-rickshaw
+     four-wheeler.jpg   – car / SUV
+     other-vehicle.jpg  – heavy / commercial vehicle (truck, van, etc.)
+────────────────────────────────────────────────────────────────────────────── */
+const VEHICLE_TYPE_OPTIONS = [
+  {
+    value: 'two_wheeler',
+    label: 'Two Wheeler',
+    description: 'Bike / Scooter',
+    img: '/images/two-wheeler.jpg',
+    fallback: '#2d1b69',
+    accent: '#a78bfa',
+  },
+  {
+    value: 'three_wheeler',
+    label: 'Three Wheeler',
+    description: 'Auto Rickshaw',
+    img: '/images/three-wheeler.jpg',
+    fallback: '#78350f',
+    accent: '#fbbf24',
+  },
+  {
+    value: 'four_wheeler',
+    label: 'Four Wheeler',
+    description: 'Car / SUV',
+    img: '/images/four-wheeler.jpg',
+    fallback: '#0c4a6e',
+    accent: '#38bdf8',
+  },
+  {
+    value: 'other',
+    label: 'Other',
+    description: 'Heavy / Commercial',
+    img: '/images/other-vehicle.jpg',
+    fallback: '#1a2e05',
+    accent: '#86efac',
+  },
+];
+
+function VehicleTypePicker({ value, onChange, error }) {
+  return (
+    <div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {VEHICLE_TYPE_OPTIONS.map((opt) => {
+          const selected = opt.value === value;
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => onChange(opt.value)}
+              className={`
+                relative overflow-hidden rounded-xl border-2 transition-all duration-200 group
+                focus:outline-none focus:ring-2 focus:ring-accent/40
+                ${selected
+                  ? 'border-accent shadow-[0_0_0_1px_rgba(124,92,255,0.4),0_6px_20px_rgba(124,92,255,0.25)] scale-[1.02]'
+                  : 'border-border hover:border-gray-500 hover:scale-[1.01]'
+                }
+              `}
+              style={{ aspectRatio: '3/2' }}
+            >
+              {/* Gradient fallback */}
+              <div className="absolute inset-0" style={{ background: opt.fallback }} />
+              {/* Photo */}
+              <div
+                className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-110"
+                style={{ backgroundImage: `url(${opt.img})` }}
+              />
+              {/* Dark overlay */}
+              <div
+                className="absolute inset-0 transition-opacity duration-200"
+                style={{
+                  background: selected
+                    ? `linear-gradient(to top, rgba(0,0,0,0.80) 0%, rgba(0,0,0,0.3) 100%)`
+                    : `linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.38) 100%)`,
+                }}
+              />
+              {/* Accent overlay on select */}
+              {selected && (
+                <div
+                  className="absolute inset-0 opacity-25"
+                  style={{ background: `radial-gradient(ellipse at bottom, ${opt.accent} 0%, transparent 70%)` }}
+                />
+              )}
+              {/* Checkmark */}
+              {selected && (
+                <div
+                  className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center"
+                  style={{ background: opt.accent }}
+                >
+                  <Check size={11} className="text-black font-bold" />
+                </div>
+              )}
+              {/* Label */}
+              <div className="absolute bottom-0 inset-x-0 p-2.5">
+                <div className="text-xs font-bold text-white leading-tight">{opt.label}</div>
+                <div className="text-[10px] text-white/60 mt-0.5">{opt.description}</div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+    </div>
+  );
+}
+
 export default function JobCardCreate() {
   const navigate = useNavigate();
   const toast = useToast();
@@ -465,7 +577,7 @@ function Step2({ customer, vehicle, updateCustomer, updateVehicle, errors, match
 
       <div>
         <h3 className="text-sm font-semibold text-gray-200 mb-3">Vehicle Details</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-4">
           <Field label="Vehicle Name" required error={errors.vehicle_name}>
             <Input
               placeholder="e.g. Honda City"
@@ -473,16 +585,16 @@ function Step2({ customer, vehicle, updateCustomer, updateVehicle, errors, match
               onChange={(e) => updateVehicle('vehicle_name', e.target.value)}
             />
           </Field>
-          <Field label="Vehicle Type" required error={errors.vehicle_type}>
-            <Select
+          <div>
+            <label className="block text-xs font-medium text-gray-400 mb-2">
+              Vehicle Type <span className="text-red-400">*</span>
+            </label>
+            <VehicleTypePicker
               value={vehicle.vehicle_type}
-              onChange={(e) => updateVehicle('vehicle_type', e.target.value)}
-            >
-              {VEHICLE_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>{t.label}</option>
-              ))}
-            </Select>
-          </Field>
+              onChange={(v) => updateVehicle('vehicle_type', v)}
+              error={errors.vehicle_type}
+            />
+          </div>
         </div>
       </div>
     </div>

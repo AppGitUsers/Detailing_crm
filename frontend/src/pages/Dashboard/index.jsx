@@ -12,6 +12,7 @@ import { listCustomers } from '../../api/customers';
 import { listInventory } from '../../api/inventory';
 import { extractError } from '../../api/axios';
 import { jobCardTotal } from '../../utils/jobcard';
+import DailyReport from './DailyReport';
 
 const formatCurrency = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -65,6 +66,11 @@ export default function Dashboard() {
         <StatCard icon={Users} label="Customers" value={stats.customers} accent="blue" loading={loading} />
         <StatCard icon={IndianRupee} label="Revenue (Completed)" value={formatCurrency(stats.revenue)} accent="green" loading={loading} />
         <StatCard icon={AlertTriangle} label="Low Stock Alerts" value={lowStock.length} accent="red" loading={loading} />
+      </div>
+
+      {/* ── Daily Closing Report ─────────────────────────────────────────── */}
+      <div className="mb-6">
+        <DailyReport />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

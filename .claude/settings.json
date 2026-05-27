@@ -11,7 +11,10 @@
       "Bash(python manage.py makemigrations vendors)",
       "PowerShell(Get-Command python3 -ErrorAction SilentlyContinue)",
       "PowerShell(Get-Command py -ErrorAction SilentlyContinue)",
-      "PowerShell(Get-Command python -ErrorAction SilentlyContinue)"
+      "PowerShell(Get-Command python -ErrorAction SilentlyContinue)",
+      "Bash(npm run *)",
+      "Bash(python -c \"import sys,json; p=json.load\\(sys.stdin\\); [print\\(k,v\\) for k,v in p.get\\('dependencies',{}\\).items\\(\\)]\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"d:\\\\Projects\\\\Detailing_crm\\\\frontend\\\\public\\\\images\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\HP-PC\\.claude\\projects\\d--Projects-Detailing-crm"
