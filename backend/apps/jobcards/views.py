@@ -1,8 +1,9 @@
+from django.db import transaction
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.utils import timezone
-from .models import JobCard, JobCardService, JobCardEmployee, JobCardPayment
+from .models import JobCard, JobCardService, JobCardEmployee, JobCardPayment, JobCardProduct, JobCardProductUsage
 from apps.customers.models import Customer, CustomerAsset
 from .serializers import (
     JobCardSerializer,
@@ -10,6 +11,11 @@ from .serializers import (
     JobCardEmployeeSerializer,
     JobCardPaymentSerializer,
     FullJobCardCreateSerializer,
+    ProductInfoSerializer,
+    ProductsUsedSerializer,
+    InventoryOptionSerializer,
+    JobCardProductUsageReadSerializer,
+    JobCardProductUsageCreateSerializer,
 )
 from apps.services.models import ServiceProduct
 from apps.vendors.models import Inventory
@@ -76,39 +82,21 @@ class JobCardDetailView(APIView):
         old_status = jobcard.job_card_status
 
         serializer = JobCardSerializer(jobcard, data=request.data, partial=True)
-
         if serializer.is_valid():
             updated_jobcard = serializer.save()
+            print(serializer.data)
 
-            # ── Stock deduction when marked COMPLETED ──
             if old_status != 'COMPLETED' and updated_jobcard.job_card_status == 'COMPLETED':
                 updated_jobcard.vehicle_exit_time = timezone.now()
                 updated_jobcard.save()
-
                 vehicle = updated_jobcard.customer_asset
+                updated_jobcard.job_card_services.update(service_status='completed')
                 if vehicle:
                     vehicle.last_service_date = timezone.now().date()
                     vehicle.save(update_fields=['last_service_date'])
 
-                self.deduct_inventory(updated_jobcard)
-
             return Response(JobCardSerializer(updated_jobcard).data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def deduct_inventory(self, jobcard):
-        for jc_service in jobcard.job_card_services.all():
-            service_products = ServiceProduct.objects.filter(
-                service=jc_service.service
-            )
-            for sp in service_products:
-                try:
-                    inventory = Inventory.objects.get(product=sp.product)
-                    inventory.quantity_available -= sp.quantity_required
-                    if inventory.quantity_available < 0:
-                        inventory.quantity_available = 0
-                    inventory.save()
-                except Inventory.DoesNotExist:
-                    pass
 
     def delete(self, request, pk):
         jobcard = self.get_object(pk)
@@ -158,7 +146,11 @@ class JobCardServiceListCreateView(APIView):
 
         serializer = JobCardServiceSerializer(data=data)
         if serializer.is_valid():
-            serializer.save()
+            jc_service = serializer.save()
+            JobCardProduct.objects.bulk_create([
+                JobCardProduct(job_card_service=jc_service, service_product=sp)
+                for sp in ServiceProduct.objects.filter(service=jc_service.service)
+            ])
             self.update_total_price(jobcard)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -172,6 +164,40 @@ class JobCardServiceListCreateView(APIView):
 
 
 class JobCardServiceDeleteView(APIView):
+    def patch(self, request, pk):
+        try:
+            jc_service = JobCardService.objects.get(pk=pk)
+            print (jc_service.service_status)
+        except JobCardService.DoesNotExist:
+            return Response(
+                {'error': 'Not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        old_status = jc_service.service_status
+        serializer = JobCardServiceSerializer(jc_service, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+
+        with transaction.atomic():
+            jc_service = serializer.save()
+
+            # Auto-flip the parent jobcard once every service is completed.
+            if old_status != 'completed' and jc_service.service_status == 'completed':
+                jobcard = jc_service.job_card
+                if jobcard.job_card_status != 'COMPLETED':
+                    all_completed = not jobcard.job_card_services.exclude(
+                        service_status='completed'
+                    ).exists()
+                    if all_completed:
+                        jobcard.job_card_status = 'COMPLETED'
+                        jobcard.vehicle_exit_time = timezone.now()
+                        jobcard.save(update_fields=['job_card_status', 'vehicle_exit_time'])
+                        vehicle = jobcard.customer_asset
+                        if vehicle:
+                            vehicle.last_service_date = timezone.now().date()
+                            vehicle.save(update_fields=['last_service_date'])
+
+        return Response(serializer.data)
+    
     def delete(self, request, pk):
         try:
             jc_service = JobCardService.objects.get(pk=pk)
@@ -188,6 +214,8 @@ class JobCardServiceDeleteView(APIView):
         jobcard.total_price = total
         jobcard.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 
 
 # ─── JobCard Employee ─────────────────────────────────
@@ -285,3 +313,74 @@ class FetchVehicleTypeList(APIView):
         jobcards = self.get_object(vehicle_type)
         serializer = JobCardSerializer(jobcards, many=True)
         return Response(serializer.data , status=status.HTTP_200_OK)
+    
+class FetchProductsUsedForJobCard(APIView):
+    def get_object(self, jobcard_pk):
+        try:
+            return JobCardService.objects.filter(job_card_id= jobcard_pk) # we get all the servieces for the job card and then we get all the products used for those services in the response 
+        except JobCardService.DoesNotExist:
+            return None
+    def get(self, request, jobcard_pk):
+        jobcard_services = self.get_object(jobcard_pk) # contains all the services for that job card
+        serializer = ProductsUsedSerializer(jobcard_services, many=True) # we use the ProductsUsedSerializer to get the products used for each service in the job card
+
+        return Response(serializer.data , status=status.HTTP_200_OK)
+
+
+# ─── JobCardProduct: inventory options + usage records ──────
+
+class JobCardProductInventoryOptionsView(APIView):
+    """GET inventory rows the worker can pick from for this planned product."""
+
+    def get(self, request, jc_product_id):
+        try:
+            jc_product = JobCardProduct.objects.select_related('service_product__product').get(pk=jc_product_id)
+        except JobCardProduct.DoesNotExist:
+            return Response({'error': 'JobCardProduct not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        inventory_rows = Inventory.objects.filter(
+            product=jc_product.service_product.product
+        ).select_related('product').order_by('brand', 'unit_amount')
+
+        return Response(InventoryOptionSerializer(inventory_rows, many=True).data)
+
+
+class JobCardProductUsageListCreateView(APIView):
+    """GET existing usages for this planned product; POST a new usage (decrements inventory)."""
+
+    def get(self, request, jc_product_id):
+        usages = JobCardProductUsage.objects.filter(
+            job_card_product_id=jc_product_id
+        ).select_related('product__product')
+        return Response(JobCardProductUsageReadSerializer(usages, many=True).data)
+
+    def post(self, request, jc_product_id):
+        try:
+            jc_product = JobCardProduct.objects.select_related('service_product__product').get(pk=jc_product_id)
+        except JobCardProduct.DoesNotExist:
+            return Response({'error': 'JobCardProduct not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = JobCardProductUsageCreateSerializer(
+            data=request.data,
+            context={'jc_product': jc_product},
+        )
+        serializer.is_valid(raise_exception=True)
+        usage = serializer.save()
+        return Response(JobCardProductUsageReadSerializer(usage).data, status=status.HTTP_201_CREATED)
+
+
+class JobCardProductUsageDeleteView(APIView):
+    """DELETE a usage row and restore that quantity back to the inventory it came from."""
+
+    @transaction.atomic
+    def delete(self, request, pk):
+        try:
+            usage = JobCardProductUsage.objects.select_related('product').get(pk=pk)
+        except JobCardProductUsage.DoesNotExist:
+            return Response({'error': 'Usage not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        inv = usage.product  # FK to Inventory
+        inv.quantity_available = inv.quantity_available + usage.quantity_used
+        inv.save(update_fields=['quantity_available'])
+        usage.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

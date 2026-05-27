@@ -11,7 +11,7 @@ import { createFullJobCard } from '../../api/jobcards';
 import { listServices } from '../../api/services';
 import { getSettings } from '../../api/settings';
 import { extractError } from '../../api/axios';
-
+import { listEmployees } from '../../api/employees';
 const nowLocal = () => {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, '0');
@@ -45,6 +45,7 @@ export default function JobCardCreate() {
     vehicle_expected_exit_time: '',
     complaints: '',
     phone_number: '',
+    employee: '',
   });
 
   const [customer, setCustomer] = useState({
@@ -62,6 +63,7 @@ export default function JobCardCreate() {
   const [loadingServices, setLoadingServices] = useState(false);
   const [selectedServiceIds, setSelectedServiceIds] = useState([]);
   const [gstPercent, setGstPercent] = useState('18');
+  const [employees, setEmployees] = useState([]);
 
   // Pull default GST from settings on mount; fall back to 18 if unavailable
   useEffect(() => {
@@ -70,8 +72,13 @@ export default function JobCardCreate() {
         const s = data.find(d => d.field_name === 'default_gst_percent');
         if (s?.value) setGstPercent(s.value);
       })
-      .catch(() => {}); // silently ignore — default stays 18
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+      .catch(() => { }); // silently ignore — default stays 18
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    listEmployees()
+      .then(data => setEmployees(Array.isArray(data) ? data : (data.results || [])))
+      .catch(err => toast.error(extractError(err)));
   }, []);
 
   const updateJobCard = (k, v) => setJobCard((f) => ({ ...f, [k]: v }));
@@ -97,6 +104,7 @@ export default function JobCardCreate() {
     if (!jobCard.vehicle_entry_time) e.vehicle_entry_time = 'Required';
     if (!jobCard.vehicle_expected_exit_time) e.vehicle_expected_exit_time = 'Required';
     if (!jobCard.phone_number.trim()) e.phone_number = 'Required';
+    if (!jobCard.employee.trim()) e.employee = 'Required';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -249,6 +257,7 @@ export default function JobCardCreate() {
             form={jobCard}
             update={updateJobCard}
             errors={errors}
+            employees={employees}
           />
         )}
 
@@ -354,7 +363,8 @@ function Stepper({ step, skippedCustomer }) {
   );
 }
 
-function Step1({ form, update, errors }) {
+function Step1({ form, update, errors, employees }) {
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <Field label="Job Card Number" required error={errors.job_card_number}>
@@ -408,6 +418,19 @@ function Step1({ form, update, errors }) {
           onChange={(e) => update('phone_number', e.target.value)}
         />
       </Field>
+      <Field label="Employee" error={errors.employee}>
+        <Select
+          value={form.employee}
+          onChange={(e) => update('employee', e.target.value)}
+        >
+          <option value="">Select employee (optional)</option>
+          {
+            employees.map(emp => (
+              <option key={emp.id} value={emp.id}>{emp.employee_name}</option>
+            ))
+          }
+        </Select>
+      </Field>
       <div className="md:col-span-2">
         <Field label="Complaints / Notes">
           <Textarea
@@ -418,6 +441,7 @@ function Step1({ form, update, errors }) {
           />
         </Field>
       </div>
+
     </div>
   );
 }
