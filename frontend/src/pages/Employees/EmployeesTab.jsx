@@ -657,7 +657,6 @@ function EmployeeFormModal({ modal, onClose, onSaved }) {
   const submit = async (e) => {
     e.preventDefault();
     const eMap = {};
-    if (modal.mode === 'edit' && !form.employee_code?.trim()) eMap.employee_code = 'Required';
     if (!form.employee_name.trim())         eMap.employee_name         = 'Required';
     // Fix #7 — phone validation: must be non-empty and at least 10 digits
     if (!form.employee_phone_number.trim()) {
@@ -718,22 +717,7 @@ function EmployeeFormModal({ modal, onClose, onSaved }) {
         <div>
           <SectionLabel>Identity</SectionLabel>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {modal?.mode === 'edit' && (
-              <Field label="Employee Code" required error={errors.employee_code}>
-                <Input
-                  placeholder="e.g. EMP001"
-                  value={form.employee_code || ''}
-                  onChange={set('employee_code')}
-                  className="font-mono"
-                />
-              </Field>
-            )}
-            <Field
-              label="Full Name"
-              required
-              error={errors.employee_name}
-              className={modal?.mode === 'create' ? 'sm:col-span-2' : undefined}
-            >
+            <Field label="Full Name" required error={errors.employee_name} className="sm:col-span-2">
               <Input placeholder="e.g. Ravi Kumar" value={form.employee_name} onChange={set('employee_name')} />
             </Field>
           </div>
@@ -765,7 +749,15 @@ function EmployeeFormModal({ modal, onClose, onSaved }) {
           <SectionLabel>Employment Details</SectionLabel>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Role">
-              <Input placeholder="e.g. Detailer, Manager, Receptionist" value={form.role} onChange={set('role')} />
+              <Select value={form.role} onChange={set('role')}>
+                <option value="">— Select role —</option>
+                <option value="Cleaner">Cleaner</option>
+                <option value="Worker">Worker</option>
+                <option value="Mechanic">Mechanic</option>
+                <option value="Detailer">Detailer</option>
+                <option value="Manager">Manager</option>
+                <option value="Receptionist">Receptionist</option>
+              </Select>
             </Field>
             <Field label="Employee Type">
               <Select value={form.employee_type} onChange={set('employee_type')}>
