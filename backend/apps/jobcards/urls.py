@@ -1,10 +1,13 @@
 from django.urls import path
 from .views import (
-    JobCardListCreateView, JobCardDetailView, FullJobCardCreateView,
+    FetchProductsUsedForJobCard, JobCardListCreateView, JobCardDetailView, FullJobCardCreateView,
     JobCardServiceListCreateView, JobCardServiceDeleteView,
     JobCardEmployeeListCreateView, JobCardEmployeeDeleteView,
     FetchVehicleType, FetchVehicleTypeList,
     JobCardPaymentListCreateView, JobCardPaymentDeleteView,
+    JobCardProductInventoryOptionsView,
+    JobCardProductUsageListCreateView,
+    JobCardProductUsageDeleteView,
 )
 
 urlpatterns = [
@@ -27,4 +30,11 @@ urlpatterns = [
 
     path('by-vehicle/<str:vehicle_type>/', FetchVehicleType.as_view(), name='jobcard-by-vehicle-type'),
     path('by-vehicle/<str:vehicle_type>/list/', FetchVehicleTypeList.as_view(), name='jobcard-list-by-vehicle-type'),
+
+    path('<int:jobcard_pk>/products-used/', FetchProductsUsedForJobCard.as_view(), name='jobcard-products-used'),
+
+    # JobCardProduct → inventory options + usage records
+    path('products/<int:jc_product_id>/inventory-options/', JobCardProductInventoryOptionsView.as_view(), name='jcproduct-inventory-options'),
+    path('products/<int:jc_product_id>/usages/', JobCardProductUsageListCreateView.as_view(), name='jcproduct-usage-list-create'),
+    path('usages/<int:pk>/', JobCardProductUsageDeleteView.as_view(), name='jcproduct-usage-delete'),
 ]

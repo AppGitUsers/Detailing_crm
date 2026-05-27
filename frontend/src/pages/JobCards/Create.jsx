@@ -11,7 +11,7 @@ import { createFullJobCard } from '../../api/jobcards';
 import { listServices } from '../../api/services';
 import { getSettings } from '../../api/settings';
 import { extractError } from '../../api/axios';
-
+import { listEmployees } from '../../api/employees';
 const nowLocal = () => {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, '0');
@@ -149,7 +149,6 @@ export default function JobCardCreate() {
   const [vehicleMatch, setVehicleMatch] = useState(null); // { customer, vehicle } when existing
   const [customerMatch, setCustomerMatch] = useState(null); // when customer exist but vehicle doesn't
   const [jobCard, setJobCard] = useState({
-    job_card_number: '',
     job_card_date: new Date().toISOString().slice(0, 10),
     vehicle_number: '',
     vehicle_kilometers: '',
@@ -157,11 +156,11 @@ export default function JobCardCreate() {
     vehicle_expected_exit_time: '',
     complaints: '',
     phone_number: '',
+    employee: '',
   });
 
   const [customer, setCustomer] = useState({
     customer_name: '',
-    phone_number: '',
     email: '',
   });
 
@@ -174,6 +173,7 @@ export default function JobCardCreate() {
   const [loadingServices, setLoadingServices] = useState(false);
   const [selectedServiceIds, setSelectedServiceIds] = useState([]);
   const [gstPercent, setGstPercent] = useState('18');
+  const [employees, setEmployees] = useState([]);
 
   // Pull default GST from settings on mount; fall back to 18 if unavailable
   useEffect(() => {
@@ -182,8 +182,13 @@ export default function JobCardCreate() {
         const s = data.find(d => d.field_name === 'default_gst_percent');
         if (s?.value) setGstPercent(s.value);
       })
-      .catch(() => {}); // silently ignore — default stays 18
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+      .catch(() => { }); // silently ignore — default stays 18
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    listEmployees()
+      .then(data => setEmployees(Array.isArray(data) ? data : (data.results || [])))
+      .catch(err => toast.error(extractError(err)));
   }, []);
 
   const updateJobCard = (k, v) => setJobCard((f) => ({ ...f, [k]: v }));
@@ -202,13 +207,13 @@ export default function JobCardCreate() {
 
   const validateStep1 = () => {
     const e = {};
-    if (!jobCard.job_card_number.trim()) e.job_card_number = 'Required';
     if (!jobCard.job_card_date) e.job_card_date = 'Required';
     if (!jobCard.vehicle_number.trim()) e.vehicle_number = 'Required';
     if (jobCard.vehicle_kilometers === '' || isNaN(Number(jobCard.vehicle_kilometers))) e.vehicle_kilometers = 'Required';
     if (!jobCard.vehicle_entry_time) e.vehicle_entry_time = 'Required';
     if (!jobCard.vehicle_expected_exit_time) e.vehicle_expected_exit_time = 'Required';
     if (!jobCard.phone_number.trim()) e.phone_number = 'Required';
+    if (!jobCard.employee.trim()) e.employee = 'Required';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -217,7 +222,6 @@ export default function JobCardCreate() {
     const e = {};
     if (!customerMatch) {
       if (!customer.customer_name.trim()) e.customer_name = 'Required';
-      if (!customer.phone_number.trim()) e.phone_number = 'Required';
       if (!customer.email.trim()) e.email = 'Required';
     }
     if (!vehicle.vehicle_name.trim()) e.vehicle_name = 'Required';
@@ -284,7 +288,6 @@ export default function JobCardCreate() {
     try {
       const payload = {
         job_card: {
-          job_card_number: jobCard.job_card_number.trim(),
           job_card_date: jobCard.job_card_date,
           vehicle_kilometers: Number(jobCard.vehicle_kilometers),
           vehicle_entry_time: new Date(jobCard.vehicle_entry_time).toISOString(),
@@ -312,7 +315,7 @@ export default function JobCardCreate() {
               is_new: true,
               id: null,
               customer_name: customer.customer_name.trim(),
-              phone_number: customer.phone_number.trim(),
+              phone_number: jobCard.phone_number.trim(),
               email: customer.email.trim(),
             },
         vehicle: vehicleMatch
@@ -361,6 +364,7 @@ export default function JobCardCreate() {
             form={jobCard}
             update={updateJobCard}
             errors={errors}
+            employees={employees}
           />
         )}
 
@@ -372,6 +376,7 @@ export default function JobCardCreate() {
             updateVehicle={updateVehicle}
             errors={errors}
             matchedCustomer={customerMatch?.customer}
+            phoneFromStep1={jobCard.phone_number}
           />
         )}
 
@@ -466,16 +471,10 @@ function Stepper({ step, skippedCustomer }) {
   );
 }
 
-function Step1({ form, update, errors }) {
+function Step1({ form, update, errors, employees }) {
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <Field label="Job Card Number" required error={errors.job_card_number}>
-        <Input
-          placeholder="JC-2025-001"
-          value={form.job_card_number}
-          onChange={(e) => update('job_card_number', e.target.value)}
-        />
-      </Field>
       <Field label="Date" required error={errors.job_card_date}>
         <Input
           type="date"
@@ -520,6 +519,19 @@ function Step1({ form, update, errors }) {
           onChange={(e) => update('phone_number', e.target.value)}
         />
       </Field>
+      <Field label="Employee" error={errors.employee}>
+        <Select
+          value={form.employee}
+          onChange={(e) => update('employee', e.target.value)}
+        >
+          <option value="">Select employee (optional)</option>
+          {
+            employees.map(emp => (
+              <option key={emp.id} value={emp.id}>{emp.employee_name}</option>
+            ))
+          }
+        </Select>
+      </Field>
       <div className="md:col-span-2">
         <Field label="Complaints / Notes">
           <Textarea
@@ -530,11 +542,12 @@ function Step1({ form, update, errors }) {
           />
         </Field>
       </div>
+
     </div>
   );
 }
 
-function Step2({ customer, vehicle, updateCustomer, updateVehicle, errors, matchedCustomer }) {
+function Step2({ customer, vehicle, updateCustomer, updateVehicle, errors, matchedCustomer, phoneFromStep1 }) {
   return (
     <div className="space-y-6">
       <div>
@@ -554,12 +567,10 @@ function Step2({ customer, vehicle, updateCustomer, updateVehicle, errors, match
                 onChange={(e) => updateCustomer('customer_name', e.target.value)}
               />
             </Field>
-            <Field label="Phone Number" required error={errors.phone_number}>
-              <Input
-                placeholder="+91 9000000000"
-                value={customer.phone_number}
-                onChange={(e) => updateCustomer('phone_number', e.target.value)}
-              />
+            <Field label="Phone Number">
+              <div className="bg-bg-elev border border-border rounded-md px-3 py-2 text-sm text-gray-300">
+                {phoneFromStep1 || <span className="text-gray-500">—</span>}
+              </div>
             </Field>
             <div className="md:col-span-2">
               <Field label="Email" required error={errors.email}>

@@ -82,7 +82,7 @@ const STAT_CARDS = [
     accent: '#34d399',
   },
 ];
-
+import { AddPaymentModal } from './Detail';
 export default function JobCardsList() {
   const navigate = useNavigate();
   const toast = useToast();
@@ -90,9 +90,10 @@ export default function JobCardsList() {
   const [jobs, setJobs]                 = useState([]);
   const [search, setSearch]             = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [stats, setStats] = useState({
-    active: 0, completed: 0, twoWheeler: 0, fourWheeler: 0, threeWheeler: 0,
-  });
+  const [stats, setStats] = useState({ active: 0, completed: 0, twoWheeler: 0, fourWheeler: 0, threeWheeler: 0 });
+  const [paymentModal, setPaymentModal] = useState(false);
+  const [payJobCard, setPayJobCard] = useState(null);
+
 
   useEffect(() => {
     async function loadAll() {
@@ -158,6 +159,13 @@ export default function JobCardsList() {
         </Badge>
       ),
     },
+    {
+      key: 'payment',
+      header: 'Payment',
+      render: (r) => (
+        <Button onClick={(e) => { e.stopPropagation(); setPayJobCard(r); }}>Pay Now </Button>
+      ),
+    }
   ];
 
   return (
@@ -207,6 +215,14 @@ export default function JobCardsList() {
             <option value="COMPLETED">Completed</option>
           </Select>
         </div>
+        <AddPaymentModal
+          open={!!payJobCard}
+          onClose={() => setPayJobCard(null)}
+          jobCardId={payJobCard?.id}
+          outstanding={payJobCard?.outstanding}
+          onAdded={() => { /* reload your jobs list */ }}
+        />
+
       </div>
 
       {loading ? (

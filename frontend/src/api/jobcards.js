@@ -11,6 +11,7 @@ export const listJobCardsByTypeList = (vehicleType) => api.get(`jobcards/by-vehi
 export const listJobCardServices = (id) => api.get(`jobcards/${id}/services/`).then(r => r.data);
 export const addJobCardService = (id, data) => api.post(`jobcards/${id}/services/`, data).then(r => r.data);
 export const removeJobCardService = (serviceLinkId) => api.delete(`jobcards/services/${serviceLinkId}/`).then(r => r.data);
+export const updateJobCardService = (serviceLinkId, data) => api.patch(`jobcards/services/${serviceLinkId}/`, data).then(r => r.data);
 
 export const listJobCardServiceEmployees = (serviceLinkId) => api.get(`jobcards/services/${serviceLinkId}/employees/`).then(r => r.data);
 export const addJobCardServiceEmployee = (serviceLinkId, data) => api.post(`jobcards/services/${serviceLinkId}/employees/`, data).then(r => r.data);
@@ -19,3 +20,18 @@ export const removeJobCardServiceEmployee = (empLinkId) => api.delete(`jobcards/
 export const listJobCardPayments = (id) => api.get(`jobcards/${id}/payments/`).then(r => r.data);
 export const addJobCardPayment = (id, data) => api.post(`jobcards/${id}/payments/`, data).then(r => r.data);
 export const removeJobCardPayment = (paymentId) => api.delete(`jobcards/payments/${paymentId}/`).then(r => r.data);
+
+export const loadProductsUsedForJobCard = (id) => api.get(`jobcards/${id}/products-used/`).then(r => r.data);
+
+// JobCardProduct → inventory options + usage records
+export const listInventoryOptions = (jcProductId) =>
+  api.get(`jobcards/products/${jcProductId}/inventory-options/`).then(r => r.data);
+
+export const listJobCardProductUsages = (jcProductId) =>
+  api.get(`jobcards/products/${jcProductId}/usages/`).then(r => r.data);
+
+export const addJobCardProductUsage = (jcProductId, data) =>
+  api.post(`jobcards/products/${jcProductId}/usages/`, data).then(r => r.data);
+
+export const removeJobCardProductUsage = (usageId) =>
+  api.delete(`jobcards/usages/${usageId}/`).then(r => r.data);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ChevronLeft, CheckCircle2, Plus, Trash2, UserPlus, Wrench, IndianRupee, Trash, CreditCard } from 'lucide-react';
+import { ChevronLeft, CheckCircle2, Plus, Trash2, UserPlus, Wrench, IndianRupee, Trash, CreditCard, ClipboardList } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Button from '../../components/Button';
 import Loading from '../../components/Loading';
@@ -19,6 +19,11 @@ import {
   removeJobCardServiceEmployee,
   addJobCardPayment,
   removeJobCardPayment,
+  updateJobCardService,
+  loadProductsUsedForJobCard,
+  listInventoryOptions,
+  addJobCardProductUsage,
+  removeJobCardProductUsage,
 } from '../../api/jobcards';
 import { listServices } from '../../api/services';
 import { listEmployees } from '../../api/employees';
@@ -34,7 +39,8 @@ export default function JobCardDetail() {
   const [job, setJob] = useState(null);
   const [services, setServices] = useState([]);
   const [employees, setEmployees] = useState([]);
-
+  const [productUsed, setProductUsed] = useState(false); // master modal
+  const [serviceUsageId, setServiceUsageId] = useState(null); // per-service modal: holds JobCardService.id
   const [serviceModal, setServiceModal] = useState(false);
   const [employeeModal, setEmployeeModal] = useState(null);
   const [paymentModal, setPaymentModal] = useState(false);
@@ -153,7 +159,7 @@ export default function JobCardDetail() {
               {isCompleted ? 'Completed' : 'In Progress'}
             </Badge>
             {!isCompleted && (
-              <Button variant="success" onClick={markCompleted} loading={completing}>
+              <Button variant="success" onClick={() => setProductUsed(true)} loading={completing}>
                 <CheckCircle2 size={16} /> Mark Completed
               </Button>
             )}
@@ -189,6 +195,35 @@ export default function JobCardDetail() {
                       <div className="min-w-0">
                         <div className="font-medium text-gray-100">{svc.service_name}</div>
                         <div className="text-xs text-gray-400 mt-0.5">{formatCurrency(svc.price_at_time)}</div>
+                        <div className="text-xs text-gray-500 mt-0.5">Status: {svc.service_status}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Select value={(svc.service_status || 'pending').toLowerCase()} disabled={isCompleted} onChange={async (e) => {
+                          const nextStatus = e.target.value;
+                          try {
+                            await updateJobCardService(svc.id, { service_status: nextStatus });
+                            toast.success(`${nextStatus} status updated`);
+                            await reload();
+                            if (nextStatus === 'completed') {
+                              setServiceUsageId(svc.id);
+                            }
+                          } catch (err) {
+                            toast.error(extractError(err));
+                          }
+                        }}>
+                          <option value="pending">Pending</option>
+                          <option value="in_progress">In Progress</option>
+                          <option value="completed">Completed</option>
+                        </Select>
+                        {svc.service_status === 'completed' && !isCompleted && (
+                          <button
+                            onClick={() => setServiceUsageId(svc.id)}
+                            className="text-gray-500 hover:text-gray-200"
+                            title="View / edit products used"
+                          >
+                            <ClipboardList size={14} />
+                          </button>
+                        )}
                       </div>
                       {!isCompleted && (
                         <button
@@ -358,6 +393,27 @@ export default function JobCardDetail() {
         outstanding={job.outstanding}
       />
 
+      <ShowProductsUsedDialog
+        open={productUsed}
+        onClose={() => setProductUsed(false)}
+        jobCardId={id}
+        onConfirm={async () => {
+          await markCompleted();
+          setProductUsed(false);
+        }}
+        confirming={completing}
+      />
+
+      <ShowProductsUsedDialog
+        open={serviceUsageId !== null}
+        onClose={async () => {
+          setServiceUsageId(null);
+          await reload();
+        }}
+        jobCardId={id}
+        serviceId={serviceUsageId}
+      />
+
       <ConfirmDialog
         open={!!confirmRemovePayment}
         onClose={() => setConfirmRemovePayment(null)}
@@ -431,7 +487,7 @@ function AddServiceModal({ open, onClose, services, existingIds, onAdded, jobCar
   );
 }
 
-function AddPaymentModal({ open, onClose, jobCardId, onAdded, outstanding }) {
+export function AddPaymentModal({ open, onClose, jobCardId, onAdded, outstanding }) {
   const toast = useToast();
   const [form, setForm] = useState({ amount: '', payment_date: new Date().toISOString().slice(0, 10), payment_method: 'cash', notes: '' });
   const [submitting, setSubmitting] = useState(false);
@@ -556,6 +612,248 @@ function AssignEmployeeModal({ serviceLinkId, onClose, employees, onAdded }) {
           ))}
         </Select>
       </Field>
+    </Modal>
+  );
+}
+
+export function ShowProductsUsedDialog({ open, onClose, jobCardId, onConfirm, confirming, serviceId = null }) {
+  const [productsUsed, setProductsUsed] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [activeProduct, setActiveProduct] = useState(null);
+  const toast = useToast();
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const res = await loadProductsUsedForJobCard(jobCardId);
+      const fresh = Array.isArray(res) ? res : [];
+      setProductsUsed(fresh);
+      setActiveProduct((prev) => {
+        if (!prev) return prev;
+        for (const svc of fresh) {
+          for (const p of svc.products || []) {
+            if (p.id === prev.id) return p;
+          }
+        }
+        return prev;
+      });
+    } catch (err) {
+      toast.error(extractError(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!open || !jobCardId) return;
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, jobCardId]);
+
+  const displayServices = serviceId
+    ? productsUsed.filter((s) => s.id === serviceId)
+    : productsUsed;
+  const scoped = serviceId !== null;
+  const titleSvc = displayServices[0]?.service_name;
+
+  return (
+    <>
+      <Modal
+        open={open}
+        onClose={onClose}
+        title={scoped ? `Record Usage — ${titleSvc || ''}` : 'Products Used in This Job Card'}
+        size="lg"
+        footer={
+          <>
+            <Button variant="secondary" onClick={onClose}>{scoped ? 'Done' : 'Cancel'}</Button>
+            {!scoped && onConfirm && (
+              <Button variant="success" onClick={onConfirm} loading={confirming}>
+                Confirm & Mark Completed
+              </Button>
+            )}
+          </>
+        }
+      >
+        {loading ? (
+          <Loading />
+        ) : displayServices.length === 0 ? (
+          <p className="text-sm text-gray-500">
+            {scoped ? 'This service has no linked products.' : 'No products linked to the services on this job card.'}
+          </p>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-xs text-gray-500">Click a product to record what you used.</p>
+            {displayServices.map((svc) => (
+              <div key={svc.id} className="bg-bg-elev border border-border rounded-lg p-4">
+                <div className="text-sm font-semibold text-gray-100 mb-2">{svc.service_name}</div>
+                {(svc.products || []).length === 0 ? (
+                  <div className="text-xs text-gray-500">No products linked.</div>
+                ) : (
+                  <ul className="space-y-1.5">
+                    {svc.products.map((p) => {
+                      const hasUsages = (p.usages || []).length > 0;
+                      return (
+                        <li key={p.id}>
+                          <button
+                            type="button"
+                            onClick={() => setActiveProduct(p)}
+                            className="w-full text-left text-sm px-2 py-1.5 rounded-md hover:bg-bg-hover transition-colors flex items-center justify-between gap-2"
+                          >
+                            <span className="text-gray-200">{p.product_name}</span>
+                            <span className={`text-xs ${hasUsages ? 'text-emerald-400' : 'text-gray-500'}`}>
+                              {hasUsages ? `${p.usages.length} recorded` : 'Not recorded'}
+                            </span>
+                          </button>
+                          {hasUsages && (
+                            <ul className="ml-4 mt-1 space-y-0.5">
+                              {p.usages.map((u) => (
+                                <li key={u.id} className="text-xs text-gray-400">
+                                  • {u.brand ? `${u.brand} — ` : ''}{u.unit_amount} {u.unit_label} × {u.quantity_used}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Modal>
+
+      <ProductUsageModal
+        product={activeProduct}
+        onClose={() => setActiveProduct(null)}
+        onChanged={loadData}
+      />
+    </>
+  );
+}
+
+function ProductUsageModal({ product, onClose, onChanged }) {
+  const toast = useToast();
+  const [options, setOptions] = useState([]);
+  const [loadingOptions, setLoadingOptions] = useState(false);
+  const [inventoryId, setInventoryId] = useState('');
+  const [quantity, setQuantity] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const open = !!product;
+
+  useEffect(() => {
+    if (!open) return;
+    setInventoryId('');
+    setQuantity('');
+    setLoadingOptions(true);
+    listInventoryOptions(product.id)
+      .then((res) => setOptions(Array.isArray(res) ? res : []))
+      .catch((err) => toast.error(extractError(err)))
+      .finally(() => setLoadingOptions(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, product?.id]);
+
+  const submit = async () => {
+    if (!inventoryId) { toast.error('Pick an inventory item'); return; }
+    if (!quantity || isNaN(Number(quantity)) || Number(quantity) <= 0) {
+      toast.error('Enter a valid quantity'); return;
+    }
+    setSubmitting(true);
+    try {
+      await addJobCardProductUsage(product.id, {
+        inventory_id: Number(inventoryId),
+        quantity_used: Number(quantity),
+      });
+      toast.success('Usage recorded');
+      setInventoryId('');
+      setQuantity('');
+      onChanged?.();
+    } catch (err) {
+      toast.error(extractError(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const removeUsage = async (usageId) => {
+    try {
+      await removeJobCardProductUsage(usageId);
+      toast.success('Usage removed');
+      onChanged?.();
+    } catch (err) {
+      toast.error(extractError(err));
+    }
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={product ? `Record usage — ${product.product_name}` : 'Record usage'}
+      size="md"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Done</Button>
+          <Button onClick={submit} loading={submitting} disabled={!inventoryId || !quantity}>Add</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <Field label="Which bottle/pack did you use?" required>
+          {loadingOptions ? (
+            <Loading />
+          ) : options.length === 0 ? (
+            <p className="text-xs text-gray-500">No inventory rows exist for this product yet.</p>
+          ) : (
+            <Select value={inventoryId} onChange={(e) => setInventoryId(e.target.value)}>
+              <option value="">Select inventory item...</option>
+              {options.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {(o.brand ? `${o.brand} — ` : '')}
+                  {o.unit_amount} {o.unit_label}
+                  {`  (${o.quantity_available} in stock)`}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
+
+        <Field label="Quantity used" required>
+          <Input
+            type="number"
+            step="0.01"
+            min="0.01"
+            placeholder="e.g. 1 (full) or 0.5 (half)"
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+          />
+          <p className="text-xs text-gray-500 mt-1">1 = a whole unit, 0.5 = half a unit.</p>
+        </Field>
+
+        {product && (product.usages || []).length > 0 && (
+          <div className="border-t border-border pt-3">
+            <p className="text-xs text-gray-500 font-medium mb-2">Already recorded</p>
+            <ul className="space-y-1">
+              {product.usages.map((u) => (
+                <li key={u.id} className="flex items-center justify-between text-xs text-gray-300">
+                  <span>
+                    {u.brand ? `${u.brand} — ` : ''}{u.unit_amount} {u.unit_label} × {u.quantity_used}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeUsage(u.id)}
+                    className="text-gray-500 hover:text-red-400"
+                    title="Remove"
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
     </Modal>
   );
 }
