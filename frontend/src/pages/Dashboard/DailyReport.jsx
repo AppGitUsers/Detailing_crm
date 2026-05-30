@@ -211,13 +211,13 @@ function generateHTML(r) {
       }
     </div>
 
-    <!-- Cash Flow -->
+    <!-- Flow Statement -->
     <div class="section">
-      <h2>Cash Flow Statement</h2>
-      <div class="cf-row"><span style="color:#9ca3af">Opening Cash Balance</span><span>${fmtN(r.cash_flow.opening_balance)}</span></div>
-      <div class="cf-row"><span style="color:#10b981">＋ Cash Collected Today</span><span style="color:#10b981">${fmtN(r.cash_flow.cash_collected)}</span></div>
-      <div class="cf-row"><span style="color:#f43f5e">− Cash Expenses Today</span><span style="color:#f43f5e">${fmtN(r.cash_flow.cash_expenses)}</span></div>
-      <div class="cf-row"><span>Closing Cash Balance</span><span class="cf-total">${fmtN(r.cash_flow.closing_balance)}</span></div>
+      <h2>Flow Statement</h2>
+      <div class="cf-row"><span style="color:#9ca3af">Opening Balance</span><span>${fmtN(r.cash_flow.opening_balance)}</span></div>
+      <div class="cf-row"><span style="color:#10b981">＋ Collected Today (All Modes)</span><span style="color:#10b981">${fmtN(r.cash_flow.cash_collected)}</span></div>
+      <div class="cf-row"><span style="color:#f43f5e">− Expenses Paid Out</span><span style="color:#f43f5e">${fmtN(r.cash_flow.cash_expenses)}</span></div>
+      <div class="cf-row"><span>Closing Balance</span><span class="cf-total">${fmtN(r.cash_flow.closing_balance)}</span></div>
     </div>
   </div>
 
@@ -558,29 +558,29 @@ export default function DailyReport() {
               )}
             </div>
 
-            {/* 7. Cash Flow Statement */}
+            {/* 7. Flow Statement */}
             <div className="bg-bg rounded-xl border border-border p-4">
               <h3 className="text-sm font-semibold text-gray-200 mb-4 flex items-center gap-2">
                 <Banknote size={14} className="text-emerald-400" />
-                Cash Flow Statement
+                Flow Statement
               </h3>
               <div className="space-y-0">
                 {[
                   {
-                    label: 'Opening Cash Balance',
+                    label: 'Opening Balance',
                     value: report.cash_flow.opening_balance,
                     icon: Clock,
                     cls: 'text-gray-300',
                   },
                   {
-                    label: 'Cash Collected Today',
+                    label: 'Collected Today (All Modes)',
                     value: report.cash_flow.cash_collected,
                     icon: ArrowUpCircle,
                     cls: 'text-emerald-400',
                     prefix: '+',
                   },
                   {
-                    label: 'Cash Expenses Paid Out',
+                    label: 'Expenses Paid Out',
                     value: report.cash_flow.cash_expenses,
                     icon: ArrowDownCircle,
                     cls: 'text-red-400',
@@ -601,7 +601,7 @@ export default function DailyReport() {
                 <div className="flex items-center justify-between pt-4">
                   <div className="flex items-center gap-2 text-sm font-semibold text-gray-100">
                     <CheckCircle2 size={15} className={Number(report.cash_flow.closing_balance) >= 0 ? 'text-emerald-400' : 'text-red-400'} />
-                    Closing Cash Balance
+                    Closing Balance
                   </div>
                   <span className={`text-2xl font-bold ${Number(report.cash_flow.closing_balance) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                     {fmt(report.cash_flow.closing_balance)}

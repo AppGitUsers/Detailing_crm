@@ -412,19 +412,19 @@ class DailyReportView(APIView):
 
         total_expenses = sum((Decimal(e['amount']) for e in expense_items), Decimal('0'))
 
-        # ── Cash flow ───────────────────────────────────────────────────
-        # Cash collected for job cards opened on this date (cash payments only)
-        cash_in_today = JobCardPayment.objects.filter(
-            job_card__job_card_date=report_date, payment_method='cash'
+        # ── Flow statement (all payment modes) ──────────────────────────
+        # Total collected for job cards opened on this date (all modes)
+        collected_today = JobCardPayment.objects.filter(
+            job_card__job_card_date=report_date,
         ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
 
-        # Opening balance = cumulative cash for job cards before report_date − cumulative expenses before report_date
-        cash_before   = JobCardPayment.objects.filter(
-            job_card__job_card_date__lt=report_date, payment_method='cash'
+        # Opening balance = all payments received for job cards before this date − all expenses before this date
+        collected_before = JobCardPayment.objects.filter(
+            job_card__job_card_date__lt=report_date,
         ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
-        exp_before    = _expense_total_before_date(report_date)
-        opening_bal   = cash_before - exp_before
-        closing_bal   = opening_bal + cash_in_today - total_expenses
+        exp_before  = _expense_total_before_date(report_date)
+        opening_bal = collected_before - exp_before
+        closing_bal = opening_bal + collected_today - total_expenses
 
         # ── Service revenue list (sorted by billed desc) ─────────────────
         service_revenue = sorted([
@@ -455,7 +455,7 @@ class DailyReportView(APIView):
             },
             'cash_flow': {
                 'opening_balance': str(opening_bal.quantize(Decimal('0.01'))),
-                'cash_collected':  str(cash_in_today.quantize(Decimal('0.01'))),
+                'cash_collected':  str(collected_today.quantize(Decimal('0.01'))),
                 'cash_expenses':   str(total_expenses.quantize(Decimal('0.01'))),
                 'closing_balance': str(closing_bal.quantize(Decimal('0.01'))),
             },
