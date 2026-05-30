@@ -104,6 +104,7 @@ export default function JobCardsList() {
   const [employeeFilter, setEmployeeFilter] = useState('');
   const [companyFilter, setCompanyFilter] = useState('');
   const [modelFilter, setModelFilter]     = useState('');
+  const [usageFilter, setUsageFilter]     = useState(''); // '' | 'complete' | 'incomplete'
   const [employees, setEmployees]         = useState([]);
   const [companies, setCompanies]         = useState([]);
   const [models, setModels]               = useState([]);
@@ -161,16 +162,19 @@ export default function JobCardsList() {
   }, [statusFilter, dateFilter, employeeFilter, companyFilter, modelFilter, refreshKey]); // eslint-disable-line
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return jobs;
+    let list = jobs;
+    if (usageFilter === 'complete')   list = list.filter(j => j.usage_complete === true);
+    if (usageFilter === 'incomplete') list = list.filter(j => j.usage_complete === false);
+    if (!search.trim()) return list;
     const s = search.toLowerCase();
-    return jobs.filter((j) =>
+    return list.filter((j) =>
       (j.job_card_number || '').toLowerCase().includes(s) ||
       (j.customer_name   || '').toLowerCase().includes(s) ||
       (j.vehicle_number  || '').toLowerCase().includes(s) ||
       (j.vehicle_company || '').toLowerCase().includes(s) ||
       (j.vehicle_model   || '').toLowerCase().includes(s)
     );
-  }, [jobs, search]);
+  }, [jobs, search, usageFilter]);
 
   const columns = [
     {
@@ -222,11 +226,21 @@ export default function JobCardsList() {
     {
       key: 'job_card_status',
       header: 'Job Status',
-      render: (r) => (
-        <Badge variant={r.job_card_status === 'COMPLETED' ? 'green' : 'yellow'}>
-          {r.job_card_status === 'COMPLETED' ? 'Completed' : 'In Progress'}
-        </Badge>
-      ),
+      render: (r) => {
+        const hasCompletedSvcs = (r.job_card_services || []).some(s => s.service_status === 'completed');
+        return (
+          <div className="leading-tight space-y-1">
+            <Badge variant={r.job_card_status === 'COMPLETED' ? 'green' : 'yellow'}>
+              {r.job_card_status === 'COMPLETED' ? 'Completed' : 'In Progress'}
+            </Badge>
+            {hasCompletedSvcs && (
+              r.usage_complete
+                ? <div className="text-[10px] text-emerald-400 flex items-center gap-0.5">✓ Usages marked</div>
+                : <div className="text-[10px] text-amber-400 flex items-center gap-0.5">⚠ Usages pending</div>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: 'payment_status',
@@ -322,8 +336,8 @@ export default function JobCardsList() {
             title="Filter by date"
           />
         </div>
-        {/* Row 2: employee + company + model */}
-        <div className="flex flex-col sm:flex-row gap-3">
+        {/* Row 2: employee + company + model + usage */}
+        <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
           <Select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)} className="sm:w-52">
             <option value="">All Employees</option>
             {employees.map(e => <option key={e.id} value={e.id}>{e.employee_name}</option>)}
@@ -331,7 +345,7 @@ export default function JobCardsList() {
           <Select
             value={companyFilter}
             onChange={(e) => { setCompanyFilter(e.target.value); setModelFilter(''); }}
-            className="sm:w-48"
+            className="sm:w-44"
           >
             <option value="">All Companies</option>
             {companies.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
@@ -339,16 +353,21 @@ export default function JobCardsList() {
           <Select
             value={modelFilter}
             onChange={(e) => setModelFilter(e.target.value)}
-            className="sm:w-48"
+            className="sm:w-40"
             disabled={!companyFilter}
           >
             <option value="">{companyFilter ? 'All Models' : 'Select company first'}</option>
             {models.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
           </Select>
-          {(dateFilter || employeeFilter || companyFilter || modelFilter || statusFilter) && (
+          <Select value={usageFilter} onChange={(e) => setUsageFilter(e.target.value)} className="sm:w-48">
+            <option value="">All Usage Statuses</option>
+            <option value="complete">✓ Usages Complete</option>
+            <option value="incomplete">⚠ Usages Pending</option>
+          </Select>
+          {(dateFilter || employeeFilter || companyFilter || modelFilter || statusFilter || usageFilter) && (
             <button
               type="button"
-              onClick={() => { setDateFilter(''); setEmployeeFilter(''); setCompanyFilter(''); setModelFilter(''); setStatusFilter(''); }}
+              onClick={() => { setDateFilter(''); setEmployeeFilter(''); setCompanyFilter(''); setModelFilter(''); setStatusFilter(''); setUsageFilter(''); }}
               className="text-xs text-gray-400 hover:text-gray-200 underline shrink-0 self-center"
             >
               Clear filters

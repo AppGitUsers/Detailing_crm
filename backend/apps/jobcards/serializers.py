@@ -21,15 +21,19 @@ class JobCardEmployeeSerializer(serializers.ModelSerializer):
 
 
 class JobCardServiceSerializer(serializers.ModelSerializer):
-    employees = JobCardEmployeeSerializer(many=True, read_only=True)
-    service_name = serializers.CharField(
-        source='service.service_name',
-        read_only=True
-    )
+    employees    = JobCardEmployeeSerializer(many=True, read_only=True)
+    service_name = serializers.CharField(source='service.service_name', read_only=True)
+    has_usages   = serializers.SerializerMethodField()
 
     class Meta:
         model = JobCardService
         fields = '__all__'
+
+    def get_has_usages(self, obj):
+        """True if at least one product usage has been recorded for this service."""
+        return JobCardProductUsage.objects.filter(
+            job_card_product__job_card_service=obj
+        ).exists()
 
 
 class JobCardPaymentSerializer(serializers.ModelSerializer):
@@ -56,7 +60,7 @@ class JobCardSerializer(serializers.ModelSerializer):
     paid_amount    = serializers.SerializerMethodField()
     outstanding    = serializers.SerializerMethodField()
     payment_status = serializers.SerializerMethodField()
-
+    usage_complete = serializers.SerializerMethodField()
 
     class Meta:
         model = JobCard
@@ -104,6 +108,18 @@ class JobCardSerializer(serializers.ModelSerializer):
         if paid > 0:
             return 'partial'
         return 'unpaid'
+
+    def get_usage_complete(self, obj):
+        """True if every completed service that has linked products has at least one usage recorded."""
+        completed_svcs = obj.job_card_services.filter(service_status='completed')
+        for svc in completed_svcs:
+            if svc.products.exists():
+                has_any = JobCardProductUsage.objects.filter(
+                    job_card_product__job_card_service=svc
+                ).exists()
+                if not has_any:
+                    return False
+        return True
 
 
 class CustomerInputSerializer(serializers.Serializer):

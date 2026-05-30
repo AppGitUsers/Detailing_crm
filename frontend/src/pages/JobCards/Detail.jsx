@@ -42,10 +42,13 @@ export default function JobCardDetail() {
   const [employees, setEmployees] = useState([]);
   const [productUsed, setProductUsed] = useState(false); // master modal
   const [serviceUsageId, setServiceUsageId] = useState(null); // per-service modal: holds JobCardService.id
+  const [serviceJustCompleted, setServiceJustCompleted] = useState(false); // track if opened from dropdown change
   const [serviceModal, setServiceModal] = useState(false);
   const [employeeModal, setEmployeeModal] = useState(null);
   const [paymentModal, setPaymentModal] = useState(false);
   const [completing, setCompleting] = useState(false);
+  const [reverting, setReverting] = useState(false);
+  const [confirmRevert, setConfirmRevert] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmRemoveService, setConfirmRemoveService] = useState(null);
   const [confirmRemovePayment, setConfirmRemovePayment] = useState(null);
@@ -99,6 +102,29 @@ export default function JobCardDetail() {
       toast.error(extractError(err));
     } finally {
       setCompleting(false);
+    }
+  };
+
+  const revertToInProgress = async () => {
+    setReverting(true);
+    try {
+      await updateJobCard(id, {
+        job_card_number: job.job_card_number,
+        customer_asset: job.customer_asset,
+        job_card_date: job.job_card_date,
+        vehicle_kilometers: job.vehicle_kilometers,
+        vehicle_entry_time: job.vehicle_entry_time,
+        complaints: job.complaints,
+        job_card_status: 'IN_PROGRESS',
+        vehicle_exit_time: null,
+      });
+      toast.success('Job card reverted to In Progress');
+      await reload();
+    } catch (err) {
+      toast.error(extractError(err));
+    } finally {
+      setReverting(false);
+      setConfirmRevert(false);
     }
   };
 
@@ -162,6 +188,11 @@ export default function JobCardDetail() {
             <Link to={`/jobcards/${id}/edit`}>
               <Button variant="secondary"><Pencil size={15} /> Edit</Button>
             </Link>
+            {isCompleted && (
+              <Button variant="secondary" onClick={() => setConfirmRevert(true)} loading={reverting}>
+                Revert to In Progress
+              </Button>
+            )}
             {!isCompleted && (
               <Button variant="success" onClick={() => setProductUsed(true)} loading={completing}>
                 <CheckCircle2 size={16} /> Mark Completed
@@ -209,6 +240,7 @@ export default function JobCardDetail() {
                             toast.success(`${nextStatus} status updated`);
                             await reload();
                             if (nextStatus === 'completed') {
+                              setServiceJustCompleted(true);
                               setServiceUsageId(svc.id);
                             }
                           } catch (err) {
@@ -221,7 +253,7 @@ export default function JobCardDetail() {
                         </Select>
                         {svc.service_status === 'completed' && !isCompleted && (
                           <button
-                            onClick={() => setServiceUsageId(svc.id)}
+                            onClick={() => { setServiceJustCompleted(false); setServiceUsageId(svc.id); }}
                             className="text-gray-500 hover:text-gray-200"
                             title="View / edit products used"
                           >
@@ -413,8 +445,24 @@ export default function JobCardDetail() {
       <ShowProductsUsedDialog
         open={serviceUsageId !== null}
         onClose={async () => {
+          const closedId = serviceUsageId;
+          const wasJustCompleted = serviceJustCompleted;
           setServiceUsageId(null);
+          setServiceJustCompleted(false);
           await reload();
+
+          if (wasJustCompleted && closedId) {
+            try {
+              const usageData = await loadProductsUsedForJobCard(id);
+              const svcData = usageData.find(s => s.id === closedId);
+              const hasAnyUsage = svcData?.products?.some(p => p.usages && p.usages.length > 0);
+              if (!hasAnyUsage) {
+                await updateJobCardService(closedId, { service_status: 'in_progress' });
+                await reload();
+                toast.error('No stock usage recorded — service reverted to In Progress');
+              }
+            } catch (_) { /* silent */ }
+          }
         }}
         jobCardId={id}
         serviceId={serviceUsageId}
@@ -427,6 +475,15 @@ export default function JobCardDetail() {
         title="Remove this payment?"
         message="This payment record will be permanently deleted."
         confirmText="Remove"
+      />
+
+      <ConfirmDialog
+        open={confirmRevert}
+        onClose={() => setConfirmRevert(false)}
+        onConfirm={revertToInProgress}
+        title="Revert to In Progress?"
+        message="This will move the job card back to In Progress. The vehicle exit time will be cleared. Are you sure?"
+        confirmText="Yes, Revert"
       />
     </div>
   );
