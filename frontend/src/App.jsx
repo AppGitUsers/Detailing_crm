@@ -12,6 +12,7 @@ import JobCardEdit from './pages/JobCards/Edit';
 import JobCardsByVehicle from './pages/JobCards/ByVehicle';
 import Customers from './pages/Customers';
 import CustomerDetail from './pages/Customers/Detail';
+import VehicleDetail from './pages/Customers/VehicleDetail';
 import Services from './pages/Services';
 import ServiceDetail from './pages/Services/Detail';
 import Employees from './pages/Employees';
@@ -34,6 +35,7 @@ export default function App() {
             <Route path="jobcards/:id/edit" element={<JobCardEdit />} />
             <Route path="jobcards/:id" element={<JobCardDetail />} />
             <Route path="customers" element={<Customers />} />
+            <Route path="customers/vehicles/:vehicleId" element={<VehicleDetail />} />
             <Route path="customers/:id" element={<CustomerDetail />} />
             <Route path="services" element={<Services />} />
             <Route path="services/:id" element={<ServiceDetail />} />

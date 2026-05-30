@@ -261,3 +261,26 @@ class CustomerFetchView(APIView):
                 'email': customer.email,
             },
         }, status=status.HTTP_200_OK)
+
+
+class AllVehiclesListView(APIView):
+    """List all vehicles across all customers with filtering support."""
+    def get(self, request):
+        qs = CustomerAsset.objects.select_related('customer').all()
+        search       = request.query_params.get('search', '')
+        vehicle_type = request.query_params.get('vehicle_type', '')
+        company      = request.query_params.get('company', '')
+        if search:
+            qs = qs.filter(
+                Q(vehicle_number__icontains=search) |
+                Q(vehicle_name__icontains=search) |
+                Q(vehicle_company__icontains=search) |
+                Q(vehicle_model__icontains=search) |
+                Q(customer__customer_name__icontains=search)
+            )
+        if vehicle_type:
+            qs = qs.filter(vehicle_type=vehicle_type)
+        if company:
+            qs = qs.filter(vehicle_company__icontains=company)
+        serializer = CustomerAssetSerializer(qs, many=True)
+        return Response(serializer.data)

@@ -8,7 +8,7 @@ import { tokens, logout } from '../api/auth';
 const links = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/jobcards', icon: ClipboardList, label: 'Job Cards' },
-  { to: '/customers', icon: Users, label: 'Customers' },
+  { to: '/customers', icon: Users, label: 'Customers / Vehicles' },
   { to: '/services', icon: Wrench, label: 'Services' },
   { to: '/employees', icon: UserCog, label: 'Employees' },
   { to: '/vendors', icon: Truck, label: 'Vendors' },

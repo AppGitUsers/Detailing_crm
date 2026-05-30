@@ -6,7 +6,9 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
-  ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RechartsTip,
+  ResponsiveContainer,
+  PieChart, Pie, Cell, Tooltip as RechartsTip,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
 } from 'recharts';
 import { getDailyReport } from '../../api/finance';
 import Loading from '../../components/Loading';
@@ -224,16 +226,53 @@ function generateHTML(r) {
     <h2>Service Revenue Breakdown &amp; Variance</h2>
     ${r.service_revenue.length === 0
       ? '<p class="no-data">No services billed today</p>'
-      : `<table>
-          <thead><tr>
-            <th>Service</th><th style="text-align:center">Jobs</th>
-            <th style="text-align:right">Billed</th>
-            <th style="text-align:right">Collected</th>
-            <th style="text-align:right">Outstanding</th>
-            <th>Collection %</th>
-          </tr></thead>
-          <tbody>${svcRows}</tbody>
-        </table>`
+      : (() => {
+          const maxBilled = Math.max(...r.service_revenue.map(s => Number(s.billed)), 1);
+          const barH = 12;
+          const gap  = 6;
+          const rowH = barH * 3 + gap * 4 + 20; // 3 bars + gaps + label
+          const chartH = r.service_revenue.length * rowH + 20;
+          const labelW = 160;
+          const chartW = 700;
+          const barMaxW = chartW - labelW - 20;
+
+          const rows = r.service_revenue.map((s, idx) => {
+            const y0 = idx * rowH + 20;
+            const bW  = Math.max(1, (Number(s.billed)      / maxBilled) * barMaxW);
+            const cW  = Math.max(1, (Number(s.collected)   / maxBilled) * barMaxW);
+            const oW  = Math.max(1, (Number(s.outstanding) / maxBilled) * barMaxW);
+            const name = s.service_name.length > 20 ? s.service_name.slice(0,18) + '…' : s.service_name;
+            return `
+              <text x="${labelW - 8}" y="${y0 + barH / 2 + 4}" text-anchor="end" fill="#9ca3af" font-size="11">${name}</text>
+              <rect x="${labelW}" y="${y0}"               width="${bW.toFixed(1)}" height="${barH}" rx="3" fill="#6366f1"/>
+              <rect x="${labelW}" y="${y0 + barH + gap}"  width="${cW.toFixed(1)}" height="${barH}" rx="3" fill="#10b981"/>
+              <rect x="${labelW}" y="${y0 + (barH+gap)*2}" width="${oW.toFixed(1)}" height="${barH}" rx="3" fill="#f43f5e"/>
+              <text x="${labelW + bW + 4}" y="${y0 + barH/2 + 4}" fill="#c4b5fd" font-size="9">${fmtN(s.billed)}</text>
+            `;
+          }).join('');
+
+          return `
+            <svg width="${chartW}" height="${chartH}" style="display:block;overflow:visible;margin-bottom:16px">
+              <!-- Legend -->
+              <rect x="${labelW}" y="2" width="10" height="10" rx="2" fill="#6366f1"/>
+              <text x="${labelW + 14}" y="11" fill="#9ca3af" font-size="10">Billed</text>
+              <rect x="${labelW + 70}" y="2" width="10" height="10" rx="2" fill="#10b981"/>
+              <text x="${labelW + 84}" y="11" fill="#9ca3af" font-size="10">Collected</text>
+              <rect x="${labelW + 160}" y="2" width="10" height="10" rx="2" fill="#f43f5e"/>
+              <text x="${labelW + 174}" y="11" fill="#9ca3af" font-size="10">Outstanding</text>
+              ${rows}
+            </svg>
+            <table>
+              <thead><tr>
+                <th>Service</th><th style="text-align:center">Jobs</th>
+                <th style="text-align:right">Billed</th>
+                <th style="text-align:right">Collected</th>
+                <th style="text-align:right">Outstanding</th>
+                <th>Collection %</th>
+              </tr></thead>
+              <tbody>${svcRows}</tbody>
+            </table>`;
+        })()
     }
   </div>
 
@@ -466,31 +505,29 @@ export default function DailyReport() {
                 <p className="text-sm text-gray-500 text-center py-6">No payments recorded today</p>
               ) : (
                 <div className="flex flex-col sm:flex-row items-start gap-4">
-                  {/* Donut */}
+                  {/* Donut — fixed size, amounts coerced to Number so Recharts can compute proportions */}
                   <div className="shrink-0 mx-auto sm:mx-0">
-                    <ResponsiveContainer width={130} height={130}>
-                      <PieChart>
-                        <Pie
-                          data={report.payment_breakdown}
-                          dataKey="amount"
-                          nameKey="method"
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={38}
-                          outerRadius={58}
-                          strokeWidth={2}
-                          stroke="#13161d"
-                        >
-                          {report.payment_breakdown.map((_, i) => (
-                            <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <RechartsTip
-                          contentStyle={{ background: '#1a1e27', border: '1px solid #252a36', borderRadius: 8, fontSize: 11 }}
-                          formatter={(v, n) => [fmt(v), PAYMENT_LABEL[n] || n]}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
+                    <PieChart width={130} height={130}>
+                      <Pie
+                        data={report.payment_breakdown.map(p => ({ ...p, amount: Number(p.amount) }))}
+                        dataKey="amount"
+                        nameKey="method"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={38}
+                        outerRadius={58}
+                        strokeWidth={2}
+                        stroke="#13161d"
+                      >
+                        {report.payment_breakdown.map((_, i) => (
+                          <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <RechartsTip
+                        contentStyle={{ background: '#1a1e27', border: '1px solid #252a36', borderRadius: 8, fontSize: 11 }}
+                        formatter={(v, n) => [fmt(v), PAYMENT_LABEL[n] || n]}
+                      />
+                    </PieChart>
                   </div>
                   {/* Bars */}
                   <div className="flex-1 space-y-2.5 w-full">
@@ -583,6 +620,52 @@ export default function DailyReport() {
             {report.service_revenue.length === 0 ? (
               <p className="text-sm text-gray-500 text-center py-6">No services billed today</p>
             ) : (
+              <>
+              {/* Bar chart — billed vs collected per service */}
+              <div className="mb-5">
+                <ResponsiveContainer width="100%" height={Math.max(160, report.service_revenue.length * 44)}>
+                  <BarChart
+                    data={report.service_revenue.map(s => ({
+                      name: s.service_name.length > 18 ? s.service_name.slice(0, 16) + '…' : s.service_name,
+                      fullName: s.service_name,
+                      Billed: Number(s.billed),
+                      Collected: Number(s.collected),
+                      Outstanding: Number(s.outstanding),
+                    }))}
+                    layout="vertical"
+                    margin={{ top: 4, right: 20, left: 8, bottom: 4 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#252a36" horizontal={false} />
+                    <XAxis
+                      type="number"
+                      tick={{ fill: '#6b7280', fontSize: 10 }}
+                      tickFormatter={(v) => `₹${v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v}`}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      tick={{ fill: '#9ca3af', fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                      width={110}
+                    />
+                    <RechartsTip
+                      contentStyle={{ background: '#1a1e27', border: '1px solid #252a36', borderRadius: 8, fontSize: 11 }}
+                      formatter={(value, name, props) => [fmt(value), name]}
+                      labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName || ''}
+                    />
+                    <Legend
+                      wrapperStyle={{ fontSize: 11, color: '#9ca3af', paddingTop: 8 }}
+                    />
+                    <Bar dataKey="Billed"      fill="#6366f1" radius={[0, 3, 3, 0]} maxBarSize={14} />
+                    <Bar dataKey="Collected"   fill="#10b981" radius={[0, 3, 3, 0]} maxBarSize={14} />
+                    <Bar dataKey="Outstanding" fill="#f43f5e" radius={[0, 3, 3, 0]} maxBarSize={14} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
@@ -637,6 +720,7 @@ export default function DailyReport() {
                   </tfoot>
                 </table>
               </div>
+              </>
             )}
           </div>
 

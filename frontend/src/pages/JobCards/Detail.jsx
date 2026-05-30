@@ -764,14 +764,19 @@ export function AddPaymentModal({ open, onClose, jobCardId, onAdded, outstanding
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!form.amount || isNaN(Number(form.amount)) || Number(form.amount) <= 0) {
+    const enteredAmt = Number(form.amount);
+    if (!form.amount || isNaN(enteredAmt) || enteredAmt <= 0) {
       toast.error('Enter a valid amount');
+      return;
+    }
+    if (dueAmt > 0 && enteredAmt > dueAmt) {
+      toast.error(`Amount exceeds outstanding balance of ${fmtMoney(dueAmt)}`);
       return;
     }
     setSubmitting(true);
     try {
       const newPay = await addJobCardPayment(jobCardId, {
-        amount:         Number(form.amount),
+        amount:         enteredAmt,
         payment_date:   form.payment_date,
         payment_method: form.payment_method,
         notes:          form.notes,

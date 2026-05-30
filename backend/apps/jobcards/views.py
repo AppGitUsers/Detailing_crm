@@ -1,3 +1,4 @@
+from datetime import timedelta
 from django.db import transaction
 from rest_framework import status
 from rest_framework.views import APIView
@@ -39,6 +40,7 @@ class JobCardListCreateView(APIView):
         employee   = request.query_params.get('employee')
         company    = request.query_params.get('company')
         model      = request.query_params.get('model')
+        vehicle_id = request.query_params.get('vehicle_id')
         if job_status:
             qs = qs.filter(job_card_status=job_status)
         if date:
@@ -49,6 +51,8 @@ class JobCardListCreateView(APIView):
             qs = qs.filter(customer_asset__vehicle_company__icontains=company)
         if model:
             qs = qs.filter(customer_asset__vehicle_model__icontains=model)
+        if vehicle_id:
+            qs = qs.filter(customer_asset_id=vehicle_id)
         serializer = JobCardSerializer(qs, many=True)
         return Response(serializer.data)
 
@@ -103,8 +107,10 @@ class JobCardDetailView(APIView):
                 vehicle = updated_jobcard.customer_asset
                 updated_jobcard.job_card_services.update(service_status='completed')
                 if vehicle:
-                    vehicle.last_service_date = timezone.now().date()
-                    vehicle.save(update_fields=['last_service_date'])
+                    today = timezone.now().date()
+                    vehicle.last_service_date = today
+                    vehicle.next_service_date = today + timedelta(days=183)  # ~6 months
+                    vehicle.save(update_fields=['last_service_date', 'next_service_date'])
 
             return Response(JobCardSerializer(updated_jobcard).data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

@@ -16,6 +16,9 @@ export const getAssetByVehicleNumber = (vehicleNumber) => api.get(`customers/ass
 export const checkVehicle = (vehicleNumber) => api.get('customers/check-vehicle/', { params: { vehicle_number: vehicleNumber } }).then(r => r.data);
 export const checkCustomer = (phoneNumber) => api.get('customers/check-customer/', { params: { phone_number: phoneNumber } }).then(r => r.data);
 
+// All vehicles list (across all customers)
+export const listAllVehicles = (params) => api.get('customers/vehicles/', { params }).then(r => r.data);
+
 // Vehicle lookup tables
 export const listVehicleCompanies = (params) => api.get('customers/vehicle-companies/', { params }).then(r => r.data);
 export const createVehicleCompany = (data) => api.post('customers/vehicle-companies/', data).then(r => r.data);

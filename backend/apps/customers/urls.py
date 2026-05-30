@@ -1,7 +1,7 @@
 from django.urls import path
 from .views import (
     CustomerAssetDetailView, CustomerListView, CustomerDetailView, CustomerAssetListView,
-    VehicleFetchView, CustomerFetchView,
+    VehicleFetchView, CustomerFetchView, AllVehiclesListView,
     VehicleCompanyListView, VehicleModelListView, VehicleColourListView,
 )
 
@@ -12,6 +12,8 @@ urlpatterns = [
     path('assets/<int:pk>/', CustomerAssetDetailView.as_view(), name='customer-asset-detail'),
     path('check-vehicle/', VehicleFetchView.as_view(), name='customer-asset-by-vehicle-number'),
     path('check-customer/', CustomerFetchView.as_view(), name='customer-by-phone-number'),
+    # All vehicles across all customers
+    path('vehicles/', AllVehiclesListView.as_view(), name='all-vehicles'),
     # Vehicle lookup tables
     path('vehicle-companies/', VehicleCompanyListView.as_view(), name='vehicle-company-list'),
     path('vehicle-models/', VehicleModelListView.as_view(), name='vehicle-model-list'),
