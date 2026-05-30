@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ChevronLeft, CheckCircle2, Plus, Trash2, UserPlus, Wrench, IndianRupee, Trash, CreditCard, ClipboardList, Download } from 'lucide-react';
+import { ChevronLeft, CheckCircle2, Plus, Trash2, UserPlus, Wrench, IndianRupee, Trash, CreditCard, ClipboardList, Download, Pencil } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Button from '../../components/Button';
 import Loading from '../../components/Loading';
@@ -159,6 +159,9 @@ export default function JobCardDetail() {
             <Badge variant={isCompleted ? 'green' : 'yellow'} className="mr-2 text-sm px-3 py-1">
               {isCompleted ? 'Completed' : 'In Progress'}
             </Badge>
+            <Link to={`/jobcards/${id}/edit`}>
+              <Button variant="secondary"><Pencil size={15} /> Edit</Button>
+            </Link>
             {!isCompleted && (
               <Button variant="success" onClick={() => setProductUsed(true)} loading={completing}>
                 <CheckCircle2 size={16} /> Mark Completed

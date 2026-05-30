@@ -6,12 +6,13 @@ import Button from '../../components/Button';
 import Loading from '../../components/Loading';
 import { Field, Input, Select, Textarea } from '../../components/Field';
 import { useToast } from '../../components/Toast';
-import { checkVehicle, checkCustomer } from '../../api/customers';
+import { checkVehicle, checkCustomer, listVehicleCompanies, createVehicleCompany, listVehicleModels, createVehicleModel, listVehicleColours, createVehicleColour } from '../../api/customers';
 import { createFullJobCard } from '../../api/jobcards';
 import { listServices } from '../../api/services';
 import { getSettings } from '../../api/settings';
 import { extractError } from '../../api/axios';
 import { listEmployees } from '../../api/employees';
+import VehicleAutocomplete from '../../components/VehicleAutocomplete';
 const nowLocal = () => {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, '0');
@@ -166,6 +167,9 @@ export default function JobCardCreate() {
 
   const [vehicle, setVehicle] = useState({
     vehicle_name: '',
+    vehicle_company: '',
+    vehicle_model: '',
+    vehicle_colour: '',
     vehicle_type: 'four_wheeler',
   });
 
@@ -213,7 +217,6 @@ export default function JobCardCreate() {
     if (!jobCard.vehicle_entry_time) e.vehicle_entry_time = 'Required';
     if (!jobCard.vehicle_expected_exit_time) e.vehicle_expected_exit_time = 'Required';
     if (!jobCard.phone_number.trim()) e.phone_number = 'Required';
-    if (!jobCard.employee.trim()) e.employee = 'Required';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -224,7 +227,6 @@ export default function JobCardCreate() {
       if (!customer.customer_name.trim()) e.customer_name = 'Required';
       if (!customer.email.trim()) e.email = 'Required';
     }
-    if (!vehicle.vehicle_name.trim()) e.vehicle_name = 'Required';
     if (!vehicle.vehicle_type) e.vehicle_type = 'Required';
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -294,6 +296,7 @@ export default function JobCardCreate() {
           vehicle_expected_exit_time: new Date(jobCard.vehicle_expected_exit_time).toISOString(),
           complaints: jobCard.complaints,
           gst_percent: Number(gstPercent || 18),
+          ...(jobCard.employee ? { employee: Number(jobCard.employee) } : {}),
         },
         customer: vehicleMatch
           ? {
@@ -331,6 +334,9 @@ export default function JobCardCreate() {
             id: null,
             vehicle_number: jobCard.vehicle_number.trim(),
             vehicle_name: vehicle.vehicle_name.trim(),
+            vehicle_company: vehicle.vehicle_company.trim(),
+            vehicle_model: vehicle.vehicle_model.trim(),
+            vehicle_colour: vehicle.vehicle_colour.trim(),
             vehicle_type: vehicle.vehicle_type,
           },
         services: selectedServiceIds,
@@ -379,6 +385,7 @@ export default function JobCardCreate() {
             phoneFromStep1={jobCard.phone_number}
           />
         )}
+
 
         {step === 3 && (
           <Step3
@@ -548,6 +555,20 @@ function Step1({ form, update, errors, employees }) {
 }
 
 function Step2({ customer, vehicle, updateCustomer, updateVehicle, errors, matchedCustomer, phoneFromStep1 }) {
+  const handleCompanySelect = async (name, isNew) => {
+    updateVehicle('vehicle_company', name);
+    updateVehicle('vehicle_model', ''); // reset model when company changes
+    if (isNew) await createVehicleCompany({ name, vehicle_type: vehicle.vehicle_type });
+  };
+  const handleModelSelect = async (name, isNew) => {
+    updateVehicle('vehicle_model', name);
+    if (isNew) await createVehicleModel({ name, company_name: vehicle.vehicle_company });
+  };
+  const handleColourSelect = async (name, isNew) => {
+    updateVehicle('vehicle_colour', name);
+    if (isNew) await createVehicleColour({ name });
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -589,21 +610,49 @@ function Step2({ customer, vehicle, updateCustomer, updateVehicle, errors, match
       <div>
         <h3 className="text-sm font-semibold text-gray-200 mb-3">Vehicle Details</h3>
         <div className="space-y-4">
-          <Field label="Vehicle Name" required error={errors.vehicle_name}>
-            <Input
-              placeholder="e.g. Honda City"
-              value={vehicle.vehicle_name}
-              onChange={(e) => updateVehicle('vehicle_name', e.target.value)}
-            />
-          </Field>
+
+          {/* Vehicle Type first so company search is filtered by type */}
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-2">
               Vehicle Type <span className="text-red-400">*</span>
             </label>
             <VehicleTypePicker
               value={vehicle.vehicle_type}
-              onChange={(v) => updateVehicle('vehicle_type', v)}
+              onChange={(v) => { updateVehicle('vehicle_type', v); updateVehicle('vehicle_company', ''); updateVehicle('vehicle_model', ''); }}
               error={errors.vehicle_type}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <VehicleAutocomplete
+              label="Company / Make"
+              value={vehicle.vehicle_company}
+              onChange={(v) => updateVehicle('vehicle_company', v)}
+              onSelect={handleCompanySelect}
+              fetchOptions={(q) => listVehicleCompanies({ q, vehicle_type: vehicle.vehicle_type })}
+              onCreate={(name) => createVehicleCompany({ name, vehicle_type: vehicle.vehicle_type })}
+              placeholder="e.g. Honda"
+              error={errors.vehicle_company}
+            />
+            <VehicleAutocomplete
+              label="Model"
+              value={vehicle.vehicle_model}
+              onChange={(v) => updateVehicle('vehicle_model', v)}
+              onSelect={handleModelSelect}
+              fetchOptions={(q) => listVehicleModels({ q, company: vehicle.vehicle_company })}
+              onCreate={(name) => createVehicleModel({ name, company_name: vehicle.vehicle_company })}
+              placeholder="e.g. City"
+              error={errors.vehicle_model}
+            />
+            <VehicleAutocomplete
+              label="Colour"
+              value={vehicle.vehicle_colour}
+              onChange={(v) => updateVehicle('vehicle_colour', v)}
+              onSelect={handleColourSelect}
+              fetchOptions={(q) => listVehicleColours({ q })}
+              onCreate={(name) => createVehicleColour({ name })}
+              placeholder="e.g. White"
+              error={errors.vehicle_colour}
             />
           </div>
         </div>

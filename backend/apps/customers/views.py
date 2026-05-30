@@ -1,8 +1,12 @@
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from .models import Customer, CustomerAsset, normalize_phone
-from .serializers import CustomerSerializer, CustomerAssetSerializer
+from django.db.models import Q
+from .models import Customer, CustomerAsset, VehicleCompany, VehicleModel, VehicleColour, normalize_phone
+from .serializers import (
+    CustomerSerializer, CustomerAssetSerializer,
+    VehicleCompanySerializer, VehicleModelSerializer, VehicleColourSerializer,
+)
 
 
 # ─── Customer ─────────────────────────────────────────
@@ -125,6 +129,19 @@ class CustomerAssetDetailView(APIView):
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    def patch(self, request, pk):
+        asset = self.get_object(pk)
+        if not asset:
+            return Response(
+                {'error': 'Vehicle not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        serializer = CustomerAssetSerializer(asset, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
     def delete(self, request, pk):
         asset = self.get_object(pk)
         if not asset:
@@ -155,9 +172,76 @@ class VehicleFetchView(APIView):
                 'id': asset.id,
                 'vehicle_number': asset.vehicle_number,
                 'vehicle_name': asset.vehicle_name,
+                'vehicle_company': asset.vehicle_company,
+                'vehicle_model': asset.vehicle_model,
+                'vehicle_colour': asset.vehicle_colour,
                 'vehicle_type': asset.vehicle_type,
             },
         }, status=status.HTTP_200_OK)
+
+
+# ─── Vehicle Lookup Tables ────────────────────────────
+
+class VehicleCompanyListView(APIView):
+    def get(self, request):
+        q = request.query_params.get('q', '')
+        vehicle_type = request.query_params.get('vehicle_type', '')
+        qs = VehicleCompany.objects.all()
+        if vehicle_type:
+            qs = qs.filter(Q(vehicle_type=vehicle_type) | Q(vehicle_type=''))
+        if q:
+            qs = qs.filter(name__icontains=q)
+        return Response(VehicleCompanySerializer(qs[:30], many=True).data)
+
+    def post(self, request):
+        name = (request.data.get('name') or '').strip()
+        vehicle_type = (request.data.get('vehicle_type') or '').strip()
+        if not name:
+            return Response({'name': 'Required'}, status=status.HTTP_400_BAD_REQUEST)
+        obj = VehicleCompany.objects.filter(name__iexact=name, vehicle_type=vehicle_type).first()
+        if not obj:
+            obj = VehicleCompany.objects.create(name=name, vehicle_type=vehicle_type)
+        return Response(VehicleCompanySerializer(obj).data, status=status.HTTP_201_CREATED)
+
+
+class VehicleModelListView(APIView):
+    def get(self, request):
+        q = request.query_params.get('q', '')
+        company = request.query_params.get('company', '')
+        qs = VehicleModel.objects.all()
+        if company:
+            qs = qs.filter(company_name__iexact=company)
+        if q:
+            qs = qs.filter(name__icontains=q)
+        return Response(VehicleModelSerializer(qs[:30], many=True).data)
+
+    def post(self, request):
+        name = (request.data.get('name') or '').strip()
+        company_name = (request.data.get('company_name') or '').strip()
+        if not name:
+            return Response({'name': 'Required'}, status=status.HTTP_400_BAD_REQUEST)
+        obj = VehicleModel.objects.filter(name__iexact=name, company_name__iexact=company_name).first()
+        if not obj:
+            obj = VehicleModel.objects.create(name=name, company_name=company_name)
+        return Response(VehicleModelSerializer(obj).data, status=status.HTTP_201_CREATED)
+
+
+class VehicleColourListView(APIView):
+    def get(self, request):
+        q = request.query_params.get('q', '')
+        qs = VehicleColour.objects.all()
+        if q:
+            qs = qs.filter(name__icontains=q)
+        return Response(VehicleColourSerializer(qs[:30], many=True).data)
+
+    def post(self, request):
+        name = (request.data.get('name') or '').strip()
+        if not name:
+            return Response({'name': 'Required'}, status=status.HTTP_400_BAD_REQUEST)
+        obj = VehicleColour.objects.filter(name__iexact=name).first()
+        if not obj:
+            obj = VehicleColour.objects.create(name=name)
+        return Response(VehicleColourSerializer(obj).data, status=status.HTTP_201_CREATED)
 
 
 class CustomerFetchView(APIView):

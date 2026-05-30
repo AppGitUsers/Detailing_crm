@@ -10,7 +10,16 @@ export const listCustomerAssets = (customerId) => api.get(`customers/${customerI
 export const addCustomerAsset = (customerId, data) => api.post(`customers/${customerId}/assets/`, data).then(r => r.data);
 export const getAsset = (assetId) => api.get(`customers/assets/${assetId}/`).then(r => r.data);
 export const updateAsset = (assetId, data) => api.put(`customers/assets/${assetId}/`, data).then(r => r.data);
+export const patchAsset = (assetId, data) => api.patch(`customers/assets/${assetId}/`, data).then(r => r.data);
 export const deleteAsset = (assetId) => api.delete(`customers/assets/${assetId}/`).then(r => r.data);
 export const getAssetByVehicleNumber = (vehicleNumber) => api.get(`customers/assets/vehicle/${vehicleNumber}/`).then(r => r.data);
 export const checkVehicle = (vehicleNumber) => api.get('customers/check-vehicle/', { params: { vehicle_number: vehicleNumber } }).then(r => r.data);
 export const checkCustomer = (phoneNumber) => api.get('customers/check-customer/', { params: { phone_number: phoneNumber } }).then(r => r.data);
+
+// Vehicle lookup tables
+export const listVehicleCompanies = (params) => api.get('customers/vehicle-companies/', { params }).then(r => r.data);
+export const createVehicleCompany = (data) => api.post('customers/vehicle-companies/', data).then(r => r.data);
+export const listVehicleModels = (params) => api.get('customers/vehicle-models/', { params }).then(r => r.data);
+export const createVehicleModel = (data) => api.post('customers/vehicle-models/', data).then(r => r.data);
+export const listVehicleColours = (params) => api.get('customers/vehicle-colours/', { params }).then(r => r.data);
+export const createVehicleColour = (data) => api.post('customers/vehicle-colours/', data).then(r => r.data);

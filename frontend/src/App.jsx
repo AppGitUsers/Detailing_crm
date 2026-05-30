@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import JobCardsList from './pages/JobCards';
 import JobCardCreate from './pages/JobCards/Create';
 import JobCardDetail from './pages/JobCards/Detail';
+import JobCardEdit from './pages/JobCards/Edit';
 import JobCardsByVehicle from './pages/JobCards/ByVehicle';
 import Customers from './pages/Customers';
 import CustomerDetail from './pages/Customers/Detail';
@@ -30,6 +31,7 @@ export default function App() {
             <Route path="jobcards" element={<JobCardsList />} />
             <Route path="jobcards/new" element={<JobCardCreate />} />
             <Route path="jobcards/by-vehicle/:vehicleType" element={<JobCardsByVehicle />} />
+            <Route path="jobcards/:id/edit" element={<JobCardEdit />} />
             <Route path="jobcards/:id" element={<JobCardDetail />} />
             <Route path="customers" element={<Customers />} />
             <Route path="customers/:id" element={<CustomerDetail />} />

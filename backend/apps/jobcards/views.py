@@ -33,12 +33,23 @@ class FullJobCardCreateView(APIView):
 
 class JobCardListCreateView(APIView):
     def get(self, request):
-        job_status = request.query_params.get('status', None)
+        qs = JobCard.objects.all()
+        job_status = request.query_params.get('status')
+        date       = request.query_params.get('date')
+        employee   = request.query_params.get('employee')
+        company    = request.query_params.get('company')
+        model      = request.query_params.get('model')
         if job_status:
-            jobcards = JobCard.objects.filter(job_card_status=job_status)
-        else:
-            jobcards = JobCard.objects.all()
-        serializer = JobCardSerializer(jobcards, many=True)
+            qs = qs.filter(job_card_status=job_status)
+        if date:
+            qs = qs.filter(job_card_date=date)
+        if employee:
+            qs = qs.filter(employee_id=employee)
+        if company:
+            qs = qs.filter(customer_asset__vehicle_company__icontains=company)
+        if model:
+            qs = qs.filter(customer_asset__vehicle_model__icontains=model)
+        serializer = JobCardSerializer(qs, many=True)
         return Response(serializer.data)
 
     def post(self, request):
@@ -173,28 +184,9 @@ class JobCardServiceDeleteView(APIView):
                 {'error': 'Not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
-        old_status = jc_service.service_status
         serializer = JobCardServiceSerializer(jc_service, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-
-        with transaction.atomic():
-            jc_service = serializer.save()
-
-            # Auto-flip the parent jobcard once every service is completed.
-            if old_status != 'completed' and jc_service.service_status == 'completed':
-                jobcard = jc_service.job_card
-                if jobcard.job_card_status != 'COMPLETED':
-                    all_completed = not jobcard.job_card_services.exclude(
-                        service_status='completed'
-                    ).exists()
-                    if all_completed:
-                        jobcard.job_card_status = 'COMPLETED'
-                        jobcard.vehicle_exit_time = timezone.now()
-                        jobcard.save(update_fields=['job_card_status', 'vehicle_exit_time'])
-                        vehicle = jobcard.customer_asset
-                        if vehicle:
-                            vehicle.last_service_date = timezone.now().date()
-                            vehicle.save(update_fields=['last_service_date'])
+        serializer.save()
 
         return Response(serializer.data)
     
@@ -304,15 +296,22 @@ class JobCardPaymentDeleteView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 class FetchVehicleTypeList(APIView):
-    def get_object(self, vehicle_type):
-        try:
-            return JobCard.objects.filter(customer_asset__vehicle_type=vehicle_type)
-        except JobCard.DoesNotExist:
-            return None
     def get(self, request, vehicle_type):
-        jobcards = self.get_object(vehicle_type)
-        serializer = JobCardSerializer(jobcards, many=True)
-        return Response(serializer.data , status=status.HTTP_200_OK)
+        qs = JobCard.objects.filter(customer_asset__vehicle_type=vehicle_type)
+        date     = request.query_params.get('date')
+        company  = request.query_params.get('company')
+        model    = request.query_params.get('model')
+        employee = request.query_params.get('employee')
+        if date:
+            qs = qs.filter(job_card_date=date)
+        if company:
+            qs = qs.filter(customer_asset__vehicle_company__icontains=company)
+        if model:
+            qs = qs.filter(customer_asset__vehicle_model__icontains=model)
+        if employee:
+            qs = qs.filter(employee_id=employee)
+        serializer = JobCardSerializer(qs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
     
 class FetchProductsUsedForJobCard(APIView):
     def get_object(self, jobcard_pk):

@@ -12,6 +12,41 @@ def normalize_phone(value):
     return digits
 
 
+class VehicleCompany(models.Model):
+    """Lookup table for vehicle makes/brands."""
+    name = models.CharField(max_length=255)
+    vehicle_type = models.CharField(max_length=50, blank=True, default='')
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class VehicleModel(models.Model):
+    """Lookup table for vehicle models (linked to a company by name)."""
+    name = models.CharField(max_length=255)
+    company_name = models.CharField(max_length=255, blank=True, default='')
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class VehicleColour(models.Model):
+    """Lookup table for vehicle colours."""
+    name = models.CharField(max_length=255, unique=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
 # Create your models here.
 class Customer(models.Model):
     customer_name = models.CharField(max_length=255)
@@ -34,11 +69,16 @@ class CustomerAsset(models.Model):
     ]
     customer = models.ForeignKey(Customer, related_name='vehicles', on_delete=models.CASCADE)
     vehicle_number = models.CharField(max_length=50, unique=True)
-    vehicle_name = models.CharField(max_length=255)
+    vehicle_name = models.CharField(max_length=255, blank=True, default='')
+    vehicle_company = models.CharField(max_length=255, blank=True, default='')
+    vehicle_model = models.CharField(max_length=255, blank=True, default='')
+    vehicle_colour = models.CharField(max_length=255, blank=True, default='')
     vehicle_type = models.CharField(max_length=20, choices=VEHICLE_TYPE, default='other')
     last_service_date = models.DateField(null=True, blank=True)
     next_service_date = models.DateField(null=True, blank=True)
 
     def __str__(self):
-        return f"{self.customer.customer_name} - {self.vehicle_name}"
+        parts = [p for p in [self.vehicle_company, self.vehicle_model, self.vehicle_colour] if p]
+        display = ' '.join(parts) or self.vehicle_name or self.vehicle_number
+        return f"{self.customer.customer_name} - {display}"
     

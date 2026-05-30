@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, ClipboardList, Filter, Search, ChevronRight } from 'lucide-react';
+import { Plus, ClipboardList, Filter, Search, ChevronRight, Pencil } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Button from '../../components/Button';
 import Loading from '../../components/Loading';
@@ -10,6 +10,8 @@ import Table from '../../components/Table';
 import { Input, Select } from '../../components/Field';
 import { useToast } from '../../components/Toast';
 import { listJobCards, listJobCardsByType } from '../../api/jobcards';
+import { listVehicleCompanies, listVehicleModels } from '../../api/customers';
+import { listEmployees } from '../../api/employees';
 import { extractError } from '../../api/axios';
 import { jobCardTotal } from '../../utils/jobcard';
 
@@ -94,22 +96,47 @@ const PAY_STATUS = {
 export default function JobCardsList() {
   const navigate = useNavigate();
   const toast = useToast();
-  const [loading, setLoading]           = useState(true);
-  const [jobs, setJobs]                 = useState([]);
-  const [search, setSearch]             = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [loading, setLoading]             = useState(true);
+  const [jobs, setJobs]                   = useState([]);
+  const [search, setSearch]               = useState('');
+  const [statusFilter, setStatusFilter]   = useState('');
+  const [dateFilter, setDateFilter]       = useState('');
+  const [employeeFilter, setEmployeeFilter] = useState('');
+  const [companyFilter, setCompanyFilter] = useState('');
+  const [modelFilter, setModelFilter]     = useState('');
+  const [employees, setEmployees]         = useState([]);
+  const [companies, setCompanies]         = useState([]);
+  const [models, setModels]               = useState([]);
   const [stats, setStats] = useState({ active: 0, completed: 0, twoWheeler: 0, fourWheeler: 0, threeWheeler: 0 });
-  const [payJobCard, setPayJobCard]     = useState(null);
-  const [refreshKey, setRefreshKey]     = useState(0); // bump to force reload after payment
+  const [payJobCard, setPayJobCard]       = useState(null);
+  const [refreshKey, setRefreshKey]       = useState(0);
+
+  // Load employees + companies for filter dropdowns once
+  useEffect(() => {
+    listEmployees().then(d => setEmployees(Array.isArray(d) ? d : (d.results || []))).catch(() => {});
+    listVehicleCompanies({}).then(d => setCompanies(Array.isArray(d) ? d : [])).catch(() => {});
+  }, []); // eslint-disable-line
+
+  // Reload models when company filter changes
+  useEffect(() => {
+    if (!companyFilter) { setModels([]); return; }
+    listVehicleModels({ company: companyFilter }).then(d => setModels(Array.isArray(d) ? d : [])).catch(() => {});
+  }, [companyFilter]);
 
   useEffect(() => {
     async function loadAll() {
       setLoading(true);
       try {
-        const params = statusFilter ? { status: statusFilter } : undefined;
+        const params = {};
+        if (statusFilter) params.status = statusFilter;
+        if (dateFilter)   params.date   = dateFilter;
+        if (employeeFilter) params.employee = employeeFilter;
+        if (companyFilter) params.company = companyFilter;
+        if (modelFilter)  params.model   = modelFilter;
+
         const [jobsData, twoWheeler, fourWheeler, threeWheeler, active, completed] =
           await Promise.all([
-            listJobCards(params),
+            listJobCards(Object.keys(params).length ? params : undefined),
             listJobCardsByType('two_wheeler'),
             listJobCardsByType('four_wheeler'),
             listJobCardsByType('three_wheeler'),
@@ -131,7 +158,7 @@ export default function JobCardsList() {
       }
     }
     loadAll();
-  }, [statusFilter, refreshKey]); // eslint-disable-line
+  }, [statusFilter, dateFilter, employeeFilter, companyFilter, modelFilter, refreshKey]); // eslint-disable-line
 
   const filtered = useMemo(() => {
     if (!search.trim()) return jobs;
@@ -139,7 +166,9 @@ export default function JobCardsList() {
     return jobs.filter((j) =>
       (j.job_card_number || '').toLowerCase().includes(s) ||
       (j.customer_name   || '').toLowerCase().includes(s) ||
-      (j.vehicle_number  || '').toLowerCase().includes(s)
+      (j.vehicle_number  || '').toLowerCase().includes(s) ||
+      (j.vehicle_company || '').toLowerCase().includes(s) ||
+      (j.vehicle_model   || '').toLowerCase().includes(s)
     );
   }, [jobs, search]);
 
@@ -150,7 +179,27 @@ export default function JobCardsList() {
       render: (r) => <span className="font-medium text-gray-100">{r.job_card_number}</span>,
     },
     { key: 'customer_name', header: 'Customer' },
-    { key: 'vehicle_number', header: 'Vehicle' },
+    {
+      key: 'vehicle_number',
+      header: 'Vehicle',
+      render: (r) => (
+        <div className="leading-tight">
+          <div className="text-gray-100">{r.vehicle_number}</div>
+          {(r.vehicle_company || r.vehicle_model) && (
+            <div className="text-[10px] text-gray-500 mt-0.5">
+              {[r.vehicle_company, r.vehicle_model, r.vehicle_colour].filter(Boolean).join(' · ')}
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'employee_name',
+      header: 'Employee',
+      render: (r) => r.employee_name
+        ? <span className="text-gray-200">{r.employee_name}</span>
+        : <span className="text-gray-600 text-xs">—</span>,
+    },
     { key: 'job_card_date', header: 'Date' },
     {
       key: 'total_price',
@@ -192,15 +241,26 @@ export default function JobCardsList() {
       },
     },
     {
-      key: 'pay_action',
+      key: 'actions',
       header: '',
       render: (r) => (
-        <Button
-          onClick={(e) => { e.stopPropagation(); setPayJobCard(r); }}
-          variant={r.payment_status === 'paid' ? 'secondary' : 'primary'}
-        >
-          {r.payment_status === 'paid' ? 'View' : 'Pay Now'}
-        </Button>
+        <div className="flex items-center gap-1.5">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={(e) => { e.stopPropagation(); navigate(`/jobcards/${r.id}/edit`); }}
+            title="Edit job card"
+          >
+            <Pencil size={13} />
+          </Button>
+          <Button
+            size="sm"
+            onClick={(e) => { e.stopPropagation(); setPayJobCard(r); }}
+            variant={r.payment_status === 'paid' ? 'secondary' : 'primary'}
+          >
+            {r.payment_status === 'paid' ? 'View' : 'Pay Now'}
+          </Button>
+        </div>
       ),
     },
   ];
@@ -234,23 +294,66 @@ export default function JobCardsList() {
       </div>
 
       {/* ── Search / Filter ─────────────────────────────────────────────── */}
-      <div className="bg-bg-card border border-border rounded-xl p-4 mb-4 flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+      <div className="bg-bg-card border border-border rounded-xl p-4 mb-4 space-y-3">
+        {/* Row 1: search + status */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+            <Input
+              placeholder="Search by job card #, customer, vehicle, or company"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <div className="flex items-center gap-2 sm:w-44">
+            <Filter size={14} className="text-gray-500 shrink-0" />
+            <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value="">All Statuses</option>
+              <option value="IN_PROGRESS">In Progress</option>
+              <option value="COMPLETED">Completed</option>
+            </Select>
+          </div>
           <Input
-            placeholder="Search by job card #, customer, or vehicle"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
+            type="date"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            className="sm:w-44"
+            title="Filter by date"
           />
         </div>
-        <div className="flex items-center gap-2 sm:w-56">
-          <Filter size={14} className="text-gray-500 shrink-0" />
-          <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            <option value="">All Statuses</option>
-            <option value="IN_PROGRESS">In Progress</option>
-            <option value="COMPLETED">Completed</option>
+        {/* Row 2: employee + company + model */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)} className="sm:w-52">
+            <option value="">All Employees</option>
+            {employees.map(e => <option key={e.id} value={e.id}>{e.employee_name}</option>)}
           </Select>
+          <Select
+            value={companyFilter}
+            onChange={(e) => { setCompanyFilter(e.target.value); setModelFilter(''); }}
+            className="sm:w-48"
+          >
+            <option value="">All Companies</option>
+            {companies.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+          </Select>
+          <Select
+            value={modelFilter}
+            onChange={(e) => setModelFilter(e.target.value)}
+            className="sm:w-48"
+            disabled={!companyFilter}
+          >
+            <option value="">{companyFilter ? 'All Models' : 'Select company first'}</option>
+            {models.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+          </Select>
+          {(dateFilter || employeeFilter || companyFilter || modelFilter || statusFilter) && (
+            <button
+              type="button"
+              onClick={() => { setDateFilter(''); setEmployeeFilter(''); setCompanyFilter(''); setModelFilter(''); setStatusFilter(''); }}
+              className="text-xs text-gray-400 hover:text-gray-200 underline shrink-0 self-center"
+            >
+              Clear filters
+            </button>
+          )}
         </div>
       </div>
 

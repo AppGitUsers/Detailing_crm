@@ -39,12 +39,16 @@ class JobCardPaymentSerializer(serializers.ModelSerializer):
 
 
 class JobCardSerializer(serializers.ModelSerializer):
-    job_card_services = JobCardServiceSerializer(many=True, read_only=True)
-    payments          = JobCardPaymentSerializer(many=True, read_only=True)
-    vehicle_number    = serializers.CharField(source='customer_asset.vehicle_number', read_only=True)
-    vehicle_type      = serializers.CharField(source='customer_asset.vehicle_type', read_only=True)
-    customer_name     = serializers.CharField(source='customer_asset.customer.customer_name', read_only=True)
-    phone_number      = serializers.CharField(source='customer_asset.customer.phone_number', read_only=True)
+    job_card_services  = JobCardServiceSerializer(many=True, read_only=True)
+    payments           = JobCardPaymentSerializer(many=True, read_only=True)
+    vehicle_number     = serializers.CharField(source='customer_asset.vehicle_number', read_only=True)
+    vehicle_type       = serializers.CharField(source='customer_asset.vehicle_type', read_only=True)
+    vehicle_company    = serializers.CharField(source='customer_asset.vehicle_company', read_only=True)
+    vehicle_model      = serializers.CharField(source='customer_asset.vehicle_model', read_only=True)
+    vehicle_colour     = serializers.CharField(source='customer_asset.vehicle_colour', read_only=True)
+    customer_name      = serializers.CharField(source='customer_asset.customer.customer_name', read_only=True)
+    phone_number       = serializers.CharField(source='customer_asset.customer.phone_number', read_only=True)
+    employee_name      = serializers.CharField(source='employee.employee_name', read_only=True, default=None)
 
     base_amount    = serializers.SerializerMethodField()
     gst_amount     = serializers.SerializerMethodField()
@@ -121,17 +125,17 @@ class CustomerInputSerializer(serializers.Serializer):
 
 
 class VehicleInputSerializer(serializers.Serializer):
-    is_new       = serializers.BooleanField()
-    id           = serializers.IntegerField(required=False, allow_null=True)
-    vehicle_number = serializers.CharField()
-    vehicle_name = serializers.CharField(required=False, allow_blank=True)
-    vehicle_type = serializers.CharField(required=False, allow_blank=True)
+    is_new          = serializers.BooleanField()
+    id              = serializers.IntegerField(required=False, allow_null=True)
+    vehicle_number  = serializers.CharField()
+    vehicle_name    = serializers.CharField(required=False, allow_blank=True)
+    vehicle_company = serializers.CharField(required=False, allow_blank=True)
+    vehicle_model   = serializers.CharField(required=False, allow_blank=True)
+    vehicle_colour  = serializers.CharField(required=False, allow_blank=True)
+    vehicle_type    = serializers.CharField(required=False, allow_blank=True)
 
     def validate(self, attrs):
-        if attrs['is_new']:
-            if not attrs.get('vehicle_name'):
-                raise serializers.ValidationError({'vehicle_name': 'Required for new vehicle'})
-        elif not attrs.get('id'):
+        if not attrs.get('is_new') and not attrs.get('id'):
             raise serializers.ValidationError({'id': 'Required for existing vehicle'})
         return attrs
 
@@ -187,16 +191,37 @@ class FullJobCardCreateSerializer(serializers.Serializer):
                 vehicle_number=v['vehicle_number']
             ).first()
             if existing_asset:
+                # Update vehicle details if provided
+                changed = False
+                for field in ('vehicle_company', 'vehicle_model', 'vehicle_colour', 'vehicle_name', 'vehicle_type'):
+                    val = v.get(field, '')
+                    if val and getattr(existing_asset, field) != val:
+                        setattr(existing_asset, field, val)
+                        changed = True
+                if changed:
+                    existing_asset.save()
                 asset = existing_asset
             else:
                 asset = CustomerAsset.objects.create(
                     customer=customer,
                     vehicle_number=v['vehicle_number'],
                     vehicle_name=v.get('vehicle_name', ''),
+                    vehicle_company=v.get('vehicle_company', ''),
+                    vehicle_model=v.get('vehicle_model', ''),
+                    vehicle_colour=v.get('vehicle_colour', ''),
                     vehicle_type=v.get('vehicle_type') or 'other',
                 )
         else:
             asset = CustomerAsset.objects.get(pk=v['id'])
+            # Update vehicle details when coming from existing match
+            changed = False
+            for field in ('vehicle_company', 'vehicle_model', 'vehicle_colour'):
+                val = v.get(field, '')
+                if val and getattr(asset, field) != val:
+                    setattr(asset, field, val)
+                    changed = True
+            if changed:
+                asset.save()
 
         employee_id = jc.pop('employee', None)
         job_card = JobCard.objects.create(customer_asset=asset, employee_id=employee_id, **jc)
