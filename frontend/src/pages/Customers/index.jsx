@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Users, Car, Search, Pencil, Trash2, Filter } from 'lucide-react';
+import { Plus, Users, Car, Search, Pencil, Trash2, Filter, BarChart2 } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Button from '../../components/Button';
 import Loading from '../../components/Loading';
@@ -11,9 +11,16 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 import { Field, Input, Select } from '../../components/Field';
 import { useToast } from '../../components/Toast';
 import {
+  ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  PieChart, Pie, Cell,
+  LineChart, Line,
+} from 'recharts';
+import {
   listCustomers, createCustomer, updateCustomer, deleteCustomer,
   listAllVehicles, listVehicleCompanies,
 } from '../../api/customers';
+import { getCustomerAnalytics } from '../../api/jobcards';
 import { extractError } from '../../api/axios';
 
 /* ── Helpers ── */
@@ -37,17 +44,13 @@ const VTYPE_LABEL = {
 
 /* ═══ Main page ═════════════════════════════════════════════════════════════ */
 export default function CustomersVehicles() {
-  const [tab, setTab] = useState('customers'); // 'customers' | 'vehicles'
+  const [tab, setTab] = useState('customers'); // 'customers' | 'vehicles' | 'analytics'
 
   return (
     <div>
       <PageHeader
         title="Customers / Vehicles"
         subtitle="Manage your customers and their vehicles"
-        actions={tab === 'customers'
-          ? <CustomerActions />
-          : null
-        }
       />
 
       {/* Tab switch */}
@@ -58,9 +61,12 @@ export default function CustomersVehicles() {
         <TabBtn active={tab === 'vehicles'} onClick={() => setTab('vehicles')} icon={<Car size={14} />}>
           Vehicles
         </TabBtn>
+        <TabBtn active={tab === 'analytics'} onClick={() => setTab('analytics')} icon={<BarChart2 size={14} />}>
+          Analytics
+        </TabBtn>
       </div>
 
-      {tab === 'customers' ? <CustomersTab /> : <VehiclesTab />}
+      {tab === 'customers' ? <CustomersTab /> : tab === 'vehicles' ? <VehiclesTab /> : <AnalyticsTab />}
     </div>
   );
 }
@@ -338,6 +344,182 @@ function VehiclesTab() {
         />
       )}
     </>
+  );
+}
+
+/* ═══ Analytics tab ══════════════════════════════════════════════════════════ */
+const CHART_COLORS = ['#6366f1','#10b981','#f59e0b','#06b6d4','#8b5cf6','#f43f5e','#34d399','#fb923c'];
+const fmtRev = (n) => n >= 100000 ? `₹${(n/100000).toFixed(1)}L` : n >= 1000 ? `₹${(n/1000).toFixed(1)}k` : `₹${n}`;
+
+function ChartCard({ title, children, loading }) {
+  return (
+    <div className="bg-bg-card border border-border rounded-xl p-5">
+      <h3 className="text-sm font-semibold text-gray-200 mb-4">{title}</h3>
+      {loading ? <div className="h-48 flex items-center justify-center text-gray-500 text-sm">Loading…</div> : children}
+    </div>
+  );
+}
+
+function AnalyticsTab() {
+  const toast = useToast();
+  const [data, setData]     = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getCustomerAnalytics()
+      .then(setData)
+      .catch(err => toast.error(extractError(err)))
+      .finally(() => setLoading(false));
+  }, []); // eslint-disable-line
+
+  const noData = !loading && !data;
+
+  return (
+    <div className="space-y-5">
+      {noData && (
+        <div className="text-center py-16 text-gray-500">No data available yet.</div>
+      )}
+
+      {/* Row 1: Top by Revenue + Top by Visits */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+
+        <ChartCard title="🏆 High-Value Customers (by Revenue)" loading={loading}>
+          {data?.top_by_revenue?.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart
+                data={data.top_by_revenue}
+                layout="vertical"
+                margin={{ top: 0, right: 60, left: 8, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#252a36" horizontal={false} />
+                <XAxis type="number" tick={{ fill: '#6b7280', fontSize: 10 }} tickFormatter={fmtRev} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} width={110} />
+                <Tooltip
+                  contentStyle={{ background: '#1a1e27', border: '1px solid #252a36', borderRadius: 8, fontSize: 11 }}
+                  formatter={(v, n) => [n === 'revenue' ? fmtRev(v) : v, n === 'revenue' ? 'Revenue' : 'Visits']}
+                />
+                <Bar dataKey="revenue" fill="#6366f1" radius={[0,4,4,0]} maxBarSize={16}>
+                  {data.top_by_revenue.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : <p className="text-sm text-gray-500 text-center py-10">No data</p>}
+        </ChartCard>
+
+        <ChartCard title="🔁 Frequent Visitors (by Visit Count)" loading={loading}>
+          {data?.top_by_visits?.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart
+                data={data.top_by_visits}
+                layout="vertical"
+                margin={{ top: 0, right: 40, left: 8, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#252a36" horizontal={false} />
+                <XAxis type="number" allowDecimals={false} tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} width={110} />
+                <Tooltip
+                  contentStyle={{ background: '#1a1e27', border: '1px solid #252a36', borderRadius: 8, fontSize: 11 }}
+                  formatter={(v, n) => [n === 'revenue' ? fmtRev(v) : v, n === 'revenue' ? 'Revenue' : 'Visits']}
+                />
+                <Bar dataKey="visits" fill="#10b981" radius={[0,4,4,0]} maxBarSize={16}>
+                  {data.top_by_visits.map((_, i) => <Cell key={i} fill={CHART_COLORS[(i + 2) % CHART_COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : <p className="text-sm text-gray-500 text-center py-10">No data</p>}
+        </ChartCard>
+      </div>
+
+      {/* Row 2: Monthly Trend (full width) */}
+      <ChartCard title="📈 Monthly Job Card Trend (Last 6 Months)" loading={loading}>
+        {data?.monthly_trend?.length > 0 ? (
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={data.monthly_trend} margin={{ top: 4, right: 20, left: 8, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#252a36" />
+              <XAxis dataKey="month" tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis yAxisId="left"  tick={{ fill: '#9ca3af', fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} width={28} />
+              <YAxis yAxisId="right" orientation="right" tick={{ fill: '#9ca3af', fontSize: 10 }} tickFormatter={fmtRev} axisLine={false} tickLine={false} width={52} />
+              <Tooltip
+                contentStyle={{ background: '#1a1e27', border: '1px solid #252a36', borderRadius: 8, fontSize: 11 }}
+                formatter={(v, n) => [n === 'revenue' ? fmtRev(v) : v, n === 'revenue' ? 'Revenue' : 'Job Cards']}
+              />
+              <Line yAxisId="left"  type="monotone" dataKey="count"   stroke="#6366f1" strokeWidth={2} dot={{ r: 4, fill: '#6366f1' }} name="count" />
+              <Line yAxisId="right" type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={2} dot={{ r: 4, fill: '#10b981' }} name="revenue" />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : <p className="text-sm text-gray-500 text-center py-10">No data</p>}
+      </ChartCard>
+
+      {/* Row 3: Vehicle type dist + Payment dist */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+
+        <ChartCard title="🚗 Vehicle Type Distribution" loading={loading}>
+          {data?.vehicle_type_dist?.length > 0 ? (
+            <div className="flex items-center gap-6">
+              <PieChart width={160} height={160}>
+                <Pie
+                  data={data.vehicle_type_dist.map(d => ({ ...d, value: d.count }))}
+                  dataKey="value"
+                  cx="50%" cy="50%"
+                  innerRadius={45} outerRadius={72}
+                  strokeWidth={2} stroke="#13161d"
+                >
+                  {data.vehicle_type_dist.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                </Pie>
+                <Tooltip
+                  contentStyle={{ background: '#1a1e27', border: '1px solid #252a36', borderRadius: 8, fontSize: 11 }}
+                  formatter={(v, _, p) => [v + ' job cards', p.payload.label]}
+                />
+              </PieChart>
+              <div className="space-y-2">
+                {data.vehicle_type_dist.map((d, i) => (
+                  <div key={d.type} className="flex items-center gap-2 text-sm">
+                    <span className="w-3 h-3 rounded-sm shrink-0" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                    <span className="text-gray-300">{d.label}</span>
+                    <span className="text-gray-500 ml-1">{d.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : <p className="text-sm text-gray-500 text-center py-10">No data</p>}
+        </ChartCard>
+
+        <ChartCard title="💳 Payment Status Distribution" loading={loading}>
+          {data?.payment_dist?.some(d => d.count > 0) ? (
+            <div className="flex items-center gap-6">
+              <PieChart width={160} height={160}>
+                <Pie
+                  data={data.payment_dist.filter(d => d.count > 0).map(d => ({ ...d, value: d.count }))}
+                  dataKey="value"
+                  cx="50%" cy="50%"
+                  innerRadius={45} outerRadius={72}
+                  strokeWidth={2} stroke="#13161d"
+                >
+                  {data.payment_dist.filter(d => d.count > 0).map((d) => (
+                    <Cell key={d.status} fill={d.status === 'Paid' ? '#10b981' : d.status === 'Partial' ? '#f59e0b' : '#f43f5e'} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{ background: '#1a1e27', border: '1px solid #252a36', borderRadius: 8, fontSize: 11 }}
+                  formatter={(v, _, p) => [v + ' job cards', p.payload.status]}
+                />
+              </PieChart>
+              <div className="space-y-2">
+                {data.payment_dist.map((d) => (
+                  <div key={d.status} className="flex items-center gap-2 text-sm">
+                    <span className="w-3 h-3 rounded-sm shrink-0" style={{
+                      background: d.status === 'Paid' ? '#10b981' : d.status === 'Partial' ? '#f59e0b' : '#f43f5e'
+                    }} />
+                    <span className="text-gray-300">{d.status}</span>
+                    <span className="text-gray-500 ml-1">{d.count} cards</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : <p className="text-sm text-gray-500 text-center py-10">No data</p>}
+        </ChartCard>
+      </div>
+    </div>
   );
 }
 

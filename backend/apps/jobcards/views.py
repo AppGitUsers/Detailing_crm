@@ -1,5 +1,7 @@
+from collections import defaultdict
 from datetime import timedelta
 from django.db import transaction
+from django.db.models import Count
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -389,3 +391,118 @@ class JobCardProductUsageDeleteView(APIView):
         inv.save(update_fields=['quantity_available'])
         usage.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# ─── Customer / Vehicle Analytics ────────────────────────────────────────────
+
+class CustomerAnalyticsView(APIView):
+    """
+    Returns aggregated analytics for the Customers / Vehicles dashboard:
+      - top_by_revenue   : top 10 customers by total billed
+      - top_by_visits    : top 10 customers by job card count
+      - vehicle_type_dist: job card count per vehicle type
+      - payment_dist     : count of paid / partial / unpaid job cards
+      - monthly_trend    : last 6 months – job card count + revenue
+    """
+    def get(self, request):
+        from decimal import Decimal
+
+        # Fetch all job cards with their services and payments in one pass
+        all_jcs = JobCard.objects.prefetch_related(
+            'job_card_services', 'payments', 'customer_asset__customer'
+        ).all()
+
+        customer_revenue = defaultdict(lambda: {'name': '', 'revenue': Decimal('0'), 'visits': 0})
+        vehicle_type_counts = defaultdict(int)
+        pay_dist = {'paid': 0, 'partial': 0, 'unpaid': 0}
+        monthly = defaultdict(lambda: {'count': 0, 'revenue': Decimal('0')})
+
+        today = timezone.now().date()
+        six_months_ago = today.replace(day=1)
+        # Go back 6 months
+        m, y = six_months_ago.month, six_months_ago.year
+        for _ in range(5):
+            m -= 1
+            if m == 0:
+                m = 12
+                y -= 1
+        from datetime import date as ddate
+        cutoff = ddate(y, m, 1)
+
+        for jc in all_jcs:
+            # Financials
+            total = sum(s.price_at_time for s in jc.job_card_services.all())
+            paid  = sum(p.amount for p in jc.payments.all())
+
+            # Customer aggregation
+            cust = jc.customer_asset.customer
+            key  = cust.id
+            customer_revenue[key]['name']    = cust.customer_name
+            customer_revenue[key]['revenue'] += total
+            customer_revenue[key]['visits']  += 1
+
+            # Vehicle type distribution
+            vehicle_type_counts[jc.customer_asset.vehicle_type] += 1
+
+            # Payment status
+            if total <= 0 or paid == 0:
+                pay_dist['unpaid'] += 1
+            elif paid >= total:
+                pay_dist['paid'] += 1
+            else:
+                pay_dist['partial'] += 1
+
+            # Monthly trend (last 6 months)
+            if jc.job_card_date >= cutoff:
+                key_m = jc.job_card_date.strftime('%Y-%m')
+                monthly[key_m]['count']   += 1
+                monthly[key_m]['revenue'] += total
+
+        # Sort and slice
+        customers = sorted(customer_revenue.values(), key=lambda x: x['revenue'], reverse=True)
+        top_by_revenue = [
+            {'name': c['name'], 'revenue': float(c['revenue']), 'visits': c['visits']}
+            for c in customers[:10]
+        ]
+        top_by_visits = [
+            {'name': c['name'], 'visits': c['visits'], 'revenue': float(c['revenue'])}
+            for c in sorted(customer_revenue.values(), key=lambda x: x['visits'], reverse=True)[:10]
+        ]
+
+        TYPE_LABEL = {
+            'two_wheeler': 'Two Wheeler',
+            'three_wheeler': 'Three Wheeler',
+            'four_wheeler': 'Four Wheeler',
+            'other': 'Other',
+        }
+        vehicle_type_dist = [
+            {'type': k, 'label': TYPE_LABEL.get(k, k), 'count': v}
+            for k, v in sorted(vehicle_type_counts.items(), key=lambda x: -x[1])
+        ]
+
+        # Fill all 6 months even if no data
+        monthly_trend = []
+        yr, mo = cutoff.year, cutoff.month
+        for _ in range(6):
+            key_m = f'{yr}-{mo:02d}'
+            monthly_trend.append({
+                'month': key_m,
+                'count': monthly[key_m]['count'],
+                'revenue': float(monthly[key_m]['revenue']),
+            })
+            mo += 1
+            if mo > 12:
+                mo = 1
+                yr += 1
+
+        return Response({
+            'top_by_revenue':   top_by_revenue,
+            'top_by_visits':    top_by_visits,
+            'vehicle_type_dist': vehicle_type_dist,
+            'payment_dist': [
+                {'status': 'Paid',    'count': pay_dist['paid']},
+                {'status': 'Partial', 'count': pay_dist['partial']},
+                {'status': 'Unpaid',  'count': pay_dist['unpaid']},
+            ],
+            'monthly_trend': monthly_trend,
+        })

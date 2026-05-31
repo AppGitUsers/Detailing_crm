@@ -6,6 +6,11 @@ import Loading from '../../components/Loading';
 import Badge from '../../components/Badge';
 import { useToast } from '../../components/Toast';
 import { getAsset } from '../../api/customers';
+const PAY_CFG = {
+  paid:    { label: 'Paid',    cls: 'bg-emerald-900/40 text-emerald-300 border-emerald-700/50' },
+  partial: { label: 'Partial', cls: 'bg-yellow-900/30 text-yellow-300 border-yellow-700/50' },
+  unpaid:  { label: 'Unpaid',  cls: 'bg-red-900/30 text-red-300 border-red-700/50' },
+};
 import { listJobCards } from '../../api/jobcards';
 import { extractError } from '../../api/axios';
 
@@ -192,6 +197,15 @@ export default function VehicleDetail() {
                         <Badge variant={j.job_card_status === 'COMPLETED' ? 'green' : 'yellow'}>
                           {j.job_card_status === 'COMPLETED' ? 'Completed' : 'In Progress'}
                         </Badge>
+                        {(() => {
+                          const pay = j.payment_status || 'unpaid';
+                          const cfg = PAY_CFG[pay] || PAY_CFG.unpaid;
+                          return (
+                            <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border ${cfg.cls}`}>
+                              {cfg.label}
+                            </span>
+                          );
+                        })()}
                         <div className="text-xs text-gray-300 font-medium">
                           ₹{total.toLocaleString('en-IN')}
                         </div>

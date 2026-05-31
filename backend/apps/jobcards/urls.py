@@ -8,6 +8,7 @@ from .views import (
     JobCardProductInventoryOptionsView,
     JobCardProductUsageListCreateView,
     JobCardProductUsageDeleteView,
+    CustomerAnalyticsView,
 )
 
 urlpatterns = [
@@ -37,4 +38,7 @@ urlpatterns = [
     path('products/<int:jc_product_id>/inventory-options/', JobCardProductInventoryOptionsView.as_view(), name='jcproduct-inventory-options'),
     path('products/<int:jc_product_id>/usages/', JobCardProductUsageListCreateView.as_view(), name='jcproduct-usage-list-create'),
     path('usages/<int:pk>/', JobCardProductUsageDeleteView.as_view(), name='jcproduct-usage-delete'),
+
+    # Analytics
+    path('customer-analytics/', CustomerAnalyticsView.as_view(), name='customer-analytics'),
 ]

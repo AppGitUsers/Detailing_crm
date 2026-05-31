@@ -315,6 +315,7 @@ export default function JobCardDetail() {
             <h2 className="text-base font-semibold text-gray-100 mb-4">Details</h2>
             <dl className="space-y-3 text-sm">
               <Detail label="Customer" value={job.customer_name} />
+              {job.phone_number && <Detail label="Mobile" value={job.phone_number} />}
               <Detail label="Vehicle" value={job.vehicle_number} />
               <Detail label="Date" value={job.job_card_date} />
               <Detail label="Vehicle KM" value={job.vehicle_kilometers ?? '—'} />

@@ -12,6 +12,12 @@ import { Field, Input } from '../../components/Field';
 import { useToast } from '../../components/Toast';
 import { getCustomer, addCustomerAsset, updateAsset, deleteAsset } from '../../api/customers';
 import { listJobCards } from '../../api/jobcards';
+const fmtAmt = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+const PAY_CFG = {
+  paid:    { label: 'Paid',    cls: 'bg-emerald-900/40 text-emerald-300 border-emerald-700/50' },
+  partial: { label: 'Partial', cls: 'bg-yellow-900/30 text-yellow-300 border-yellow-700/50' },
+  unpaid:  { label: 'Unpaid',  cls: 'bg-red-900/30 text-red-300 border-red-700/50' },
+};
 import { extractError } from '../../api/axios';
 
 export default function CustomerDetail() {
@@ -120,14 +126,31 @@ export default function CustomerDetail() {
                   key={j.id}
                   className="block px-5 py-3 hover:bg-bg-hover transition-colors"
                 >
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="font-medium text-gray-100 text-sm truncate">{j.job_card_number}</div>
                       <div className="text-xs text-gray-400">{j.vehicle_number} · {j.job_card_date}</div>
                     </div>
-                    <Badge variant={j.job_card_status === 'COMPLETED' ? 'green' : 'yellow'}>
-                      {j.job_card_status === 'COMPLETED' ? 'Completed' : 'In Progress'}
-                    </Badge>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <Badge variant={j.job_card_status === 'COMPLETED' ? 'green' : 'yellow'}>
+                        {j.job_card_status === 'COMPLETED' ? 'Completed' : 'In Progress'}
+                      </Badge>
+                      {(() => {
+                        const pay = j.payment_status || 'unpaid';
+                        const cfg = PAY_CFG[pay] || PAY_CFG.unpaid;
+                        const total = Number(j.total_amount || 0);
+                        const due   = Number(j.outstanding || 0);
+                        return (
+                          <>
+                            <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border ${cfg.cls}`}>
+                              {cfg.label}
+                            </span>
+                            <span className="text-[11px] text-gray-300 font-medium">{fmtAmt(total)}</span>
+                            {due > 0 && <span className="text-[10px] text-yellow-400">{fmtAmt(due)} due</span>}
+                          </>
+                        );
+                      })()}
+                    </div>
                   </div>
                 </Link>
               ))}

@@ -182,7 +182,16 @@ export default function JobCardsList() {
       header: 'Job Card #',
       render: (r) => <span className="font-medium text-gray-100">{r.job_card_number}</span>,
     },
-    { key: 'customer_name', header: 'Customer' },
+    {
+      key: 'customer_name',
+      header: 'Customer',
+      render: (r) => (
+        <div className="leading-tight">
+          <div className="text-gray-200">{r.customer_name}</div>
+          {r.phone_number && <div className="text-[10px] text-gray-500 mt-0.5">{r.phone_number}</div>}
+        </div>
+      ),
+    },
     {
       key: 'vehicle_number',
       header: 'Vehicle',
