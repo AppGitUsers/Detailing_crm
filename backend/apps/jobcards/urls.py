@@ -10,6 +10,7 @@ from .views import (
     JobCardProductUsageDeleteView,
     CustomerAnalyticsView,
     CustomerTiersView,
+    CustomerReportView,
 )
 
 urlpatterns = [
@@ -43,4 +44,5 @@ urlpatterns = [
     # Analytics
     path('customer-analytics/', CustomerAnalyticsView.as_view(), name='customer-analytics'),
     path('customer-tiers/',     CustomerTiersView.as_view(),     name='customer-tiers'),
+    path('customer-report/',    CustomerReportView.as_view(),    name='customer-report'),
 ]

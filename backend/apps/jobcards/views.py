@@ -515,6 +515,115 @@ class CustomerAnalyticsView(APIView):
         })
 
 
+class CustomerReportView(APIView):
+    """
+    Full customer activity report.
+    Query params:
+      status  – 'active' | 'inactive' | '' (all)
+      year    – 4-digit year string, filters visits by year
+    Response: { customers: [...], total: N, available_years: [...] }
+    """
+    def get(self, request):
+        from decimal import Decimal
+        from datetime import date as ddate, timedelta
+        from apps.customers.models import Customer
+
+        status_filter = request.query_params.get('status', '')
+        year_filter   = request.query_params.get('year',   '')
+
+        today     = ddate.today()
+        threshold = today - timedelta(days=45)
+
+        # ── Step 1: aggregate job-card stats per customer (bulk fetch) ──────
+        all_jcs = JobCard.objects.select_related(
+            'customer_asset__customer'
+        ).prefetch_related('job_card_services').order_by()
+
+        cust_map   = {}   # id → data dict
+        all_years  = set()
+
+        for jc in all_jcs:
+            cust = jc.customer_asset.customer
+            cid  = cust.id
+            yr   = str(jc.job_card_date.year) if jc.job_card_date else 'unknown'
+            all_years.add(yr)
+
+            if cid not in cust_map:
+                cust_map[cid] = {
+                    'id':    cid,
+                    'name':  cust.customer_name,
+                    'phone': cust.phone_number,
+                    'email': cust.email or '',
+                    'all_dates':      [],
+                    'visits_by_year': defaultdict(int),
+                    'rev_by_year':    defaultdict(Decimal),
+                }
+            row = cust_map[cid]
+            if jc.job_card_date:
+                row['all_dates'].append(jc.job_card_date)
+            row['visits_by_year'][yr] += 1
+            row['rev_by_year'][yr]   += sum(s.price_at_time for s in jc.job_card_services.all())
+
+        # ── Step 2: build report (include customers with 0 visits) ──────────
+        all_customers = Customer.objects.all().order_by('customer_name')
+        report = []
+
+        for cust in all_customers:
+            cid  = cust.id
+            data = cust_map.get(cid)
+
+            if data:
+                last_visit = max(data['all_dates']) if data['all_dates'] else None
+                if year_filter:
+                    visits  = data['visits_by_year'].get(year_filter, 0)
+                    revenue = float(data['rev_by_year'].get(year_filter, Decimal('0')))
+                else:
+                    visits  = sum(data['visits_by_year'].values())
+                    revenue = float(sum(data['rev_by_year'].values()))
+            else:
+                last_visit = None
+                visits     = 0
+                revenue    = 0.0
+
+            # When year filter is active and the customer never visited that year
+            # still include them unless status='active'
+            if year_filter and visits == 0 and status_filter == 'active':
+                continue
+
+            is_active = last_visit is not None and last_visit >= threshold
+
+            if status_filter == 'active'   and not is_active: continue
+            if status_filter == 'inactive' and     is_active: continue
+
+            report.append({
+                'customer_id':    cid,
+                'customer_name':  cust.customer_name,
+                'phone_number':   cust.phone_number,
+                'email':          cust.email or '',
+                'total_visits':   visits,
+                'last_visit_date': last_visit.isoformat() if last_visit else None,
+                'total_revenue':  revenue,
+                'is_active':      is_active,
+            })
+
+        # Sort: most recently visited first, never-visited at the end
+        report.sort(
+            key=lambda x: x['last_visit_date'] or '',
+            reverse=True,
+        )
+
+        available_years = sorted(
+            [y for y in all_years if y.isdigit()],
+            reverse=True,
+        )
+
+        return Response({
+            'customers':       report,
+            'total':           len(report),
+            'available_years': available_years,
+        })
+
+
 class CustomerTiersView(APIView):
     """Lightweight endpoint — returns only the top-5 customer IDs for each tier."""
     def get(self, _request):

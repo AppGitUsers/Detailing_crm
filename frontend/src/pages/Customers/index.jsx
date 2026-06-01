@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Users, Car, Search, Pencil, Trash2, Filter, BarChart2 } from 'lucide-react';
+import { Plus, Users, Car, Search, Pencil, Trash2, Filter, BarChart2, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import PageHeader from '../../components/PageHeader';
 import Button from '../../components/Button';
 import Loading from '../../components/Loading';
@@ -20,7 +21,7 @@ import {
   listCustomers, createCustomer, updateCustomer, deleteCustomer,
   listAllVehicles, listVehicleCompanies,
 } from '../../api/customers';
-import { getCustomerAnalytics } from '../../api/jobcards';
+import { getCustomerAnalytics, getCustomerReport } from '../../api/jobcards';
 import { extractError } from '../../api/axios';
 
 /* ── Helpers ── */
@@ -565,6 +566,255 @@ function AnalyticsTab() {
           ) : <p className="text-sm text-gray-500 text-center py-10">No data</p>}
         </ChartCard>
       </div>
+
+      {/* ── Customer Activity Report ─────────────────────────────────────── */}
+      <CustomerReportTable />
+    </div>
+  );
+}
+
+/* ═══ Customer Activity Report ═══════════════════════════════════════════════ */
+const PAGE_SIZE = 20;
+const fmtCurrency = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+const fmtDateReport = (s) => {
+  if (!s) return '—';
+  return new Date(s + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+function CustomerReportTable() {
+  const toast = useToast();
+  const [allRows, setAllRows]         = useState([]);
+  const [years, setYears]             = useState([]);
+  const [loading, setLoading]         = useState(false);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [yearFilter, setYearFilter]   = useState('');
+  const [page, setPage]               = useState(1);
+  const [search, setSearch]           = useState('');
+
+  const fetchReport = async () => {
+    setLoading(true);
+    try {
+      const params = {};
+      if (statusFilter) params.status = statusFilter;
+      if (yearFilter)   params.year   = yearFilter;
+      const data = await getCustomerReport(params);
+      setAllRows(data.customers || []);
+      if (data.available_years?.length) setYears(data.available_years);
+    } catch (err) {
+      toast.error(extractError(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Refetch when filters change
+  useEffect(() => {
+    setPage(1);
+    fetchReport();
+  }, [statusFilter, yearFilter]); // eslint-disable-line
+
+  // Client-side search filter
+  const filtered = useMemo(() => {
+    if (!search.trim()) return allRows;
+    const s = search.toLowerCase();
+    return allRows.filter(r =>
+      r.customer_name.toLowerCase().includes(s) ||
+      (r.phone_number || '').toLowerCase().includes(s) ||
+      (r.email || '').toLowerCase().includes(s)
+    );
+  }, [allRows, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage   = Math.min(page, totalPages);
+  const pageRows   = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  const downloadExcel = () => {
+    const rows = filtered.map((r, i) => ({
+      '#':               i + 1,
+      'Customer Name':   r.customer_name,
+      'Phone':           r.phone_number,
+      'Email':           r.email || '—',
+      'Total Visits':    r.total_visits,
+      'Last Visit':      r.last_visit_date || '—',
+      'Total Revenue':   r.total_revenue,
+      'Status':          r.is_active ? 'Active' : 'Inactive',
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Customer Report');
+    // Auto column widths
+    const cols = Object.keys(rows[0] || {}).map(k => ({ wch: Math.max(k.length, 14) }));
+    ws['!cols'] = cols;
+    XLSX.writeFile(wb, `customer-report${yearFilter ? '-' + yearFilter : ''}${statusFilter ? '-' + statusFilter : ''}.xlsx`);
+  };
+
+  return (
+    <div className="bg-bg-card border border-border rounded-xl overflow-hidden mt-2">
+      {/* Header */}
+      <div className="px-4 sm:px-5 py-4 border-b border-border flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-semibold text-gray-100">Customer Activity Report</h3>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {loading ? 'Loading…' : `${filtered.length} customers`}
+            {' '}· Active = visited within last 45 days
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={downloadExcel}
+          disabled={loading || filtered.length === 0}
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-900/30 border border-emerald-700/40 text-emerald-300 text-xs font-medium hover:bg-emerald-900/50 disabled:opacity-40 transition-colors shrink-0"
+        >
+          <Download size={13} /> Download Excel
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div className="px-4 sm:px-5 py-3 border-b border-border grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="relative">
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input
+            type="text"
+            placeholder="Search name, phone, email…"
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(1); }}
+            className="w-full bg-bg border border-border rounded-md pl-8 pr-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:border-accent focus:outline-none"
+          />
+        </div>
+        <select
+          value={statusFilter}
+          onChange={e => setStatusFilter(e.target.value)}
+          className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-gray-100 focus:border-accent focus:outline-none"
+        >
+          <option value="">All Statuses</option>
+          <option value="active">Active (last 45 days)</option>
+          <option value="inactive">Inactive</option>
+        </select>
+        <select
+          value={yearFilter}
+          onChange={e => setYearFilter(e.target.value)}
+          className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-gray-100 focus:border-accent focus:outline-none"
+        >
+          <option value="">All Years</option>
+          {years.map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
+      </div>
+
+      {/* Table */}
+      {loading ? (
+        <div className="py-12 text-center text-gray-500 text-sm">Loading report…</div>
+      ) : filtered.length === 0 ? (
+        <div className="py-12 text-center text-gray-500 text-sm">No customers match the current filters.</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs sm:text-sm min-w-[640px]">
+            <thead className="bg-bg-elev">
+              <tr>
+                <th className="text-left px-3 sm:px-4 py-3 font-medium text-gray-400">#</th>
+                <th className="text-left px-3 sm:px-4 py-3 font-medium text-gray-400">Customer</th>
+                <th className="text-left px-3 sm:px-4 py-3 font-medium text-gray-400">Phone</th>
+                <th className="text-left px-3 sm:px-4 py-3 font-medium text-gray-400 hidden md:table-cell">Email</th>
+                <th className="text-center px-3 sm:px-4 py-3 font-medium text-gray-400">Visits</th>
+                <th className="text-left px-3 sm:px-4 py-3 font-medium text-gray-400">Last Visit</th>
+                <th className="text-right px-3 sm:px-4 py-3 font-medium text-gray-400">Revenue</th>
+                <th className="text-center px-3 sm:px-4 py-3 font-medium text-gray-400">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pageRows.map((r, i) => {
+                const rowNum = (safePage - 1) * PAGE_SIZE + i + 1;
+                return (
+                  <tr key={r.customer_id} className="border-t border-border hover:bg-bg-hover transition-colors">
+                    <td className="px-3 sm:px-4 py-2.5 text-gray-500">{rowNum}</td>
+                    <td className="px-3 sm:px-4 py-2.5">
+                      <div className="font-medium text-gray-100 truncate max-w-[160px]">{r.customer_name}</div>
+                    </td>
+                    <td className="px-3 sm:px-4 py-2.5 text-gray-300 whitespace-nowrap">{r.phone_number}</td>
+                    <td className="px-3 sm:px-4 py-2.5 text-gray-400 truncate max-w-[160px] hidden md:table-cell">
+                      {r.email || '—'}
+                    </td>
+                    <td className="px-3 sm:px-4 py-2.5 text-center text-gray-300 font-medium">{r.total_visits}</td>
+                    <td className="px-3 sm:px-4 py-2.5 text-gray-300 whitespace-nowrap">{fmtDateReport(r.last_visit_date)}</td>
+                    <td className="px-3 sm:px-4 py-2.5 text-right text-gray-200 font-medium whitespace-nowrap">
+                      {fmtCurrency(r.total_revenue)}
+                    </td>
+                    <td className="px-3 sm:px-4 py-2.5 text-center">
+                      {r.is_active ? (
+                        <span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-emerald-900/40 text-emerald-300 border-emerald-700/50">
+                          Active
+                        </span>
+                      ) : (
+                        <span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-gray-800/60 text-gray-400 border-gray-700/50">
+                          Inactive
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {filtered.length > PAGE_SIZE && (
+        <div className="px-4 sm:px-5 py-3 border-t border-border flex items-center justify-between gap-3">
+          <span className="text-xs text-gray-500">
+            Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filtered.length)} of {filtered.length}
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={safePage === 1}
+              className="p-1.5 rounded-md text-gray-400 hover:text-gray-100 hover:bg-bg-hover disabled:opacity-30 transition-colors"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            {/* Page numbers */}
+            {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+              let pageNum;
+              if (totalPages <= 7) {
+                pageNum = i + 1;
+              } else if (safePage <= 4) {
+                pageNum = i + 1 <= 5 ? i + 1 : totalPages - (6 - i);
+              } else if (safePage >= totalPages - 3) {
+                pageNum = i < 2 ? i + 1 : totalPages - (6 - i);
+              } else {
+                pageNum = i === 0 ? 1 : i === 6 ? totalPages : safePage + i - 3;
+              }
+              const isEllipsis = totalPages > 7 && (
+                (safePage > 4 && i === 1) ||
+                (safePage < totalPages - 3 && i === 5)
+              );
+              if (isEllipsis) return <span key={i} className="px-1 text-gray-600 text-xs">…</span>;
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setPage(pageNum)}
+                  className={`w-7 h-7 rounded-md text-xs font-medium transition-colors ${
+                    pageNum === safePage
+                      ? 'bg-accent text-white'
+                      : 'text-gray-400 hover:text-gray-100 hover:bg-bg-hover'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={safePage === totalPages}
+              className="p-1.5 rounded-md text-gray-400 hover:text-gray-100 hover:bg-bg-hover disabled:opacity-30 transition-colors"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

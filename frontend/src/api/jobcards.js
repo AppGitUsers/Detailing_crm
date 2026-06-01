@@ -38,3 +38,4 @@ export const removeJobCardProductUsage = (usageId) =>
 
 export const getCustomerAnalytics = () => api.get('jobcards/customer-analytics/').then(r => r.data);
 export const getCustomerTiers     = () => api.get('jobcards/customer-tiers/').then(r => r.data);
+export const getCustomerReport    = (params) => api.get('jobcards/customer-report/', { params }).then(r => r.data);
