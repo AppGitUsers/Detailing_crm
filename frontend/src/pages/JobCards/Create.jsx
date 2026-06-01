@@ -7,7 +7,7 @@ import Loading from '../../components/Loading';
 import { Field, Input, Select, Textarea } from '../../components/Field';
 import { useToast } from '../../components/Toast';
 import { checkVehicle, checkCustomer, listVehicleCompanies, createVehicleCompany, listVehicleModels, createVehicleModel, listVehicleColours, createVehicleColour } from '../../api/customers';
-import { createFullJobCard } from '../../api/jobcards';
+import { createFullJobCard, getCustomerTiers } from '../../api/jobcards';
 import { listServices } from '../../api/services';
 import { getSettings } from '../../api/settings';
 import { extractError } from '../../api/axios';
@@ -178,6 +178,8 @@ export default function JobCardCreate() {
   const [selectedServiceIds, setSelectedServiceIds] = useState([]);
   const [gstPercent, setGstPercent] = useState('18');
   const [employees, setEmployees] = useState([]);
+  const [tiers, setTiers] = useState({ high_value: [], frequent: [] }); // customer tier IDs
+  const [matchedTier, setMatchedTier] = useState(null); // null | { type:'H'|'F', value, label }
 
   // Pull default GST from settings on mount; fall back to 18 if unavailable
   useEffect(() => {
@@ -193,6 +195,7 @@ export default function JobCardCreate() {
     listEmployees()
       .then(data => setEmployees(Array.isArray(data) ? data : (data.results || [])))
       .catch(err => toast.error(extractError(err)));
+    getCustomerTiers().then(setTiers).catch(() => {});
   }, []);
 
   const updateJobCard = (k, v) => setJobCard((f) => ({ ...f, [k]: v }));
@@ -232,25 +235,34 @@ export default function JobCardCreate() {
     return Object.keys(e).length === 0;
   };
 
+  const resolveTier = (customerId) => {
+    if (!customerId) return null;
+    const hvEntry = tiers.high_value.find(t => t.id === customerId);
+    if (hvEntry) return { type: 'H', label: 'High-Value Customer', value: `₹${Number(hvEntry.revenue).toLocaleString('en-IN')} total revenue` };
+    const fqEntry = tiers.frequent.find(t => t.id === customerId);
+    if (fqEntry) return { type: 'F', label: 'Frequent Visitor', value: `${fqEntry.visits} visit${fqEntry.visits !== 1 ? 's' : ''}` };
+    return null;
+  };
+
   const handleNextFromStep1 = async () => {
     if (!validateStep1()) return;
     setChecking(true);
     try {
       const result = await checkVehicle(jobCard.vehicle_number.trim());
       const customerResult = await checkCustomer(jobCard.phone_number.trim());
-      console.log(customerResult.customer);
       if (result && result.exists) {
         setVehicleMatch({ customer: result.customer, vehicle: result.vehicle });
+        setMatchedTier(resolveTier(result.customer?.id));
         setStep(3);
       } else if (customerResult && customerResult.exists) {
-
         setCustomerMatch({ customer: customerResult.customer });
+        setMatchedTier(resolveTier(customerResult.customer?.id));
         setVehicleMatch(null);
         setStep(2);
-      }
-      else {
+      } else {
         setVehicleMatch(null);
         setCustomerMatch(null);
+        setMatchedTier(null);
         setStep(2);
       }
     } catch (err) {
@@ -364,7 +376,7 @@ export default function JobCardCreate() {
 
       <Stepper step={step} skippedCustomer={!!vehicleMatch} />
 
-      <div className="bg-bg-card border border-border rounded-xl p-6 max-w-3xl mt-4">
+      <div className="bg-bg-card border border-border rounded-xl p-4 sm:p-6 max-w-3xl mt-4">
         {step === 1 && (
           <Step1
             form={jobCard}
@@ -400,6 +412,7 @@ export default function JobCardCreate() {
             onGstChange={setGstPercent}
             matchedCustomer={vehicleMatch?.customer}
             matchedVehicle={vehicleMatch?.vehicle}
+            matchedTier={matchedTier}
           />
         )}
 
@@ -661,7 +674,7 @@ function Step2({ customer, vehicle, updateCustomer, updateVehicle, errors, match
   );
 }
 
-function Step3({ services, loading, selectedIds, onToggle, basePrice, gstPercent, gstAmount, totalPrice, onGstChange, matchedCustomer, matchedVehicle }) {
+function Step3({ services, loading, selectedIds, onToggle, basePrice, gstPercent, gstAmount, totalPrice, onGstChange, matchedCustomer, matchedVehicle, matchedTier }) {
   if (loading) return <Loading label="Loading services..." />;
   return (
     <div className="space-y-4">
@@ -669,6 +682,25 @@ function Step3({ services, loading, selectedIds, onToggle, basePrice, gstPercent
         <div className="bg-emerald-900/20 border border-emerald-800 rounded-md p-3 text-sm text-emerald-100">
           Matched existing vehicle <span className="font-semibold">{matchedVehicle.vehicle_number}</span> ·
           Customer: <span className="font-semibold">{matchedCustomer.customer_name}</span>
+        </div>
+      )}
+      {matchedTier && (
+        <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${
+          matchedTier.type === 'H'
+            ? 'bg-violet-900/20 border-violet-700/50'
+            : 'bg-cyan-900/20 border-cyan-700/50'
+        }`}>
+          <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-extrabold shrink-0 ${
+            matchedTier.type === 'H'
+              ? 'bg-violet-800/60 text-violet-200 border border-violet-600/50'
+              : 'bg-cyan-800/60 text-cyan-200 border border-cyan-600/50'
+          }`}>{matchedTier.type}</span>
+          <div>
+            <div className={`text-xs font-semibold ${matchedTier.type === 'H' ? 'text-violet-300' : 'text-cyan-300'}`}>
+              {matchedTier.label}
+            </div>
+            <div className="text-xs text-gray-400 mt-0.5">{matchedTier.value}</div>
+          </div>
         </div>
       )}
 

@@ -232,7 +232,7 @@ export default function FinanceDashboard() {
             <p className="text-xs font-semibold text-yellow-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
               <AlertCircle size={12} /> To Be Collected
             </p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <MetricBox label="Total Outstanding" value={fmt(tbc.total)} accent="yellow" loading={dashLoading} />
               <MetricBox label="Base (excl. GST)" value={fmt(tbc.base)} accent="yellow" loading={dashLoading} />
               <MetricBox label="GST Outstanding" value={fmt(tbc.gst)} accent="yellow" loading={dashLoading} />
@@ -243,7 +243,7 @@ export default function FinanceDashboard() {
             <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
               <Wallet size={12} /> Collected
             </p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <MetricBox label="Total Collected" value={fmt(col.total)} accent="green" loading={dashLoading} />
               <MetricBox label="Base Collected" value={fmt(col.base)} accent="green" loading={dashLoading} />
               <MetricBox label="GST Collected" value={fmt(col.gst)} accent="green" loading={dashLoading} />

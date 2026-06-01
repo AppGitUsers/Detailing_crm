@@ -446,7 +446,7 @@ export default function DailyReport() {
       {loading ? (
         <div className="py-12"><Loading /></div>
       ) : !report ? null : (
-        <div className="p-5 space-y-5">
+        <div className="p-3 sm:p-5 space-y-4 sm:space-y-5">
 
           {/* Date confirmation banner */}
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-500/10 border border-violet-500/20">

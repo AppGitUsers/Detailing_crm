@@ -50,6 +50,7 @@ class JobCardSerializer(serializers.ModelSerializer):
     vehicle_company    = serializers.CharField(source='customer_asset.vehicle_company', read_only=True)
     vehicle_model      = serializers.CharField(source='customer_asset.vehicle_model', read_only=True)
     vehicle_colour     = serializers.CharField(source='customer_asset.vehicle_colour', read_only=True)
+    customer_id        = serializers.IntegerField(source='customer_asset.customer.id', read_only=True)
     customer_name      = serializers.CharField(source='customer_asset.customer.customer_name', read_only=True)
     phone_number       = serializers.CharField(source='customer_asset.customer.phone_number', read_only=True)
     employee_name      = serializers.CharField(source='employee.employee_name', read_only=True, default=None)

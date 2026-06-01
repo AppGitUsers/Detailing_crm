@@ -9,7 +9,7 @@ import EmptyState from '../../components/EmptyState';
 import Table from '../../components/Table';
 import { Input, Select } from '../../components/Field';
 import { useToast } from '../../components/Toast';
-import { listJobCards, listJobCardsByType } from '../../api/jobcards';
+import { listJobCards, listJobCardsByType, getCustomerTiers } from '../../api/jobcards';
 import { listVehicleCompanies, listVehicleModels } from '../../api/customers';
 import { listEmployees } from '../../api/employees';
 import { extractError } from '../../api/axios';
@@ -111,11 +111,13 @@ export default function JobCardsList() {
   const [stats, setStats] = useState({ active: 0, completed: 0, twoWheeler: 0, fourWheeler: 0, threeWheeler: 0 });
   const [payJobCard, setPayJobCard]       = useState(null);
   const [refreshKey, setRefreshKey]       = useState(0);
+  const [tiers, setTiers]                 = useState({ high_value: [], frequent: [] });
 
-  // Load employees + companies for filter dropdowns once
+  // Load employees + companies + tiers once
   useEffect(() => {
     listEmployees().then(d => setEmployees(Array.isArray(d) ? d : (d.results || []))).catch(() => {});
     listVehicleCompanies({}).then(d => setCompanies(Array.isArray(d) ? d : [])).catch(() => {});
+    getCustomerTiers().then(setTiers).catch(() => {});
   }, []); // eslint-disable-line
 
   // Reload models when company filter changes
@@ -266,25 +268,39 @@ export default function JobCardsList() {
     {
       key: 'actions',
       header: '',
-      render: (r) => (
-        <div className="flex items-center gap-1.5">
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={(e) => { e.stopPropagation(); navigate(`/jobcards/${r.id}/edit`); }}
-            title="Edit job card"
-          >
-            <Pencil size={13} />
-          </Button>
-          <Button
-            size="sm"
-            onClick={(e) => { e.stopPropagation(); setPayJobCard(r); }}
-            variant={r.payment_status === 'paid' ? 'secondary' : 'primary'}
-          >
-            {r.payment_status === 'paid' ? 'View' : 'Pay Now'}
-          </Button>
-        </div>
-      ),
+      render: (r) => {
+        const isHV = tiers.high_value.some(t => t.id === r.customer_id);
+        const isFQ = !isHV && tiers.frequent.some(t => t.id === r.customer_id);
+        return (
+          <div className="flex items-center gap-1.5">
+            {isHV && (
+              <span title="High-Value Customer" className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-extrabold bg-violet-900/50 text-violet-300 border border-violet-600/50 shrink-0">
+                H
+              </span>
+            )}
+            {isFQ && (
+              <span title="Frequent Visitor" className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-extrabold bg-cyan-900/50 text-cyan-300 border border-cyan-600/50 shrink-0">
+                F
+              </span>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={(e) => { e.stopPropagation(); navigate(`/jobcards/${r.id}/edit`); }}
+              title="Edit job card"
+            >
+              <Pencil size={13} />
+            </Button>
+            <Button
+              size="sm"
+              onClick={(e) => { e.stopPropagation(); setPayJobCard(r); }}
+              variant={r.payment_status === 'paid' ? 'secondary' : 'primary'}
+            >
+              {r.payment_status === 'paid' ? 'View' : 'Pay Now'}
+            </Button>
+          </div>
+        );
+      },
     },
   ];
 
@@ -301,7 +317,7 @@ export default function JobCardsList() {
       />
 
       {/* ── 5 photo stat cards ──────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 mb-4">
         {STAT_CARDS.map((card) => (
           <PhotoStatCard
             key={card.key}
@@ -329,32 +345,27 @@ export default function JobCardsList() {
               className="pl-9"
             />
           </div>
-          <div className="flex items-center gap-2 sm:w-44">
-            <Filter size={14} className="text-gray-500 shrink-0" />
-            <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="">All Statuses</option>
-              <option value="IN_PROGRESS">In Progress</option>
-              <option value="COMPLETED">Completed</option>
-            </Select>
-          </div>
+          <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="">All Statuses</option>
+            <option value="IN_PROGRESS">In Progress</option>
+            <option value="COMPLETED">Completed</option>
+          </Select>
           <Input
             type="date"
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
-            className="sm:w-44"
             title="Filter by date"
           />
         </div>
         {/* Row 2: employee + company + model + usage */}
-        <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
-          <Select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)} className="sm:w-52">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <Select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)}>
             <option value="">All Employees</option>
             {employees.map(e => <option key={e.id} value={e.id}>{e.employee_name}</option>)}
           </Select>
           <Select
             value={companyFilter}
             onChange={(e) => { setCompanyFilter(e.target.value); setModelFilter(''); }}
-            className="sm:w-44"
           >
             <option value="">All Companies</option>
             {companies.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
@@ -362,27 +373,28 @@ export default function JobCardsList() {
           <Select
             value={modelFilter}
             onChange={(e) => setModelFilter(e.target.value)}
-            className="sm:w-40"
             disabled={!companyFilter}
           >
             <option value="">{companyFilter ? 'All Models' : 'Select company first'}</option>
             {models.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
           </Select>
-          <Select value={usageFilter} onChange={(e) => setUsageFilter(e.target.value)} className="sm:w-48">
+          <Select value={usageFilter} onChange={(e) => setUsageFilter(e.target.value)}>
             <option value="">All Usage Statuses</option>
             <option value="complete">✓ Usages Complete</option>
             <option value="incomplete">⚠ Usages Pending</option>
           </Select>
-          {(dateFilter || employeeFilter || companyFilter || modelFilter || statusFilter || usageFilter) && (
+        </div>
+        {(dateFilter || employeeFilter || companyFilter || modelFilter || statusFilter || usageFilter) && (
+          <div>
             <button
               type="button"
               onClick={() => { setDateFilter(''); setEmployeeFilter(''); setCompanyFilter(''); setModelFilter(''); setStatusFilter(''); setUsageFilter(''); }}
-              className="text-xs text-gray-400 hover:text-gray-200 underline shrink-0 self-center"
+              className="text-xs text-gray-400 hover:text-gray-200 underline"
             >
-              Clear filters
+              Clear all filters
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Payment modal — outside filter bar so it renders correctly */}

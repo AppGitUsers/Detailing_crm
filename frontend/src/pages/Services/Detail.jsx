@@ -88,7 +88,7 @@ export default function ServiceDetail() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         <div className="bg-bg-card border border-border rounded-xl">
           <div className="px-5 py-4 border-b border-border flex items-center justify-between">
             <h2 className="text-base font-semibold text-gray-100 flex items-center gap-2">

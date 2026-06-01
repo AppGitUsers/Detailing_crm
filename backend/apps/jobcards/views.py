@@ -458,16 +458,18 @@ class CustomerAnalyticsView(APIView):
                 monthly[key_m]['count']   += 1
                 monthly[key_m]['revenue'] += total
 
-        # Sort and slice
-        customers = sorted(customer_revenue.values(), key=lambda x: x['revenue'], reverse=True)
-        top_by_revenue = [
-            {'name': c['name'], 'revenue': float(c['revenue']), 'visits': c['visits']}
-            for c in customers[:10]
-        ]
-        top_by_visits = [
-            {'name': c['name'], 'visits': c['visits'], 'revenue': float(c['revenue'])}
-            for c in sorted(customer_revenue.values(), key=lambda x: x['visits'], reverse=True)[:10]
-        ]
+        # Sort and slice — top 5 with customer_id for clickable links
+        def _enrich(items, limit=5):
+            return [
+                {'customer_id': cid, 'name': c['name'],
+                 'revenue': float(c['revenue']), 'visits': c['visits']}
+                for cid, c in items[:limit]
+            ]
+
+        by_rev   = sorted(customer_revenue.items(), key=lambda x: x[1]['revenue'], reverse=True)
+        by_visit = sorted(customer_revenue.items(), key=lambda x: x[1]['visits'],  reverse=True)
+        top_by_revenue = _enrich(by_rev)
+        top_by_visits  = _enrich(by_visit)
 
         TYPE_LABEL = {
             'two_wheeler': 'Two Wheeler',
@@ -496,8 +498,8 @@ class CustomerAnalyticsView(APIView):
                 yr += 1
 
         return Response({
-            'top_by_revenue':   top_by_revenue,
-            'top_by_visits':    top_by_visits,
+            'top_by_revenue':    top_by_revenue,
+            'top_by_visits':     top_by_visits,
             'vehicle_type_dist': vehicle_type_dist,
             'payment_dist': [
                 {'status': 'Paid',    'count': pay_dist['paid']},
@@ -505,4 +507,30 @@ class CustomerAnalyticsView(APIView):
                 {'status': 'Unpaid',  'count': pay_dist['unpaid']},
             ],
             'monthly_trend': monthly_trend,
+            # Lightweight tier lookup used by job card list and create form
+            'tiers': {
+                'high_value': [r['customer_id'] for r in top_by_revenue],
+                'frequent':   [r['customer_id'] for r in top_by_visits],
+            },
+        })
+
+
+class CustomerTiersView(APIView):
+    """Lightweight endpoint — returns only the top-5 customer IDs for each tier."""
+    def get(self, _request):
+        from decimal import Decimal
+        all_jcs = JobCard.objects.prefetch_related(
+            'job_card_services', 'payments', 'customer_asset__customer'
+        ).all()
+        revenue_map = defaultdict(lambda: {'revenue': Decimal('0'), 'visits': 0})
+        for jc in all_jcs:
+            cid   = jc.customer_asset.customer_id
+            total = sum(s.price_at_time for s in jc.job_card_services.all())
+            revenue_map[cid]['revenue'] += total
+            revenue_map[cid]['visits']  += 1
+        by_rev   = sorted(revenue_map.items(), key=lambda x: x[1]['revenue'], reverse=True)[:5]
+        by_visit = sorted(revenue_map.items(), key=lambda x: x[1]['visits'],  reverse=True)[:5]
+        return Response({
+            'high_value': [{'id': cid, 'revenue': float(v['revenue']), 'visits': v['visits']} for cid, v in by_rev],
+            'frequent':   [{'id': cid, 'revenue': float(v['revenue']), 'visits': v['visits']} for cid, v in by_visit],
         })

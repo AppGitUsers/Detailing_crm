@@ -12,7 +12,7 @@ import { Field, Input, Select } from '../../components/Field';
 import { useToast } from '../../components/Toast';
 import {
   ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LabelList,
   PieChart, Pie, Cell,
   LineChart, Line,
 } from 'recharts';
@@ -293,8 +293,8 @@ function VehiclesTab() {
   return (
     <>
       {/* Filters */}
-      <div className="bg-bg-card border border-border rounded-xl p-4 mb-4 flex flex-col sm:flex-row gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-48">
+      <div className="bg-bg-card border border-border rounded-xl p-3 sm:p-4 mb-4 space-y-3">
+        <div className="relative">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <Input
             placeholder="Search by vehicle #, customer, company…"
@@ -303,27 +303,26 @@ function VehiclesTab() {
             className="pl-9"
           />
         </div>
-        <div className="flex items-center gap-2">
-          <Filter size={14} className="text-gray-500 shrink-0" />
-          <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="w-44">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
             <option value="">All Types</option>
             <option value="two_wheeler">Two Wheeler</option>
             <option value="three_wheeler">Three Wheeler</option>
             <option value="four_wheeler">Four Wheeler</option>
             <option value="other">Other</option>
           </Select>
+          <Select value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)}>
+            <option value="">All Companies</option>
+            {companies.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+          </Select>
         </div>
-        <Select value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)} className="w-48">
-          <option value="">All Companies</option>
-          {companies.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-        </Select>
         {hasFilter && (
           <button
             type="button"
             onClick={() => { setSearch(''); setTypeFilter(''); setCompanyFilter(''); }}
-            className="text-xs text-gray-400 hover:text-gray-200 underline self-center shrink-0"
+            className="text-xs text-gray-400 hover:text-gray-200 underline"
           >
-            Clear
+            Clear filters
           </button>
         )}
       </div>
@@ -351,18 +350,63 @@ function VehiclesTab() {
 const CHART_COLORS = ['#6366f1','#10b981','#f59e0b','#06b6d4','#8b5cf6','#f43f5e','#34d399','#fb923c'];
 const fmtRev = (n) => n >= 100000 ? `₹${(n/100000).toFixed(1)}L` : n >= 1000 ? `₹${(n/1000).toFixed(1)}k` : `₹${n}`;
 
-function ChartCard({ title, children, loading }) {
+function ChartCard({ title, children, loading, action }) {
   return (
     <div className="bg-bg-card border border-border rounded-xl p-5">
-      <h3 className="text-sm font-semibold text-gray-200 mb-4">{title}</h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-semibold text-gray-200">{title}</h3>
+        {action}
+      </div>
       {loading ? <div className="h-48 flex items-center justify-center text-gray-500 text-sm">Loading…</div> : children}
     </div>
   );
 }
 
+function downloadAnalyticsReport(data) {
+  const fmtN = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  const revRows = (data.top_by_revenue || []).map((c, i) =>
+    `<tr><td>${i + 1}</td><td>${c.name}</td><td style="text-align:right;color:#c4b5fd;font-weight:700">${fmtN(c.revenue)}</td><td style="text-align:center">${c.visits}</td></tr>`
+  ).join('');
+  const visRows = (data.top_by_visits || []).map((c, i) =>
+    `<tr><td>${i + 1}</td><td>${c.name}</td><td style="text-align:center;color:#34d399;font-weight:700">${c.visits}</td><td style="text-align:right">${fmtN(c.revenue)}</td></tr>`
+  ).join('');
+  const monthRows = (data.monthly_trend || []).map(m =>
+    `<tr><td>${m.month}</td><td style="text-align:center">${m.count}</td><td style="text-align:right">${fmtN(m.revenue)}</td></tr>`
+  ).join('');
+  const typeRows = (data.vehicle_type_dist || []).map(d =>
+    `<tr><td>${d.label}</td><td style="text-align:center">${d.count}</td></tr>`
+  ).join('');
+  const payRows = (data.payment_dist || []).map(d =>
+    `<tr><td>${d.status}</td><td style="text-align:center">${d.count}</td></tr>`
+  ).join('');
+
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<title>Customer Analytics Report</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',Arial,sans-serif;background:#0b0d12;color:#e5e7eb;padding:32px}.page{max-width:960px;margin:0 auto}h1{font-size:22px;font-weight:700;color:#fff;margin-bottom:4px}h2{font-size:12px;font-weight:600;color:#c4b5fd;text-transform:uppercase;letter-spacing:.06em;margin:0 0 12px}.section{background:#13161d;border:1px solid #252a36;border-radius:12px;padding:20px 24px;margin-bottom:20px}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}table{width:100%;border-collapse:collapse;font-size:12px}th{text-align:left;padding:8px 10px;color:#9ca3af;font-weight:500;border-bottom:1px solid #252a36}td{padding:8px 10px;border-bottom:1px solid #1a1e27}tr:hover td{background:#1a1e27}.header{background:linear-gradient(135deg,#1a1e27,#13161d);border:1px solid #252a36;border-radius:12px;padding:24px 28px;margin-bottom:24px}</style>
+</head><body><div class="page">
+<div class="header"><h1>📊 Customer & Vehicle Analytics</h1><p style="color:#9ca3af;font-size:12px;margin-top:4px">Generated on ${new Date().toLocaleString('en-IN')}</p></div>
+<div class="grid2">
+<div class="section"><h2>🏆 Top 5 High-Value Customers</h2><table><thead><tr><th>#</th><th>Customer</th><th style="text-align:right">Revenue</th><th style="text-align:center">Visits</th></tr></thead><tbody>${revRows}</tbody></table></div>
+<div class="section"><h2>🔁 Top 5 Frequent Visitors</h2><table><thead><tr><th>#</th><th>Customer</th><th style="text-align:center">Visits</th><th style="text-align:right">Revenue</th></tr></thead><tbody>${visRows}</tbody></table></div>
+</div>
+<div class="section"><h2>📈 Monthly Trend (Last 6 Months)</h2><table><thead><tr><th>Month</th><th style="text-align:center">Job Cards</th><th style="text-align:right">Revenue</th></tr></thead><tbody>${monthRows}</tbody></table></div>
+<div class="grid2">
+<div class="section"><h2>🚗 Vehicle Type Distribution</h2><table><thead><tr><th>Type</th><th style="text-align:center">Count</th></tr></thead><tbody>${typeRows}</tbody></table></div>
+<div class="section"><h2>💳 Payment Status</h2><table><thead><tr><th>Status</th><th style="text-align:center">Count</th></tr></thead><tbody>${payRows}</tbody></table></div>
+</div>
+</div></body></html>`;
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = `analytics-${new Date().toISOString().slice(0,10)}.html`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
 function AnalyticsTab() {
+  const navigate = useNavigate();
   const toast = useToast();
-  const [data, setData]     = useState(null);
+  const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -376,61 +420,86 @@ function AnalyticsTab() {
 
   return (
     <div className="space-y-5">
-      {noData && (
-        <div className="text-center py-16 text-gray-500">No data available yet.</div>
+      {/* Download button */}
+      {data && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => downloadAnalyticsReport(data)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-accent/10 border border-accent/30 text-accent text-sm font-medium hover:bg-accent/20 transition-colors"
+          >
+            ⬇ Download Report
+          </button>
+        </div>
       )}
+
+      {noData && <div className="text-center py-16 text-gray-500">No data available yet.</div>}
 
       {/* Row 1: Top by Revenue + Top by Visits */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
 
-        <ChartCard title="🏆 High-Value Customers (by Revenue)" loading={loading}>
+        <ChartCard title="🏆 Top 5 High-Value Customers" loading={loading}>
           {data?.top_by_revenue?.length > 0 ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart
-                data={data.top_by_revenue}
-                layout="vertical"
-                margin={{ top: 0, right: 60, left: 8, bottom: 0 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#252a36" horizontal={false} />
-                <XAxis type="number" tick={{ fill: '#6b7280', fontSize: 10 }} tickFormatter={fmtRev} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="name" tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} width={110} />
-                <Tooltip
-                  contentStyle={{ background: '#1a1e27', border: '1px solid #252a36', borderRadius: 8, fontSize: 11 }}
-                  formatter={(v, n) => [n === 'revenue' ? fmtRev(v) : v, n === 'revenue' ? 'Revenue' : 'Visits']}
-                />
-                <Bar dataKey="revenue" fill="#6366f1" radius={[0,4,4,0]} maxBarSize={16}>
-                  {data.top_by_revenue.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <>
+              <p className="text-[11px] text-gray-500 mb-3">Click a bar to open the customer profile</p>
+              <ResponsiveContainer width="100%" height={data.top_by_revenue.length * 44 + 20}>
+                <BarChart
+                  data={data.top_by_revenue}
+                  layout="vertical"
+                  margin={{ top: 0, right: 80, left: 8, bottom: 0 }}
+                  onClick={(e) => { if (e?.activePayload?.[0]?.payload?.customer_id) navigate(`/customers/${e.activePayload[0].payload.customer_id}`); }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#252a36" horizontal={false} />
+                  <XAxis type="number" tick={{ fill: '#6b7280', fontSize: 10 }} tickFormatter={fmtRev} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="name" tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} width={110} />
+                  <Tooltip
+                    contentStyle={{ background: '#1a1e27', border: '1px solid #252a36', borderRadius: 8, fontSize: 11 }}
+                    formatter={(v) => [fmtRev(v), 'Revenue']}
+                    cursor={{ fill: 'rgba(99,102,241,0.08)' }}
+                  />
+                  <Bar dataKey="revenue" radius={[0,4,4,0]} maxBarSize={18}>
+                    {data.top_by_revenue.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                    <LabelList dataKey="revenue" position="right" formatter={fmtRev} style={{ fill: '#c4b5fd', fontSize: 11, fontWeight: 600 }} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </>
           ) : <p className="text-sm text-gray-500 text-center py-10">No data</p>}
         </ChartCard>
 
-        <ChartCard title="🔁 Frequent Visitors (by Visit Count)" loading={loading}>
+        <ChartCard title="🔁 Top 5 Frequent Visitors" loading={loading}>
           {data?.top_by_visits?.length > 0 ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart
-                data={data.top_by_visits}
-                layout="vertical"
-                margin={{ top: 0, right: 40, left: 8, bottom: 0 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#252a36" horizontal={false} />
-                <XAxis type="number" allowDecimals={false} tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="name" tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} width={110} />
-                <Tooltip
-                  contentStyle={{ background: '#1a1e27', border: '1px solid #252a36', borderRadius: 8, fontSize: 11 }}
-                  formatter={(v, n) => [n === 'revenue' ? fmtRev(v) : v, n === 'revenue' ? 'Revenue' : 'Visits']}
-                />
-                <Bar dataKey="visits" fill="#10b981" radius={[0,4,4,0]} maxBarSize={16}>
-                  {data.top_by_visits.map((_, i) => <Cell key={i} fill={CHART_COLORS[(i + 2) % CHART_COLORS.length]} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <>
+              <p className="text-[11px] text-gray-500 mb-3">Click a bar to open the customer profile</p>
+              <ResponsiveContainer width="100%" height={data.top_by_visits.length * 44 + 20}>
+                <BarChart
+                  data={data.top_by_visits}
+                  layout="vertical"
+                  margin={{ top: 0, right: 40, left: 8, bottom: 0 }}
+                  onClick={(e) => { if (e?.activePayload?.[0]?.payload?.customer_id) navigate(`/customers/${e.activePayload[0].payload.customer_id}`); }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#252a36" horizontal={false} />
+                  <XAxis type="number" allowDecimals={false} tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="name" tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} width={110} />
+                  <Tooltip
+                    contentStyle={{ background: '#1a1e27', border: '1px solid #252a36', borderRadius: 8, fontSize: 11 }}
+                    formatter={(v) => [v + ' visits', 'Visits']}
+                    cursor={{ fill: 'rgba(16,185,129,0.08)' }}
+                  />
+                  <Bar dataKey="visits" radius={[0,4,4,0]} maxBarSize={18}>
+                    {data.top_by_visits.map((_, i) => <Cell key={i} fill={CHART_COLORS[(i + 2) % CHART_COLORS.length]} />)}
+                    <LabelList dataKey="visits" position="right" style={{ fill: '#34d399', fontSize: 11, fontWeight: 600 }} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </>
           ) : <p className="text-sm text-gray-500 text-center py-10">No data</p>}
         </ChartCard>
       </div>
 
-      {/* Row 2: Monthly Trend (full width) */}
+      {/* Row 2: Monthly Trend */}
       <ChartCard title="📈 Monthly Job Card Trend (Last 6 Months)" loading={loading}>
         {data?.monthly_trend?.length > 0 ? (
           <ResponsiveContainer width="100%" height={200}>
@@ -450,26 +519,16 @@ function AnalyticsTab() {
         ) : <p className="text-sm text-gray-500 text-center py-10">No data</p>}
       </ChartCard>
 
-      {/* Row 3: Vehicle type dist + Payment dist */}
+      {/* Row 3: Vehicle type + Payment dist */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-
         <ChartCard title="🚗 Vehicle Type Distribution" loading={loading}>
           {data?.vehicle_type_dist?.length > 0 ? (
             <div className="flex items-center gap-6">
               <PieChart width={160} height={160}>
-                <Pie
-                  data={data.vehicle_type_dist.map(d => ({ ...d, value: d.count }))}
-                  dataKey="value"
-                  cx="50%" cy="50%"
-                  innerRadius={45} outerRadius={72}
-                  strokeWidth={2} stroke="#13161d"
-                >
+                <Pie data={data.vehicle_type_dist.map(d => ({ ...d, value: d.count }))} dataKey="value" cx="50%" cy="50%" innerRadius={45} outerRadius={72} strokeWidth={2} stroke="#13161d">
                   {data.vehicle_type_dist.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
                 </Pie>
-                <Tooltip
-                  contentStyle={{ background: '#1a1e27', border: '1px solid #252a36', borderRadius: 8, fontSize: 11 }}
-                  formatter={(v, _, p) => [v + ' job cards', p.payload.label]}
-                />
+                <Tooltip contentStyle={{ background: '#1a1e27', border: '1px solid #252a36', borderRadius: 8, fontSize: 11 }} formatter={(v, _, p) => [v + ' job cards', p.payload.label]} />
               </PieChart>
               <div className="space-y-2">
                 {data.vehicle_type_dist.map((d, i) => (
@@ -488,28 +547,15 @@ function AnalyticsTab() {
           {data?.payment_dist?.some(d => d.count > 0) ? (
             <div className="flex items-center gap-6">
               <PieChart width={160} height={160}>
-                <Pie
-                  data={data.payment_dist.filter(d => d.count > 0).map(d => ({ ...d, value: d.count }))}
-                  dataKey="value"
-                  cx="50%" cy="50%"
-                  innerRadius={45} outerRadius={72}
-                  strokeWidth={2} stroke="#13161d"
-                >
-                  {data.payment_dist.filter(d => d.count > 0).map((d) => (
-                    <Cell key={d.status} fill={d.status === 'Paid' ? '#10b981' : d.status === 'Partial' ? '#f59e0b' : '#f43f5e'} />
-                  ))}
+                <Pie data={data.payment_dist.filter(d => d.count > 0).map(d => ({ ...d, value: d.count }))} dataKey="value" cx="50%" cy="50%" innerRadius={45} outerRadius={72} strokeWidth={2} stroke="#13161d">
+                  {data.payment_dist.filter(d => d.count > 0).map((d) => <Cell key={d.status} fill={d.status === 'Paid' ? '#10b981' : d.status === 'Partial' ? '#f59e0b' : '#f43f5e'} />)}
                 </Pie>
-                <Tooltip
-                  contentStyle={{ background: '#1a1e27', border: '1px solid #252a36', borderRadius: 8, fontSize: 11 }}
-                  formatter={(v, _, p) => [v + ' job cards', p.payload.status]}
-                />
+                <Tooltip contentStyle={{ background: '#1a1e27', border: '1px solid #252a36', borderRadius: 8, fontSize: 11 }} formatter={(v, _, p) => [v + ' job cards', p.payload.status]} />
               </PieChart>
               <div className="space-y-2">
                 {data.payment_dist.map((d) => (
                   <div key={d.status} className="flex items-center gap-2 text-sm">
-                    <span className="w-3 h-3 rounded-sm shrink-0" style={{
-                      background: d.status === 'Paid' ? '#10b981' : d.status === 'Partial' ? '#f59e0b' : '#f43f5e'
-                    }} />
+                    <span className="w-3 h-3 rounded-sm shrink-0" style={{ background: d.status === 'Paid' ? '#10b981' : d.status === 'Partial' ? '#f59e0b' : '#f43f5e' }} />
                     <span className="text-gray-300">{d.status}</span>
                     <span className="text-gray-500 ml-1">{d.count} cards</span>
                   </div>

@@ -74,7 +74,7 @@ export default function CustomerDetail() {
         }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         <div className="bg-bg-card border border-border rounded-xl">
           <div className="px-5 py-4 border-b border-border flex items-center justify-between">
             <h2 className="text-base font-semibold text-gray-100 flex items-center gap-2">
@@ -89,14 +89,14 @@ export default function CustomerDetail() {
           ) : (
             <div className="divide-y divide-border">
               {customer.vehicles.map((v) => (
-                <div key={v.id} className="px-5 py-3 flex items-center justify-between">
-                  <div>
-                    <div className="font-medium text-gray-100">{v.vehicle_number}</div>
-                    <div className="text-xs text-gray-400">{v.vehicle_name}</div>
-                    <div className="text-xs text-white-400">{v.vehicle_type}</div>
+                <div key={v.id} className="px-4 sm:px-5 py-3 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-medium text-gray-100 truncate">{v.vehicle_number}</div>
+                    <div className="text-xs text-gray-400 truncate">{v.vehicle_name || [v.vehicle_company, v.vehicle_model].filter(Boolean).join(' ')}</div>
+                    <div className="text-xs text-gray-500">{v.vehicle_type?.replace('_', ' ')}</div>
                   </div>
-                  <div className='text-xs text-gray-400'> {v.last_service_date}</div>
-                  <div className="flex gap-1">
+                  <div className="text-xs text-gray-400 shrink-0 hidden sm:block">{v.last_service_date || '—'}</div>
+                  <div className="flex gap-1 shrink-0">
                     <button onClick={() => setVehicleModal({ mode: 'edit', data: v })} className="p-1.5 text-gray-400 hover:text-accent">
                       <Pencil size={14} />
                     </button>

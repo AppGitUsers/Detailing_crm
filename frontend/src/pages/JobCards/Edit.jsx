@@ -138,7 +138,7 @@ export default function JobCardEdit() {
         }
       />
 
-      <div className="bg-bg-card border border-border rounded-xl p-6 max-w-3xl mt-4 space-y-6">
+      <div className="bg-bg-card border border-border rounded-xl p-4 sm:p-6 max-w-3xl mt-4 space-y-6">
 
         {/* ── Core details ── */}
         <div>

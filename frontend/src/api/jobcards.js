@@ -37,3 +37,4 @@ export const removeJobCardProductUsage = (usageId) =>
   api.delete(`jobcards/usages/${usageId}/`).then(r => r.data);
 
 export const getCustomerAnalytics = () => api.get('jobcards/customer-analytics/').then(r => r.data);
+export const getCustomerTiers     = () => api.get('jobcards/customer-tiers/').then(r => r.data);

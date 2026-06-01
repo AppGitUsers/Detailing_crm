@@ -170,17 +170,14 @@ export default function JobCardsByVehicle() {
             type="date"
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
-            className="sm:w-44"
             title="Filter by date"
           />
         </div>
         {/* Row 2: company + model */}
-        <div className="flex flex-col sm:flex-row gap-3 items-center">
-          <Filter size={14} className="text-gray-500 shrink-0 hidden sm:block" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Select
             value={companyFilter}
             onChange={(e) => { setCompanyFilter(e.target.value); setModelFilter(''); }}
-            className="sm:w-52"
           >
             <option value="">All Companies</option>
             {companies.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
@@ -188,7 +185,6 @@ export default function JobCardsByVehicle() {
           <Select
             value={modelFilter}
             onChange={(e) => setModelFilter(e.target.value)}
-            className="sm:w-48"
             disabled={!companyFilter}
           >
             <option value="">{companyFilter ? 'All Models' : 'Select company first'}</option>

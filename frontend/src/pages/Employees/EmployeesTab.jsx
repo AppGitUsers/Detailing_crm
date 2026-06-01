@@ -169,7 +169,7 @@ function DashboardStrip({ employees }) {
   ];
 
   return (
-    <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
       {cards.map(({ icon: Icon, iconCls, label, value, sub, highlight }) => (
         <div key={label} className="bg-bg-card border border-border rounded-2xl p-4 flex items-start gap-3">
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${iconCls}`}>

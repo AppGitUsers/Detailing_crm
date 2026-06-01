@@ -25,7 +25,7 @@ export function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={toast}>
       {children}
-      <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none">
+      <div className="fixed top-4 left-3 right-3 sm:left-auto sm:right-4 sm:w-80 z-[9999] flex flex-col gap-2 pointer-events-none">
         {toasts.map((t) => (
           <ToastItem key={t.id} toast={t} onClose={() => remove(t.id)} />
         ))}
@@ -43,7 +43,7 @@ function ToastItem({ toast, onClose }) {
   };
   const Icon = type === 'success' ? CheckCircle : type === 'error' ? AlertCircle : Info;
   return (
-    <div className={`pointer-events-auto flex items-start gap-3 min-w-[280px] max-w-[400px] px-4 py-3 rounded-lg border shadow-lg backdrop-blur ${styles[type]}`}>
+    <div className={`pointer-events-auto flex items-start gap-3 w-full px-4 py-3 rounded-lg border shadow-lg backdrop-blur ${styles[type]}`}>
       <Icon size={18} className="shrink-0 mt-0.5" />
       <div className="flex-1 text-sm">{message}</div>
       <button onClick={onClose} className="opacity-60 hover:opacity-100">

@@ -73,7 +73,7 @@ export default function Dashboard() {
         <DailyReport />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         <div className="lg:col-span-2 bg-bg-card border border-border rounded-xl">
           <div className="px-5 py-4 border-b border-border flex items-center justify-between">
             <h2 className="text-base font-semibold text-gray-100">Recent Job Cards</h2>
@@ -91,7 +91,7 @@ export default function Dashboard() {
                 <Link
                   to={`/jobcards/${j.id}`}
                   key={j.id}
-                  className="flex items-center justify-between px-5 py-3 hover:bg-bg-hover transition-colors"
+                  className="flex items-center justify-between px-4 sm:px-5 py-3 hover:bg-bg-hover transition-colors gap-2"
                 >
                   <div className="min-w-0">
                     <div className="text-sm font-medium text-gray-100 truncate">{j.job_card_number}</div>
@@ -99,10 +99,10 @@ export default function Dashboard() {
                       {j.customer_name || '—'} · {j.vehicle_number || '—'}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className="text-xs text-gray-400">{j.job_card_date}</span>
+                  <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                    <span className="text-xs text-gray-400 hidden sm:inline">{j.job_card_date}</span>
                     <Badge variant={j.job_card_status === 'COMPLETED' ? 'green' : 'yellow'}>
-                      {j.job_card_status === 'COMPLETED' ? 'Completed' : 'In Progress'}
+                      {j.job_card_status === 'COMPLETED' ? 'Done' : 'Active'}
                     </Badge>
                   </div>
                 </Link>
