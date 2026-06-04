@@ -82,6 +82,20 @@ export default function ServicesList() {
         : <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 border border-gray-700">No</span>,
     },
     {
+      key: 'has_warranty',
+      header: 'Warranty',
+      render: (r) => r.has_warranty
+        ? <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-sky-900/30 text-sky-300 border border-sky-700/40">Yes</span>
+        : <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 border border-gray-700">No</span>,
+    },
+    {
+      key: 'warranty_months',
+      header: 'Warranty Period',
+      render: (r) => r.has_warranty && r.warranty_months
+        ? <span className="text-gray-300">{r.warranty_months} month{r.warranty_months !== 1 ? 's' : ''}</span>
+        : <span className="text-gray-600">—</span>,
+    },
+    {
       key: 'vehicle_pricing',
       header: 'Vehicle Pricing',
       render: (r) => {
@@ -164,6 +178,7 @@ function ServiceFormModal({ modal, onClose, onSaved }) {
   const toast = useToast();
   const [form, setForm] = useState({
     service_name: '', service_price: '', service_description: '', reduces_stock: true,
+    has_warranty: false, warranty_months: '',
   });
   const [vehiclePrices, setVehiclePrices] = useState(emptyVehiclePrices());
   const [submitting, setSubmitting] = useState(false);
@@ -177,6 +192,8 @@ function ServiceFormModal({ modal, onClose, onSaved }) {
         service_price:       modal.data.service_price || '',
         service_description: modal.data.service_description || '',
         reduces_stock:       modal.data.reduces_stock !== false,
+        has_warranty:        modal.data.has_warranty || false,
+        warranty_months:     modal.data.warranty_months ?? '',
       });
       // Pre-fill existing vehicle prices
       const existing = emptyVehiclePrices();
@@ -185,7 +202,7 @@ function ServiceFormModal({ modal, onClose, onSaved }) {
       }
       setVehiclePrices(existing);
     } else {
-      setForm({ service_name: '', service_price: '', service_description: '', reduces_stock: true });
+      setForm({ service_name: '', service_price: '', service_description: '', reduces_stock: true, has_warranty: false, warranty_months: '' });
       setVehiclePrices(emptyVehiclePrices());
     }
     setErrors({});
@@ -205,6 +222,8 @@ function ServiceFormModal({ modal, onClose, onSaved }) {
         service_price:       Number(form.service_price),
         service_description: form.service_description,
         reduces_stock:       form.reduces_stock,
+        has_warranty:        form.has_warranty,
+        warranty_months:     form.has_warranty && form.warranty_months !== '' ? Number(form.warranty_months) : null,
       };
       let savedService;
       if (modal.mode === 'edit') {
@@ -270,14 +289,41 @@ function ServiceFormModal({ modal, onClose, onSaved }) {
               onClick={() => setForm(f => ({ ...f, reduces_stock: !f.reduces_stock }))}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${form.reduces_stock ? 'bg-accent' : 'bg-gray-700'}`}
             >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.reduces_stock ? 'translate-x-6' : 'translate-x-1'}`}
-              />
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.reduces_stock ? 'translate-x-6' : 'translate-x-1'}`} />
             </button>
             <p className="text-xs text-gray-500 mt-1">
               {form.reduces_stock ? 'Reduces inventory when used' : 'Does not reduce inventory'}
             </p>
           </div>
+
+          {/* Warranty toggle */}
+          <div className="flex flex-col justify-center">
+            <label className="block text-xs font-medium text-gray-400 mb-2">Warranty</label>
+            <button
+              type="button"
+              onClick={() => setForm(f => ({ ...f, has_warranty: !f.has_warranty, warranty_months: !f.has_warranty ? f.warranty_months : '' }))}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${form.has_warranty ? 'bg-sky-500' : 'bg-gray-700'}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.has_warranty ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+            <p className="text-xs text-gray-500 mt-1">
+              {form.has_warranty ? 'Service includes warranty' : 'No warranty'}
+            </p>
+          </div>
+
+          {/* Warranty months (only when warranty is on) */}
+          {form.has_warranty && (
+            <Field label="Warranty Duration (months)">
+              <Input
+                type="number"
+                min="1"
+                step="1"
+                placeholder="e.g. 6"
+                value={form.warranty_months}
+                onChange={(e) => setForm(f => ({ ...f, warranty_months: e.target.value }))}
+              />
+            </Field>
+          )}
 
           <div className="md:col-span-2">
             <Field label="Description">

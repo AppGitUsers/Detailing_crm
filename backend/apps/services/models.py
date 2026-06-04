@@ -4,8 +4,10 @@ class Service(models.Model):
     service_name = models.CharField(max_length=255)
     service_description = models.TextField(blank=True, null=True)
     service_price = models.DecimalField(max_digits=10, decimal_places=2)
-    service_code = models.CharField(max_length=50, unique=True, blank=True)
-    reduces_stock = models.BooleanField(default=True)
+    service_code    = models.CharField(max_length=50, unique=True, blank=True)
+    reduces_stock   = models.BooleanField(default=True)
+    has_warranty    = models.BooleanField(default=False)
+    warranty_months = models.PositiveIntegerField(blank=True, null=True)
 
     def save(self, *args, **kwargs):
         if not self.service_code:
