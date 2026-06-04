@@ -2,6 +2,15 @@ from decimal import Decimal
 from django.db import models
 from django.utils import timezone
 
+VEHICLE_SUB_TYPE_CHOICES = [
+    ('sedan', 'Sedan'),
+    ('compact_suv', 'Compact SUV'),
+    ('suv', 'SUV'),
+    ('hatchback', 'Hatchback'),
+    ('others', 'Others'),
+]
+
+
 class JobCard(models.Model):
     STATUS_CHOICES = [
         ('IN_PROGRESS', 'In Progress'),
@@ -17,7 +26,8 @@ class JobCard(models.Model):
     job_card_status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='IN_PROGRESS')
     complaints = models.TextField(blank=True, null=True)
     gst_percent = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('18.00'))
-    employee = models.ForeignKey('employees.Employee', on_delete=models.PROTECT, blank=True, null=True)  # Optional field to track the employee responsible for the job card
+    employee = models.ForeignKey('employees.Employee', on_delete=models.PROTECT, blank=True, null=True)
+    vehicle_sub_type = models.CharField(max_length=20, choices=VEHICLE_SUB_TYPE_CHOICES, blank=True, null=True)
 
     def save(self, *args, **kwargs):
         if not self.job_card_number:

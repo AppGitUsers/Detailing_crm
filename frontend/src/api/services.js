@@ -13,3 +13,9 @@ export const removeServiceProduct = (productLinkId) => api.delete(`services/prod
 export const listServiceEmployees = (id) => api.get(`services/${id}/employees/`).then(r => r.data);
 export const addServiceEmployee = (id, data) => api.post(`services/${id}/employees/`, data).then(r => r.data);
 export const removeServiceEmployee = (empLinkId) => api.delete(`services/employees/${empLinkId}/`).then(r => r.data);
+
+// Vehicle-type pricing (upsert: POST creates or updates the row for that vehicle_type)
+export const upsertServiceVehiclePrice = (serviceId, data) =>
+  api.post(`services/${serviceId}/vehicle-prices/`, data).then(r => r.data);
+export const deleteServiceVehiclePrice = (priceId) =>
+  api.delete(`services/vehicle-prices/${priceId}/`).then(r => r.data);

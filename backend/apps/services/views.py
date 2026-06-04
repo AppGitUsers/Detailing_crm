@@ -1,11 +1,12 @@
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from .models import Service, ServiceProduct, ServiceEmployee
+from .models import Service, ServiceProduct, ServiceEmployee, ServiceVehiclePrice
 from .serializers import (
     ServiceSerializer,
     ServiceProductSerializer,
-    ServiceEmployeeSerializer
+    ServiceEmployeeSerializer,
+    ServiceVehiclePriceSerializer,
 )
 
 
@@ -143,4 +144,39 @@ class ServiceEmployeeDeleteView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
         service_employee.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# ─── Service Vehicle Prices ───────────────────────────
+
+class ServiceVehiclePriceListCreateView(APIView):
+    def get(self, request, service_pk):
+        prices = ServiceVehiclePrice.objects.filter(service_id=service_pk)
+        return Response(ServiceVehiclePriceSerializer(prices, many=True).data)
+
+    def post(self, request, service_pk):
+        try:
+            service = Service.objects.get(pk=service_pk)
+        except Service.DoesNotExist:
+            return Response({'error': 'Service not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        vehicle_type = request.data.get('vehicle_type')
+        price = request.data.get('price')
+
+        # Upsert: update existing row or create new
+        instance, _ = ServiceVehiclePrice.objects.update_or_create(
+            service=service,
+            vehicle_type=vehicle_type,
+            defaults={'price': price},
+        )
+        return Response(ServiceVehiclePriceSerializer(instance).data, status=status.HTTP_200_OK)
+
+
+class ServiceVehiclePriceDeleteView(APIView):
+    def delete(self, request, pk):
+        try:
+            price = ServiceVehiclePrice.objects.get(pk=pk)
+        except ServiceVehiclePrice.DoesNotExist:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        price.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

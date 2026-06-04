@@ -4,7 +4,7 @@ from django.db import transaction
 from django.db.models import Q
 
 from apps.customers.models import Customer, CustomerAsset, normalize_phone
-from apps.services.models import Service, ServiceProduct
+from apps.services.models import Service, ServiceProduct, ServiceVehiclePrice
 from apps.vendors.models import Inventory
 from .models import JobCard, JobCardProduct, JobCardProductUsage, JobCardService, JobCardEmployee, JobCardPayment
 
@@ -21,9 +21,10 @@ class JobCardEmployeeSerializer(serializers.ModelSerializer):
 
 
 class JobCardServiceSerializer(serializers.ModelSerializer):
-    employees    = JobCardEmployeeSerializer(many=True, read_only=True)
-    service_name = serializers.CharField(source='service.service_name', read_only=True)
-    has_usages   = serializers.SerializerMethodField()
+    employees     = JobCardEmployeeSerializer(many=True, read_only=True)
+    service_name  = serializers.CharField(source='service.service_name', read_only=True)
+    reduces_stock = serializers.BooleanField(source='service.reduces_stock', read_only=True)
+    has_usages    = serializers.SerializerMethodField()
 
     class Meta:
         model = JobCardService
@@ -111,9 +112,11 @@ class JobCardSerializer(serializers.ModelSerializer):
         return 'unpaid'
 
     def get_usage_complete(self, obj):
-        """True if every completed service that has linked products has at least one usage recorded."""
+        """True if every completed stock-reducing service with linked products has at least one usage recorded."""
         completed_svcs = obj.job_card_services.filter(service_status='completed')
         for svc in completed_svcs:
+            if not svc.service.reduces_stock:
+                continue
             if svc.products.exists():
                 has_any = JobCardProductUsage.objects.filter(
                     job_card_product__job_card_service=svc
@@ -158,16 +161,17 @@ class VehicleInputSerializer(serializers.Serializer):
 
 
 class JobCardCoreSerializer(serializers.Serializer):
-    job_card_number           = serializers.CharField(required=False, allow_blank=True)
-    job_card_date             = serializers.DateField()
-    vehicle_kilometers        = serializers.DecimalField(max_digits=10, decimal_places=2)
-    vehicle_entry_time        = serializers.DateTimeField()
+    job_card_number            = serializers.CharField(required=False, allow_blank=True)
+    job_card_date              = serializers.DateField()
+    vehicle_kilometers         = serializers.DecimalField(max_digits=10, decimal_places=2)
+    vehicle_entry_time         = serializers.DateTimeField()
     vehicle_expected_exit_time = serializers.DateTimeField()
-    complaints                = serializers.CharField(allow_blank=True, required=False)
-    gst_percent               = serializers.DecimalField(
+    complaints                 = serializers.CharField(allow_blank=True, required=False)
+    gst_percent                = serializers.DecimalField(
         max_digits=5, decimal_places=2, required=False, default=Decimal('18.00')
     )
-    employee = serializers.IntegerField(required=False, allow_null=True)
+    employee         = serializers.IntegerField(required=False, allow_null=True)
+    vehicle_sub_type = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
 
 class FullJobCardCreateSerializer(serializers.Serializer):
@@ -241,14 +245,37 @@ class FullJobCardCreateSerializer(serializers.Serializer):
                 asset.save()
 
         employee_id = jc.pop('employee', None)
-        job_card = JobCard.objects.create(customer_asset=asset, employee_id=employee_id, **jc)
+        vehicle_sub_type = jc.pop('vehicle_sub_type', None) or None
+
+        # Determine effective pricing type for vehicle-specific service prices
+        vehicle_type = asset.vehicle_type
+        if vehicle_type == 'four_wheeler' and vehicle_sub_type:
+            effective_pricing_type = vehicle_sub_type
+        elif vehicle_type == 'two_wheeler':
+            effective_pricing_type = 'two_wheeler'
+        else:
+            effective_pricing_type = None
+
+        job_card = JobCard.objects.create(
+            customer_asset=asset,
+            employee_id=employee_id,
+            vehicle_sub_type=vehicle_sub_type,
+            **jc,
+        )
 
         for sid in validated_data['services']:
             svc = Service.objects.get(pk=sid)
+            price = svc.service_price
+            if effective_pricing_type:
+                try:
+                    vp = ServiceVehiclePrice.objects.get(service=svc, vehicle_type=effective_pricing_type)
+                    price = vp.price
+                except ServiceVehiclePrice.DoesNotExist:
+                    pass
             jc_service = JobCardService.objects.create(
                 job_card=job_card,
                 service=svc,
-                price_at_time=svc.service_price,
+                price_at_time=price,
             )
             JobCardProduct.objects.bulk_create([
                 JobCardProduct(job_card_service=jc_service, service_product=sp)
@@ -283,12 +310,13 @@ class ProductInfoSerializer(serializers.ModelSerializer):
 
 
 class ProductsUsedSerializer(serializers.ModelSerializer):
-    service_name = serializers.CharField(source='service.service_name', read_only=True)
-    products     = ProductInfoSerializer(many=True, read_only=True)
+    service_name  = serializers.CharField(source='service.service_name', read_only=True)
+    reduces_stock = serializers.BooleanField(source='service.reduces_stock', read_only=True)
+    products      = ProductInfoSerializer(many=True, read_only=True)
 
     class Meta:
         model  = JobCardService
-        fields = ['id', 'service_name', 'products']
+        fields = ['id', 'service_name', 'reduces_stock', 'products']
 
 
 class InventoryOptionSerializer(serializers.ModelSerializer):

@@ -10,8 +10,20 @@ import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { Field, Input, Textarea } from '../../components/Field';
 import { useToast } from '../../components/Toast';
-import { listServices, createService, updateService, deleteService } from '../../api/services';
+import {
+  listServices, createService, updateService, deleteService,
+  upsertServiceVehiclePrice, deleteServiceVehiclePrice,
+} from '../../api/services';
 import { extractError } from '../../api/axios';
+
+const VEHICLE_PRICING_TYPES = [
+  { value: 'two_wheeler', label: 'Two Wheeler' },
+  { value: 'sedan',       label: 'Sedan' },
+  { value: 'compact_suv', label: 'Compact SUV' },
+  { value: 'suv',         label: 'SUV' },
+  { value: 'hatchback',   label: 'Hatchback' },
+  { value: 'others',      label: 'Others' },
+];
 
 export default function ServicesList() {
   const navigate = useNavigate();
@@ -60,7 +72,24 @@ export default function ServicesList() {
   const columns = [
     { key: 'service_name', header: 'Service', render: (r) => <span className="font-medium text-gray-100">{r.service_name}</span> },
     { key: 'service_code', header: 'Code', render: (r) => <code className="text-xs bg-bg-elev px-1.5 py-0.5 rounded">{r.service_code}</code> },
-    { key: 'service_price', header: 'Price', render: (r) => `₹${Number(r.service_price).toLocaleString('en-IN')}` },
+    { key: 'service_price', header: 'Default Price', render: (r) => `₹${Number(r.service_price).toLocaleString('en-IN')}` },
+    {
+      key: 'reduces_stock',
+      header: 'Stock Reduction',
+      render: (r) => r.reduces_stock
+        ? <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-900/30 text-emerald-300 border border-emerald-700/40">Yes</span>
+        : <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 border border-gray-700">No</span>,
+    },
+    {
+      key: 'vehicle_pricing',
+      header: 'Vehicle Pricing',
+      render: (r) => {
+        const count = (r.vehicle_prices || []).length;
+        return count > 0
+          ? <span className="text-xs text-accent">{count} type{count !== 1 ? 's' : ''} configured</span>
+          : <span className="text-xs text-gray-500">Default only</span>;
+      },
+    },
     { key: 'products_count', header: 'Products', render: (r) => (r.products || []).length },
     { key: 'employees_count', header: 'Employees', render: (r) => (r.employees || []).length },
     {
@@ -125,9 +154,17 @@ export default function ServicesList() {
   );
 }
 
+/* ─── Empty vehicle prices map: all 6 types with blank price ─────────────── */
+function emptyVehiclePrices() {
+  return Object.fromEntries(VEHICLE_PRICING_TYPES.map(t => [t.value, '']));
+}
+
 function ServiceFormModal({ modal, onClose, onSaved }) {
   const toast = useToast();
-  const [form, setForm] = useState({ service_name: '', service_code: '', service_price: '', service_description: '' });
+  const [form, setForm] = useState({
+    service_name: '', service_code: '', service_price: '', service_description: '', reduces_stock: true,
+  });
+  const [vehiclePrices, setVehiclePrices] = useState(emptyVehiclePrices());
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
 
@@ -135,13 +172,21 @@ function ServiceFormModal({ modal, onClose, onSaved }) {
     if (!modal) return;
     if (modal.mode === 'edit') {
       setForm({
-        service_name: modal.data.service_name || '',
-        service_code: modal.data.service_code || '',
-        service_price: modal.data.service_price || '',
+        service_name:        modal.data.service_name || '',
+        service_code:        modal.data.service_code || '',
+        service_price:       modal.data.service_price || '',
         service_description: modal.data.service_description || '',
+        reduces_stock:       modal.data.reduces_stock !== false,
       });
+      // Pre-fill existing vehicle prices
+      const existing = emptyVehiclePrices();
+      for (const vp of modal.data.vehicle_prices || []) {
+        existing[vp.vehicle_type] = String(vp.price);
+      }
+      setVehiclePrices(existing);
     } else {
-      setForm({ service_name: '', service_code: '', service_price: '', service_description: '' });
+      setForm({ service_name: '', service_code: '', service_price: '', service_description: '', reduces_stock: true });
+      setVehiclePrices(emptyVehiclePrices());
     }
     setErrors({});
   }, [modal]);
@@ -156,14 +201,35 @@ function ServiceFormModal({ modal, onClose, onSaved }) {
     if (Object.keys(eMap).length) return;
     setSubmitting(true);
     try {
-      const payload = { ...form, service_price: Number(form.service_price) };
+      const payload = {
+        ...form,
+        service_price: Number(form.service_price),
+        reduces_stock: form.reduces_stock,
+      };
+      let savedService;
       if (modal.mode === 'edit') {
-        await updateService(modal.data.id, payload);
+        savedService = await updateService(modal.data.id, payload);
         toast.success('Service updated');
       } else {
-        await createService(payload);
+        savedService = await createService(payload);
         toast.success('Service created');
       }
+
+      // Save vehicle prices (upsert filled entries, delete cleared entries)
+      const serviceId = savedService?.id ?? modal.data?.id;
+      const existingPrices = modal.mode === 'edit' ? (modal.data.vehicle_prices || []) : [];
+
+      for (const { value: vtype } of VEHICLE_PRICING_TYPES) {
+        const raw = vehiclePrices[vtype];
+        const existing = existingPrices.find(vp => vp.vehicle_type === vtype);
+        if (raw !== '' && !isNaN(Number(raw)) && Number(raw) >= 0) {
+          await upsertServiceVehiclePrice(serviceId, { vehicle_type: vtype, price: Number(raw) });
+        } else if (raw === '' && existing) {
+          // Price was cleared — delete it
+          await deleteServiceVehiclePrice(existing.id);
+        }
+      }
+
       onSaved();
       onClose();
     } catch (err) {
@@ -186,21 +252,61 @@ function ServiceFormModal({ modal, onClose, onSaved }) {
         </>
       }
     >
-      <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Field label="Service Name" required error={errors.service_name}>
-          <Input value={form.service_name} onChange={(e) => setForm({ ...form, service_name: e.target.value })} />
-        </Field>
-        <Field label="Service Code" required error={errors.service_code}>
-          <Input value={form.service_code} onChange={(e) => setForm({ ...form, service_code: e.target.value })} />
-        </Field>
-        <Field label="Price (₹)" required error={errors.service_price}>
-          <Input type="number" step="0.01" value={form.service_price} onChange={(e) => setForm({ ...form, service_price: e.target.value })} />
-        </Field>
-        <div />
-        <div className="md:col-span-2">
-          <Field label="Description">
-            <Textarea value={form.service_description} onChange={(e) => setForm({ ...form, service_description: e.target.value })} />
+      <form onSubmit={submit} className="space-y-5">
+        {/* Basic info */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Field label="Service Name" required error={errors.service_name}>
+            <Input value={form.service_name} onChange={(e) => setForm({ ...form, service_name: e.target.value })} />
           </Field>
+          <Field label="Service Code" required error={errors.service_code}>
+            <Input value={form.service_code} onChange={(e) => setForm({ ...form, service_code: e.target.value })} />
+          </Field>
+          <Field label="Default Price (₹)" required error={errors.service_price}>
+            <Input type="number" step="0.01" value={form.service_price} onChange={(e) => setForm({ ...form, service_price: e.target.value })} />
+          </Field>
+
+          {/* Stock Reduction toggle */}
+          <div className="flex flex-col justify-center">
+            <label className="block text-xs font-medium text-gray-400 mb-2">Stock Reduction</label>
+            <button
+              type="button"
+              onClick={() => setForm(f => ({ ...f, reduces_stock: !f.reduces_stock }))}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${form.reduces_stock ? 'bg-accent' : 'bg-gray-700'}`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.reduces_stock ? 'translate-x-6' : 'translate-x-1'}`}
+              />
+            </button>
+            <p className="text-xs text-gray-500 mt-1">
+              {form.reduces_stock ? 'Reduces inventory when used' : 'Does not reduce inventory'}
+            </p>
+          </div>
+
+          <div className="md:col-span-2">
+            <Field label="Description">
+              <Textarea value={form.service_description} onChange={(e) => setForm({ ...form, service_description: e.target.value })} />
+            </Field>
+          </div>
+        </div>
+
+        {/* Vehicle-type pricing */}
+        <div>
+          <p className="text-xs font-semibold text-gray-300 mb-1">Vehicle-Type Pricing</p>
+          <p className="text-xs text-gray-500 mb-3">Leave blank to use the default price for that vehicle type. Clear a price to remove it.</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {VEHICLE_PRICING_TYPES.map(({ value, label }) => (
+              <Field key={value} label={label}>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="₹ (optional)"
+                  value={vehiclePrices[value]}
+                  onChange={(e) => setVehiclePrices(prev => ({ ...prev, [value]: e.target.value }))}
+                />
+              </Field>
+            ))}
+          </div>
         </div>
       </form>
     </Modal>

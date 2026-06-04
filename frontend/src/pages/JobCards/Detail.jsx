@@ -239,7 +239,8 @@ export default function JobCardDetail() {
                             await updateJobCardService(svc.id, { service_status: nextStatus });
                             toast.success(`${nextStatus} status updated`);
                             await reload();
-                            if (nextStatus === 'completed') {
+                            /* Only open product usage dialog for stock-reducing services */
+                            if (nextStatus === 'completed' && svc.reduces_stock !== false) {
                               setServiceJustCompleted(true);
                               setServiceUsageId(svc.id);
                             }
@@ -1040,7 +1041,7 @@ export function ShowProductsUsedDialog({ open, onClose, jobCardId, onConfirm, co
 
   const displayServices = serviceId
     ? productsUsed.filter((s) => s.id === serviceId)
-    : productsUsed;
+    : productsUsed.filter((s) => s.reduces_stock !== false);
   const scoped = serviceId !== null;
   const titleSvc = displayServices[0]?.service_name;
 

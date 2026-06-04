@@ -2,7 +2,8 @@ from django.urls import path
 from .views import (
     ServiceListCreateView, ServiceDetailView,
     ServiceProductListCreateView, ServiceProductDeleteView,
-    ServiceEmployeeListCreateView, ServiceEmployeeDeleteView
+    ServiceEmployeeListCreateView, ServiceEmployeeDeleteView,
+    ServiceVehiclePriceListCreateView, ServiceVehiclePriceDeleteView,
 )
 
 urlpatterns = [
@@ -17,4 +18,8 @@ urlpatterns = [
     # Service Employees
     path('<int:service_pk>/employees/', ServiceEmployeeListCreateView.as_view(), name='service-employee-list'),
     path('employees/<int:pk>/', ServiceEmployeeDeleteView.as_view(), name='service-employee-delete'),
+
+    # Service Vehicle Prices
+    path('<int:service_pk>/vehicle-prices/', ServiceVehiclePriceListCreateView.as_view(), name='service-vehicle-price-list'),
+    path('vehicle-prices/<int:pk>/', ServiceVehiclePriceDeleteView.as_view(), name='service-vehicle-price-delete'),
 ]

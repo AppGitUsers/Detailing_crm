@@ -19,7 +19,11 @@
       "PowerShell(& d:\\\\Projects\\\\Detailing_crm\\\\venv\\\\Scripts\\\\python.exe d:\\\\Projects\\\\Detailing_crm\\\\backend\\\\manage.py makemigrations customers 2>&1)",
       "PowerShell(Set-Location d:\\\\Projects\\\\Detailing_crm; $python = \"d:\\\\Projects\\\\Detailing_crm\\\\venv\\\\Scripts\\\\python.exe\"; & $python backend\\\\manage.py makemigrations customers 2>&1)",
       "PowerShell(Set-Location d:\\\\Projects\\\\Detailing_crm\\\\backend; $python = \"d:\\\\Projects\\\\Detailing_crm\\\\backend\\\\venv\\\\Scripts\\\\python.exe\"; & $python manage.py makemigrations customers 2>&1)",
-      "PowerShell(Set-Location d:\\\\Projects\\\\Detailing_crm\\\\backend; $python = \"d:\\\\Projects\\\\Detailing_crm\\\\backend\\\\venv\\\\Scripts\\\\python.exe\"; & $python manage.py migrate 2>&1)"
+      "PowerShell(Set-Location d:\\\\Projects\\\\Detailing_crm\\\\backend; $python = \"d:\\\\Projects\\\\Detailing_crm\\\\backend\\\\venv\\\\Scripts\\\\python.exe\"; & $python manage.py migrate 2>&1)",
+      "Bash(Get-ChildItem -Path \"d:\\\\Projects\\\\Detailing_crm\" -Force)",
+      "Bash(Select-Object Name, FullName)",
+      "PowerShell(Get-ChildItem -Path \"d:\\\\Projects\\\\Detailing_crm\\\\frontend\\\\src\\\\pages\" -Recurse -Force | Where-Object {$_.Extension -eq '.jsx' -or $_.Extension -eq '.js'} | Select-Object FullName)",
+      "Bash(venv\\\\Scripts\\\\python.exe manage.py migrate)"
     ],
     "additionalDirectories": [
       "C:\\Users\\HP-PC\\.claude\\projects\\d--Projects-Detailing-crm"

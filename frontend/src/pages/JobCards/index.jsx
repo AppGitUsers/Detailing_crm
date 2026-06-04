@@ -105,6 +105,7 @@ export default function JobCardsList() {
   const [companyFilter, setCompanyFilter] = useState('');
   const [modelFilter, setModelFilter]     = useState('');
   const [usageFilter, setUsageFilter]     = useState(''); // '' | 'complete' | 'incomplete'
+  const [paymentFilter, setPaymentFilter] = useState(''); // '' | 'paid' | 'partial' | 'unpaid'
   const [employees, setEmployees]         = useState([]);
   const [companies, setCompanies]         = useState([]);
   const [models, setModels]               = useState([]);
@@ -167,6 +168,7 @@ export default function JobCardsList() {
     let list = jobs;
     if (usageFilter === 'complete')   list = list.filter(j => j.usage_complete === true);
     if (usageFilter === 'incomplete') list = list.filter(j => j.usage_complete === false);
+    if (paymentFilter) list = list.filter(j => j.payment_status === paymentFilter);
     if (!search.trim()) return list;
     const s = search.toLowerCase();
     return list.filter((j) =>
@@ -176,7 +178,7 @@ export default function JobCardsList() {
       (j.vehicle_company || '').toLowerCase().includes(s) ||
       (j.vehicle_model   || '').toLowerCase().includes(s)
     );
-  }, [jobs, search, usageFilter]);
+  }, [jobs, search, usageFilter, paymentFilter]);
 
   const columns = [
     {
@@ -357,8 +359,8 @@ export default function JobCardsList() {
             title="Filter by date"
           />
         </div>
-        {/* Row 2: employee + company + model + usage */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* Row 2: employee + company + model + usage + payment */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <Select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)}>
             <option value="">All Employees</option>
             {employees.map(e => <option key={e.id} value={e.id}>{e.employee_name}</option>)}
@@ -383,12 +385,18 @@ export default function JobCardsList() {
             <option value="complete">✓ Usages Complete</option>
             <option value="incomplete">⚠ Usages Pending</option>
           </Select>
+          <Select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)}>
+            <option value="">All Payment Statuses</option>
+            <option value="paid">✓ Paid</option>
+            <option value="partial">⚡ Partial</option>
+            <option value="unpaid">✗ Unpaid</option>
+          </Select>
         </div>
-        {(dateFilter || employeeFilter || companyFilter || modelFilter || statusFilter || usageFilter) && (
+        {(dateFilter || employeeFilter || companyFilter || modelFilter || statusFilter || usageFilter || paymentFilter) && (
           <div>
             <button
               type="button"
-              onClick={() => { setDateFilter(''); setEmployeeFilter(''); setCompanyFilter(''); setModelFilter(''); setStatusFilter(''); setUsageFilter(''); }}
+              onClick={() => { setDateFilter(''); setEmployeeFilter(''); setCompanyFilter(''); setModelFilter(''); setStatusFilter(''); setUsageFilter(''); setPaymentFilter(''); }}
               className="text-xs text-gray-400 hover:text-gray-200 underline"
             >
               Clear all filters

@@ -154,12 +154,27 @@ class JobCardServiceListCreateView(APIView):
         data = request.data.copy()
         data['job_card'] = jobcard.id
 
-        # Auto set price_at_time from service's current price
+        # Auto set price_at_time using vehicle-specific pricing when available
         if 'price_at_time' not in data:
             try:
-                from apps.services.models import Service
+                from apps.services.models import Service, ServiceVehiclePrice
                 service = Service.objects.get(pk=data['service'])
-                data['price_at_time'] = service.service_price
+                price = service.service_price
+                vehicle_type = jobcard.customer_asset.vehicle_type
+                vehicle_sub_type = jobcard.vehicle_sub_type
+                if vehicle_type == 'four_wheeler' and vehicle_sub_type:
+                    effective_type = vehicle_sub_type
+                elif vehicle_type == 'two_wheeler':
+                    effective_type = 'two_wheeler'
+                else:
+                    effective_type = None
+                if effective_type:
+                    try:
+                        vp = ServiceVehiclePrice.objects.get(service=service, vehicle_type=effective_type)
+                        price = vp.price
+                    except ServiceVehiclePrice.DoesNotExist:
+                        pass
+                data['price_at_time'] = price
             except Exception:
                 pass
 

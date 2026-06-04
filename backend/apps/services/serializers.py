@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Service, ServiceProduct, ServiceEmployee
+from .models import Service, ServiceProduct, ServiceEmployee, ServiceVehiclePrice
 
 
 class ServiceProductSerializer(serializers.ModelSerializer):
@@ -19,9 +19,16 @@ class ServiceEmployeeSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class ServiceVehiclePriceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ServiceVehiclePrice
+        fields = '__all__'
+
+
 class ServiceSerializer(serializers.ModelSerializer):
     products = ServiceProductSerializer(many=True, read_only=True)
     employees = ServiceEmployeeSerializer(many=True, read_only=True)
+    vehicle_prices = ServiceVehiclePriceSerializer(many=True, read_only=True)
 
     class Meta:
         model = Service
