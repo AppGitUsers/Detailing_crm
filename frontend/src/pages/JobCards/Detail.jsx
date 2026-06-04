@@ -29,6 +29,7 @@ import {
 import { listServices } from '../../api/services';
 import { listEmployees } from '../../api/employees';
 import { extractError } from '../../api/axios';
+import { downloadJobCardInvoice } from '../../utils/invoice';
 
 const formatCurrency = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -78,6 +79,16 @@ export default function JobCardDetail() {
     try {
       const j = await getJobCard(id);
       setJob(j);
+    } catch (err) {
+      toast.error(extractError(err));
+    }
+  };
+
+  const reloadAndDownloadInvoice = async () => {
+    try {
+      const j = await getJobCard(id);
+      setJob(j);
+      downloadJobCardInvoice(j);
     } catch (err) {
       toast.error(extractError(err));
     }
@@ -185,6 +196,9 @@ export default function JobCardDetail() {
             <Badge variant={isCompleted ? 'green' : 'yellow'} className="mr-2 text-sm px-3 py-1">
               {isCompleted ? 'Completed' : 'In Progress'}
             </Badge>
+            <Button variant="secondary" onClick={() => downloadJobCardInvoice(job)}>
+              <Download size={15} /> Invoice
+            </Button>
             <Link to={`/jobcards/${id}/edit`}>
               <Button variant="secondary"><Pencil size={15} /> Edit</Button>
             </Link>
@@ -394,7 +408,7 @@ export default function JobCardDetail() {
         onClose={() => setServiceModal(false)}
         services={services}
         existingIds={(job.job_card_services || []).map((s) => s.service)}
-        onAdded={reload}
+        onAdded={reloadAndDownloadInvoice}
         jobCardId={id}
       />
 

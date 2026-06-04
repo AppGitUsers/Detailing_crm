@@ -3,11 +3,11 @@ from django.db import models
 from django.utils import timezone
 
 VEHICLE_SUB_TYPE_CHOICES = [
-    ('sedan', 'Sedan'),
-    ('compact_suv', 'Compact SUV'),
-    ('suv', 'SUV'),
-    ('hatchback', 'Hatchback'),
-    ('others', 'Others'),
+    ('sedan',               'Sedan'),
+    ('compact_suv',         'Compact SUV'),
+    ('suv',                 'SUV'),
+    ('hatchback',           'Hatchback'),
+    ('four_wheeler_others', '4-Wheeler Others'),
 ]
 
 

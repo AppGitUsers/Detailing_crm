@@ -4,20 +4,37 @@ class Service(models.Model):
     service_name = models.CharField(max_length=255)
     service_description = models.TextField(blank=True, null=True)
     service_price = models.DecimalField(max_digits=10, decimal_places=2)
-    service_code = models.CharField(max_length=50, unique=True)
+    service_code = models.CharField(max_length=50, unique=True, blank=True)
     reduces_stock = models.BooleanField(default=True)
+
+    def save(self, *args, **kwargs):
+        if not self.service_code:
+            prefix = 'SVC-'
+            existing = Service.objects.filter(
+                service_code__startswith=prefix
+            ).values_list('service_code', flat=True)
+            nums = []
+            for code in existing:
+                try:
+                    nums.append(int(code[len(prefix):]))
+                except (ValueError, IndexError):
+                    pass
+            next_num = (max(nums) + 1) if nums else 1
+            self.service_code = f'{prefix}{next_num:04d}'
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.service_name
 
 
 VEHICLE_PRICING_TYPES = [
-    ('two_wheeler', 'Two Wheeler'),
-    ('sedan', 'Sedan'),
-    ('compact_suv', 'Compact SUV'),
-    ('suv', 'SUV'),
-    ('hatchback', 'Hatchback'),
-    ('others', 'Others'),
+    ('two_wheeler',         'Two Wheeler'),
+    ('sedan',               'Sedan'),
+    ('compact_suv',         'Compact SUV'),
+    ('suv',                 'SUV'),
+    ('hatchback',           'Hatchback'),
+    ('four_wheeler_others', '4-Wheeler Others'),
+    ('others',              'Others'),
 ]
 
 

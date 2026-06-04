@@ -17,12 +17,13 @@ import {
 import { extractError } from '../../api/axios';
 
 const VEHICLE_PRICING_TYPES = [
-  { value: 'two_wheeler', label: 'Two Wheeler' },
-  { value: 'sedan',       label: 'Sedan' },
-  { value: 'compact_suv', label: 'Compact SUV' },
-  { value: 'suv',         label: 'SUV' },
-  { value: 'hatchback',   label: 'Hatchback' },
-  { value: 'others',      label: 'Others' },
+  { value: 'two_wheeler',         label: 'Two Wheeler' },
+  { value: 'sedan',               label: 'Sedan' },
+  { value: 'compact_suv',         label: 'Compact SUV' },
+  { value: 'suv',                 label: 'SUV' },
+  { value: 'hatchback',           label: 'Hatchback' },
+  { value: 'four_wheeler_others', label: '4W Others' },
+  { value: 'others',              label: 'Others' },
 ];
 
 export default function ServicesList() {
@@ -71,7 +72,7 @@ export default function ServicesList() {
 
   const columns = [
     { key: 'service_name', header: 'Service', render: (r) => <span className="font-medium text-gray-100">{r.service_name}</span> },
-    { key: 'service_code', header: 'Code', render: (r) => <code className="text-xs bg-bg-elev px-1.5 py-0.5 rounded">{r.service_code}</code> },
+    { key: 'service_code', header: 'Code', render: (r) => <code className="text-xs bg-bg-elev px-1.5 py-0.5 rounded text-gray-400">{r.service_code}</code> },
     { key: 'service_price', header: 'Default Price', render: (r) => `₹${Number(r.service_price).toLocaleString('en-IN')}` },
     {
       key: 'reduces_stock',
@@ -162,7 +163,7 @@ function emptyVehiclePrices() {
 function ServiceFormModal({ modal, onClose, onSaved }) {
   const toast = useToast();
   const [form, setForm] = useState({
-    service_name: '', service_code: '', service_price: '', service_description: '', reduces_stock: true,
+    service_name: '', service_price: '', service_description: '', reduces_stock: true,
   });
   const [vehiclePrices, setVehiclePrices] = useState(emptyVehiclePrices());
   const [submitting, setSubmitting] = useState(false);
@@ -173,7 +174,6 @@ function ServiceFormModal({ modal, onClose, onSaved }) {
     if (modal.mode === 'edit') {
       setForm({
         service_name:        modal.data.service_name || '',
-        service_code:        modal.data.service_code || '',
         service_price:       modal.data.service_price || '',
         service_description: modal.data.service_description || '',
         reduces_stock:       modal.data.reduces_stock !== false,
@@ -185,7 +185,7 @@ function ServiceFormModal({ modal, onClose, onSaved }) {
       }
       setVehiclePrices(existing);
     } else {
-      setForm({ service_name: '', service_code: '', service_price: '', service_description: '', reduces_stock: true });
+      setForm({ service_name: '', service_price: '', service_description: '', reduces_stock: true });
       setVehiclePrices(emptyVehiclePrices());
     }
     setErrors({});
@@ -195,16 +195,16 @@ function ServiceFormModal({ modal, onClose, onSaved }) {
     e.preventDefault();
     const eMap = {};
     if (!form.service_name.trim()) eMap.service_name = 'Required';
-    if (!form.service_code.trim()) eMap.service_code = 'Required';
     if (form.service_price === '' || isNaN(Number(form.service_price))) eMap.service_price = 'Valid price required';
     setErrors(eMap);
     if (Object.keys(eMap).length) return;
     setSubmitting(true);
     try {
       const payload = {
-        ...form,
-        service_price: Number(form.service_price),
-        reduces_stock: form.reduces_stock,
+        service_name:        form.service_name,
+        service_price:       Number(form.service_price),
+        service_description: form.service_description,
+        reduces_stock:       form.reduces_stock,
       };
       let savedService;
       if (modal.mode === 'edit') {
@@ -257,9 +257,6 @@ function ServiceFormModal({ modal, onClose, onSaved }) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Field label="Service Name" required error={errors.service_name}>
             <Input value={form.service_name} onChange={(e) => setForm({ ...form, service_name: e.target.value })} />
-          </Field>
-          <Field label="Service Code" required error={errors.service_code}>
-            <Input value={form.service_code} onChange={(e) => setForm({ ...form, service_code: e.target.value })} />
           </Field>
           <Field label="Default Price (₹)" required error={errors.service_price}>
             <Input type="number" step="0.01" value={form.service_price} onChange={(e) => setForm({ ...form, service_price: e.target.value })} />

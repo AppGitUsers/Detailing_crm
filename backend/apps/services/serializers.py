@@ -29,6 +29,7 @@ class ServiceSerializer(serializers.ModelSerializer):
     products = ServiceProductSerializer(many=True, read_only=True)
     employees = ServiceEmployeeSerializer(many=True, read_only=True)
     vehicle_prices = ServiceVehiclePriceSerializer(many=True, read_only=True)
+    service_code = serializers.CharField(read_only=True)
 
     class Meta:
         model = Service

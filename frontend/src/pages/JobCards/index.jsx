@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, ClipboardList, Filter, Search, ChevronRight, Pencil } from 'lucide-react';
+import { Plus, ClipboardList, Filter, Search, ChevronRight, Pencil, FileText } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Button from '../../components/Button';
 import Loading from '../../components/Loading';
@@ -14,6 +14,7 @@ import { listVehicleCompanies, listVehicleModels } from '../../api/customers';
 import { listEmployees } from '../../api/employees';
 import { extractError } from '../../api/axios';
 import { jobCardTotal } from '../../utils/jobcard';
+import { downloadJobCardInvoice } from '../../utils/invoice';
 
 /* ─── Stat card definitions ─────────────────────────────────────────────────
    img   → Unsplash photo URL (loaded via <img> tag so onError works reliably)
@@ -285,6 +286,14 @@ export default function JobCardsList() {
                 F
               </span>
             )}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={(e) => { e.stopPropagation(); downloadJobCardInvoice(r); }}
+              title="Download invoice"
+            >
+              <FileText size={13} />
+            </Button>
             <Button
               size="sm"
               variant="ghost"

@@ -13,6 +13,7 @@ import { getSettings } from '../../api/settings';
 import { extractError } from '../../api/axios';
 import { listEmployees } from '../../api/employees';
 import VehicleAutocomplete from '../../components/VehicleAutocomplete';
+import { downloadJobCardInvoice } from '../../utils/invoice';
 
 const nowLocal = () => {
   const d = new Date();
@@ -22,11 +23,11 @@ const nowLocal = () => {
 
 /* Four-wheeler sub-types — all use the four-wheeler image */
 const FOUR_WHEELER_SUB_TYPES = [
-  { value: 'sedan',       label: 'Sedan',      description: 'Saloon car' },
-  { value: 'compact_suv', label: 'Compact SUV', description: 'Compact SUV' },
-  { value: 'suv',         label: 'SUV',         description: 'Full-size SUV' },
-  { value: 'hatchback',   label: 'Hatchback',   description: 'Hatchback car' },
-  { value: 'others',      label: 'Others',      description: 'Other 4-wheelers' },
+  { value: 'sedan',               label: 'Sedan',      description: 'Saloon car' },
+  { value: 'compact_suv',         label: 'Compact SUV', description: 'Compact SUV' },
+  { value: 'suv',                 label: 'SUV',         description: 'Full-size SUV' },
+  { value: 'hatchback',           label: 'Hatchback',   description: 'Hatchback car' },
+  { value: 'four_wheeler_others', label: 'Others',      description: 'Other 4-wheelers' },
 ];
 
 /* Vehicle type options — three_wheeler removed */
@@ -454,7 +455,8 @@ export default function JobCardCreate() {
         services: selectedServiceIds,
       };
       const created = await createFullJobCard(payload);
-      toast.success('Job card created');
+      downloadJobCardInvoice(created);
+      toast.success('Job card created — invoice downloaded');
       navigate(`/jobcards/${created.id}`);
     } catch (err) {
       toast.error(extractError(err));
