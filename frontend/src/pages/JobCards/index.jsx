@@ -26,8 +26,8 @@ import { jobCardTotal } from '../../utils/jobcard';
    Place the image files in:  frontend/public/images/
    File names expected:
      two-wheeler.jpg    – photo of a motorcycle / scooter
-     three-wheeler.jpg  – photo of an auto-rickshaw
      four-wheeler.jpg   – photo of a car / SUV
+     other-vehicle.jpg  – heavy / commercial vehicle
      workshop.jpg       – photo of a car-detailing workshop / garage
      completed.jpg      – photo of a freshly-detailed / clean car
    The gradient fallback is always shown until the image loads.
@@ -44,16 +44,6 @@ const STAT_CARDS = [
     accent: '#a78bfa',
   },
   {
-    key: 'three_wheeler',
-    label: 'Three Wheelers',
-    sub: 'Auto Rickshaw',
-    statKey: 'threeWheeler',
-    route: '/jobcards/by-vehicle/three_wheeler',
-    img: '/images/three-wheeler.jpg',
-    fallback: 'linear-gradient(145deg,#431407 0%,#b45309 100%)',
-    accent: '#fbbf24',
-  },
-  {
     key: 'four_wheeler',
     label: 'Four Wheelers',
     sub: 'Cars & SUVs',
@@ -62,6 +52,16 @@ const STAT_CARDS = [
     img: '/images/four-wheeler.jpg',
     fallback: 'linear-gradient(145deg,#082f49 0%,#0369a1 100%)',
     accent: '#38bdf8',
+  },
+  {
+    key: 'other',
+    label: 'Others',
+    sub: 'Heavy / Commercial',
+    statKey: 'other',
+    route: '/jobcards/by-vehicle/other',
+    img: '/images/other-vehicle.jpg',
+    fallback: 'linear-gradient(145deg,#1a2e05 0%,#3f6212 100%)',
+    accent: '#86efac',
   },
   {
     key: 'active',
@@ -109,7 +109,7 @@ export default function JobCardsList() {
   const [employees, setEmployees]         = useState([]);
   const [companies, setCompanies]         = useState([]);
   const [models, setModels]               = useState([]);
-  const [stats, setStats] = useState({ active: 0, completed: 0, twoWheeler: 0, fourWheeler: 0, threeWheeler: 0 });
+  const [stats, setStats] = useState({ active: 0, completed: 0, twoWheeler: 0, fourWheeler: 0, other: 0 });
   const [payJobCard, setPayJobCard]       = useState(null);
   const [refreshKey, setRefreshKey]       = useState(0);
   const [tiers, setTiers]                 = useState({ high_value: [], frequent: [] });
@@ -138,20 +138,20 @@ export default function JobCardsList() {
         if (companyFilter) params.company = companyFilter;
         if (modelFilter)  params.model   = modelFilter;
 
-        const [jobsData, twoWheeler, fourWheeler, threeWheeler, active, completed] =
+        const [jobsData, twoWheeler, fourWheeler, otherVehicle, active, completed] =
           await Promise.all([
             listJobCards(Object.keys(params).length ? params : undefined),
             listJobCardsByType('two_wheeler'),
             listJobCardsByType('four_wheeler'),
-            listJobCardsByType('three_wheeler'),
+            listJobCardsByType('other'),
             listJobCards({ status: 'IN_PROGRESS' }),
             listJobCards({ status: 'COMPLETED' }),
           ]);
         setJobs(Array.isArray(jobsData) ? jobsData : (jobsData.results || []));
         setStats({
-          twoWheeler:   twoWheeler.count,
-          fourWheeler:  fourWheeler.count,
-          threeWheeler: threeWheeler.count,
+          twoWheeler:  twoWheeler.count,
+          fourWheeler: fourWheeler.count,
+          other:       otherVehicle.count,
           active:    Array.isArray(active)    ? active.length    : (active.count    || 0),
           completed: Array.isArray(completed) ? completed.length : (completed.count || 0),
         });
