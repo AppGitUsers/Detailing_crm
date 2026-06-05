@@ -6,7 +6,7 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.utils import timezone
-from .models import JobCard, JobCardService, JobCardEmployee, JobCardPayment, JobCardProduct, JobCardProductUsage
+from .models import JobCard, JobCardService, JobCardEmployee, JobCardPayment, JobCardProduct, JobCardProductUsage, JobCardSalesProduct
 from apps.customers.models import Customer, CustomerAsset
 from .serializers import (
     JobCardSerializer,
@@ -19,6 +19,9 @@ from .serializers import (
     InventoryOptionSerializer,
     JobCardProductUsageReadSerializer,
     JobCardProductUsageCreateSerializer,
+    JobCardSalesProductSerializer,
+    JobCardSalesProductCreateSerializer,
+    SalesInventorySerializer,
 )
 from apps.services.models import ServiceProduct
 from apps.vendors.models import Inventory
@@ -703,3 +706,58 @@ class CustomerTiersView(APIView):
             'high_value': [{'id': cid, 'revenue': float(v['revenue']), 'visits': v['visits']} for cid, v in by_rev],
             'frequent':   [{'id': cid, 'revenue': float(v['revenue']), 'visits': v['visits']} for cid, v in by_visit],
         })
+
+
+# ─── Sales Products ───────────────────────────────────────────────────────────
+
+class SalesInventoryListView(APIView):
+    """GET all inventory items whose product category is 'sales'."""
+    def get(self, request):
+        qs = Inventory.objects.filter(
+            product__category='sales'
+        ).select_related('product__product_type').order_by('product__product_name', 'brand')
+        return Response(SalesInventorySerializer(qs, many=True).data)
+
+
+class JobCardSalesProductListCreateView(APIView):
+    def get(self, request, jobcard_pk):
+        try:
+            job_card = JobCard.objects.get(pk=jobcard_pk)
+        except JobCard.DoesNotExist:
+            return Response({'error': 'Job card not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(JobCardSalesProductSerializer(job_card.sales_products.all(), many=True).data)
+
+    def post(self, request, jobcard_pk):
+        try:
+            job_card = JobCard.objects.get(pk=jobcard_pk)
+        except JobCard.DoesNotExist:
+            return Response({'error': 'Job card not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if job_card.job_card_status == 'COMPLETED':
+            return Response(
+                {'error': 'Cannot add products to a completed job card'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = JobCardSalesProductCreateSerializer(
+            data=request.data,
+            context={'job_card': job_card},
+        )
+        serializer.is_valid(raise_exception=True)
+        sp = serializer.save()
+        return Response(JobCardSalesProductSerializer(sp).data, status=status.HTTP_201_CREATED)
+
+
+class JobCardSalesProductDeleteView(APIView):
+    @transaction.atomic
+    def delete(self, request, pk):
+        try:
+            sp = JobCardSalesProduct.objects.select_related('inventory').get(pk=pk)
+        except JobCardSalesProduct.DoesNotExist:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        inv = sp.inventory
+        inv.quantity_available += sp.quantity
+        inv.save(update_fields=['quantity_available'])
+        sp.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

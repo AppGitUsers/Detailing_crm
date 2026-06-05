@@ -21,12 +21,15 @@ const METHOD = {
 };
 
 function buildInvoiceHTML(jobCard) {
-  const services  = jobCard.job_card_services || [];
-  const payments  = jobCard.payments || [];
-  const total     = Number(jobCard.total_amount || 0);
-  const paid      = Number(jobCard.paid_amount  || 0);
-  const outstanding = Number(jobCard.outstanding || 0);
-  const payStatus = jobCard.payment_status || 'unpaid';
+  const services      = jobCard.job_card_services || [];
+  const salesProducts = jobCard.sales_products    || [];
+  const payments      = jobCard.payments          || [];
+  const total         = Number(jobCard.total_amount         || 0);
+  const servicesTotal = Number(jobCard.services_total       || jobCard.total_amount || 0);
+  const salesTotal    = Number(jobCard.sales_products_total || 0);
+  const paid          = Number(jobCard.paid_amount  || 0);
+  const outstanding   = Number(jobCard.outstanding  || 0);
+  const payStatus     = jobCard.payment_status || 'unpaid';
 
   const statusColor = payStatus === 'paid' ? '#10b981' : payStatus === 'partial' ? '#f59e0b' : '#f43f5e';
   const statusBg    = payStatus === 'paid' ? '#052e16'  : payStatus === 'partial' ? '#2d1a07'  : '#2d0a0a';
@@ -43,6 +46,21 @@ function buildInvoiceHTML(jobCard) {
       <td style="padding:10px 14px;border-bottom:1px solid #1f2431;text-align:center;color:#9ca3af;font-size:11px;text-transform:capitalize">${(s.service_status || 'pending').replace('_', ' ')}</td>
       <td style="padding:10px 14px;border-bottom:1px solid #1f2431;text-align:right;font-weight:600;color:#c4b5fd">${fmt(s.price_at_time)}</td>
     </tr>`).join('');
+
+  const UNIT_LABEL = { l: 'L', ml: 'ml', pcs: 'pcs', kg: 'kg', g: 'g', box: 'Box', set: 'Set' };
+  const salesProductRows = salesProducts.map((sp) => {
+    const unitStr = `${sp.unit_amount} ${UNIT_LABEL[sp.unit] || sp.unit || ''}`.trim();
+    const desc = [sp.brand, unitStr].filter(Boolean).join(' · ');
+    return `<tr>
+      <td style="padding:10px 14px;border-bottom:1px solid #1f2431">
+        ${sp.product_name || '—'}
+        ${desc ? `<div style="font-size:11px;color:#6b7280;margin-top:2px">${desc}</div>` : ''}
+      </td>
+      <td style="padding:10px 14px;border-bottom:1px solid #1f2431;text-align:center;color:#9ca3af;font-size:12px">${sp.quantity}</td>
+      <td style="padding:10px 14px;border-bottom:1px solid #1f2431;text-align:right;color:#9ca3af;font-size:12px">${fmt(sp.unit_price)}</td>
+      <td style="padding:10px 14px;border-bottom:1px solid #1f2431;text-align:right;font-weight:600;color:#38bdf8">${fmt(sp.line_total)}</td>
+    </tr>`;
+  }).join('');
 
   const paymentRows = payments.map((p, i) => `
     <tr>
@@ -129,19 +147,34 @@ th{padding:9px 14px;color:#6b7280;font-weight:500;text-align:left;border-bottom:
         <thead><tr><th>Service Name</th><th style="text-align:center">Status</th><th style="text-align:right">Price</th></tr></thead>
         <tbody>${serviceRows}</tbody>
         <tfoot><tr style="background:#1a1e27">
-          <td colspan="2" style="padding:10px 14px;font-weight:700;color:#9ca3af;font-size:12px">Total (${services.length} service${services.length !== 1 ? 's' : ''})</td>
-          <td style="padding:10px 14px;text-align:right;font-weight:800;color:#c4b5fd;font-size:15px">${fmt(total)}</td>
+          <td colspan="2" style="padding:10px 14px;font-weight:700;color:#9ca3af;font-size:12px">Services Total (${services.length} service${services.length !== 1 ? 's' : ''})</td>
+          <td style="padding:10px 14px;text-align:right;font-weight:800;color:#c4b5fd;font-size:15px">${fmt(servicesTotal)}</td>
         </tr></tfoot>
       </table>`}
 </div>
+
+${salesProducts.length > 0 ? `
+<div class="card">
+  <div class="sec">Sales Products (${salesProducts.length})</div>
+  <table>
+    <thead><tr><th>Product</th><th style="text-align:center">Qty</th><th style="text-align:right">Unit Price</th><th style="text-align:right">Total</th></tr></thead>
+    <tbody>${salesProductRows}</tbody>
+    <tfoot><tr style="background:#1a1e27">
+      <td colspan="3" style="padding:10px 14px;font-weight:700;color:#9ca3af;font-size:12px">Sales Products Total</td>
+      <td style="padding:10px 14px;text-align:right;font-weight:800;color:#38bdf8;font-size:15px">${fmt(salesTotal)}</td>
+    </tr></tfoot>
+  </table>
+</div>` : ''}
 
 <div class="card">
   <div class="sec">Billing Summary</div>
   <div style="max-width:340px;margin-left:auto">
     <div class="row"><span style="color:#9ca3af">Base Amount</span><span>${fmt(jobCard.base_amount)}</span></div>
     <div class="row"><span style="color:#9ca3af">GST (${jobCard.gst_percent || 0}%)</span><span>${fmt(jobCard.gst_amount)}</span></div>
+    <div class="row"><span style="color:#9ca3af">Services Total</span><span>${fmt(servicesTotal)}</span></div>
+    ${salesTotal > 0 ? `<div class="row"><span style="color:#9ca3af">Sales Products</span><span style="color:#38bdf8">${fmt(salesTotal)}</span></div>` : ''}
     <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:2px solid #252a36;font-weight:800;font-size:15px">
-      <span style="color:#fff">Total</span><span style="color:#c4b5fd">${fmt(total)}</span>
+      <span style="color:#fff">Grand Total</span><span style="color:#c4b5fd">${fmt(total)}</span>
     </div>
     <div class="row"><span style="color:#34d399">Paid</span><span style="color:#34d399;font-weight:600">${fmt(paid)}</span></div>
     <div style="display:flex;justify-content:space-between;padding:10px 0;font-weight:700">

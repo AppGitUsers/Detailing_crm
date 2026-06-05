@@ -23,7 +23,14 @@
       "Bash(Get-ChildItem -Path \"d:\\\\Projects\\\\Detailing_crm\" -Force)",
       "Bash(Select-Object Name, FullName)",
       "PowerShell(Get-ChildItem -Path \"d:\\\\Projects\\\\Detailing_crm\\\\frontend\\\\src\\\\pages\" -Recurse -Force | Where-Object {$_.Extension -eq '.jsx' -or $_.Extension -eq '.js'} | Select-Object FullName)",
-      "Bash(venv\\\\Scripts\\\\python.exe manage.py migrate)"
+      "Bash(venv\\\\Scripts\\\\python.exe manage.py migrate)",
+      "Bash(python backend/manage.py migrate)",
+      "Bash(py backend/manage.py migrate)",
+      "Bash(..\\\\.venv\\\\Scripts\\\\python.exe manage.py migrate)",
+      "Bash(backend/venv/Scripts/python.exe backend/manage.py migrate)",
+      "Bash(backend/venv/Scripts/python.exe -c \"import sys; sys.path.insert\\(0, 'backend'\\); import django; import os; os.environ['DJANGO_SETTINGS_MODULE']='core.settings'; django.setup\\(\\); from apps.jobcards.serializers import JobCardSalesProductSerializer, SalesInventorySerializer, JobCardSalesProductCreateSerializer; print\\('OK'\\)\")",
+      "Bash(backend/venv/Scripts/python.exe -c \"import sys; sys.path.insert\\(0, 'backend'\\); import django; import os; os.environ['DJANGO_SETTINGS_MODULE']='core.settings'; django.setup\\(\\); from apps.jobcards.views import SalesInventoryListView, JobCardSalesProductListCreateView, JobCardSalesProductDeleteView; print\\('OK'\\)\")",
+      "Bash(backend/venv/Scripts/python.exe -c \"import sys; sys.path.insert\\(0, 'backend'\\); import django; import os; os.environ['DJANGO_SETTINGS_MODULE']='core.settings'; django.setup\\(\\); from django.urls import reverse; print\\(reverse\\('sales-inventory-list'\\)\\); print\\(reverse\\('jobcard-sales-product-list', args=[1]\\)\\); print\\(reverse\\('jobcard-sales-product-delete', args=[1]\\)\\)\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\HP-PC\\.claude\\projects\\d--Projects-Detailing-crm"

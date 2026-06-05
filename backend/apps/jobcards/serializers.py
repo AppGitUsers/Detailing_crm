@@ -6,7 +6,7 @@ from django.db.models import Q
 from apps.customers.models import Customer, CustomerAsset, normalize_phone
 from apps.services.models import Service, ServiceProduct, ServiceVehiclePrice
 from apps.vendors.models import Inventory
-from .models import JobCard, JobCardProduct, JobCardProductUsage, JobCardService, JobCardEmployee, JobCardPayment
+from .models import JobCard, JobCardProduct, JobCardProductUsage, JobCardService, JobCardEmployee, JobCardPayment, JobCardSalesProduct
 
 
 class JobCardEmployeeSerializer(serializers.ModelSerializer):
@@ -43,9 +43,32 @@ class JobCardPaymentSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class JobCardSalesProductSerializer(serializers.ModelSerializer):
+    product_name      = serializers.CharField(source='inventory.product.product_name', read_only=True)
+    product_type_name = serializers.SerializerMethodField()
+    unit              = serializers.CharField(source='inventory.product.product_unit', read_only=True)
+    brand             = serializers.CharField(source='inventory.brand', read_only=True)
+    unit_amount       = serializers.DecimalField(source='inventory.unit_amount', max_digits=10, decimal_places=2, read_only=True)
+    line_total        = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = JobCardSalesProduct
+        fields = ['id', 'job_card', 'inventory', 'quantity', 'unit_price',
+                  'product_name', 'product_type_name', 'unit', 'brand', 'unit_amount',
+                  'line_total', 'created_at']
+
+    def get_product_type_name(self, obj):
+        pt = obj.inventory.product.product_type
+        return pt.name if pt else None
+
+    def get_line_total(self, obj):
+        return str((obj.unit_price * obj.quantity).quantize(Decimal('0.01')))
+
+
 class JobCardSerializer(serializers.ModelSerializer):
     job_card_services  = JobCardServiceSerializer(many=True, read_only=True)
     payments           = JobCardPaymentSerializer(many=True, read_only=True)
+    sales_products     = JobCardSalesProductSerializer(many=True, read_only=True)
     vehicle_number     = serializers.CharField(source='customer_asset.vehicle_number', read_only=True)
     vehicle_type       = serializers.CharField(source='customer_asset.vehicle_type', read_only=True)
     vehicle_company    = serializers.CharField(source='customer_asset.vehicle_company', read_only=True)
@@ -61,13 +84,15 @@ class JobCardSerializer(serializers.ModelSerializer):
     def get_garage_name(self, obj):
         return obj.garage_owner.garage_name if obj.garage_owner_id else None
 
-    base_amount    = serializers.SerializerMethodField()
-    gst_amount     = serializers.SerializerMethodField()
-    total_amount   = serializers.SerializerMethodField()
-    paid_amount    = serializers.SerializerMethodField()
-    outstanding    = serializers.SerializerMethodField()
-    payment_status = serializers.SerializerMethodField()
-    usage_complete = serializers.SerializerMethodField()
+    base_amount          = serializers.SerializerMethodField()
+    gst_amount           = serializers.SerializerMethodField()
+    services_total       = serializers.SerializerMethodField()
+    total_amount         = serializers.SerializerMethodField()
+    paid_amount          = serializers.SerializerMethodField()
+    outstanding          = serializers.SerializerMethodField()
+    payment_status       = serializers.SerializerMethodField()
+    usage_complete       = serializers.SerializerMethodField()
+    sales_products_total = serializers.SerializerMethodField()
 
     class Meta:
         model = JobCard
@@ -75,16 +100,20 @@ class JobCardSerializer(serializers.ModelSerializer):
 
     def _financials(self, obj):
         # Service prices are GST-inclusive; back-calculate base and GST portion
-        total = sum(s.price_at_time for s in obj.job_card_services.all())
+        svc_total = sum(s.price_at_time for s in obj.job_card_services.all())
         if obj.gst_percent > 0:
             divisor = Decimal('1') + obj.gst_percent / Decimal('100')
-            base = (total / divisor).quantize(Decimal('0.01'))
-            gst  = total - base
+            base = (svc_total / divisor).quantize(Decimal('0.01'))
+            gst  = svc_total - base
         else:
-            base = total
-            gst  = Decimal('0')
+            base     = svc_total
+            gst      = Decimal('0')
+        sales = sum(
+            (sp.unit_price * sp.quantity for sp in obj.sales_products.all()),
+            Decimal('0')
+        )
         paid = sum(p.amount for p in obj.payments.all())
-        return base, gst, total, paid
+        return base, gst, svc_total, sales, paid
 
     def get_base_amount(self, obj):
         base, *_ = self._financials(obj)
@@ -94,23 +123,33 @@ class JobCardSerializer(serializers.ModelSerializer):
         _, gst, *_ = self._financials(obj)
         return str(gst)
 
+    def get_services_total(self, obj):
+        _, _, svc_total, *_ = self._financials(obj)
+        return str(svc_total)
+
+    def get_sales_products_total(self, obj):
+        _, _, _, sales, _ = self._financials(obj)
+        return str(sales.quantize(Decimal('0.01')))
+
     def get_total_amount(self, obj):
-        _, _, total, _ = self._financials(obj)
-        return str(total)
+        _, _, svc_total, sales, _ = self._financials(obj)
+        return str((svc_total + sales).quantize(Decimal('0.01')))
 
     def get_paid_amount(self, obj):
-        _, _, _, paid = self._financials(obj)
+        *_, paid = self._financials(obj)
         return str(paid)
 
     def get_outstanding(self, obj):
-        _, _, total, paid = self._financials(obj)
-        return str(total - paid)
+        _, _, svc_total, sales, paid = self._financials(obj)
+        grand = svc_total + sales
+        return str((grand - paid).quantize(Decimal('0.01')))
 
     def get_payment_status(self, obj):
-        _, _, total, paid = self._financials(obj)
-        if total <= 0:
+        _, _, svc_total, sales, paid = self._financials(obj)
+        grand = svc_total + sales
+        if grand <= 0:
             return 'unpaid'
-        if paid >= total:
+        if paid >= grand:
             return 'paid'
         if paid > 0:
             return 'partial'
@@ -392,3 +431,70 @@ class JobCardProductUsageCreateSerializer(serializers.Serializer):
 
     def to_representation(self, instance):
         return JobCardProductUsageReadSerializer(instance).data
+
+
+class SalesInventorySerializer(serializers.ModelSerializer):
+    product_name  = serializers.CharField(source='product.product_name', read_only=True)
+    product_type  = serializers.SerializerMethodField()
+    unit_label    = serializers.CharField(source='product.product_unit', read_only=True)
+
+    class Meta:
+        model  = Inventory
+        fields = ['id', 'product_name', 'product_type', 'brand', 'unit_amount',
+                  'unit_label', 'quantity_available', 'selling_price']
+
+    def get_product_type(self, obj):
+        pt = obj.product.product_type
+        return pt.name if pt else None
+
+
+class JobCardSalesProductCreateSerializer(serializers.Serializer):
+    inventory_id = serializers.IntegerField()
+    quantity     = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal('0.01'))
+    unit_price   = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
+
+    def validate(self, attrs):
+        try:
+            inv = Inventory.objects.select_related('product').get(
+                pk=attrs['inventory_id'],
+                product__category='sales',
+            )
+        except Inventory.DoesNotExist:
+            raise serializers.ValidationError({'inventory_id': 'Sales inventory item not found.'})
+
+        if inv.quantity_available < attrs['quantity']:
+            raise serializers.ValidationError(
+                {'quantity': f'Only {inv.quantity_available} available in stock.'}
+            )
+
+        # Default unit_price to inventory selling_price
+        if not attrs.get('unit_price'):
+            if not inv.selling_price:
+                raise serializers.ValidationError(
+                    {'unit_price': 'This item has no selling price set. Please set one in inventory.'}
+                )
+            attrs['unit_price'] = inv.selling_price
+
+        attrs['inventory'] = inv
+        return attrs
+
+    @transaction.atomic
+    def create(self, validated_data):
+        from .models import JobCardSalesProduct
+        job_card = self.context['job_card']
+        inv      = validated_data['inventory']
+        qty      = validated_data['quantity']
+        price    = validated_data['unit_price']
+
+        sp = JobCardSalesProduct.objects.create(
+            job_card=job_card,
+            inventory=inv,
+            quantity=qty,
+            unit_price=price,
+        )
+        inv.quantity_available -= qty
+        inv.save(update_fields=['quantity_available'])
+        return sp
+
+    def to_representation(self, instance):
+        return JobCardSalesProductSerializer(instance).data

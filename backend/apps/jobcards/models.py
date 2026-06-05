@@ -110,3 +110,15 @@ class JobCardProductUsage(models.Model): # This model represents the actual usag
         return f"{self.job_card_product.job_card_service.job_card.job_card_number}  - {self.quantity_used}"
 
 
+class JobCardSalesProduct(models.Model):
+    """Retail product sold directly on this job card (category='sales' inventory items)."""
+    job_card   = models.ForeignKey(JobCard, related_name='sales_products', on_delete=models.CASCADE)
+    inventory  = models.ForeignKey('vendors.Inventory', on_delete=models.PROTECT)
+    quantity   = models.DecimalField(max_digits=10, decimal_places=2)
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2)  # selling_price snapshot
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.job_card.job_card_number} - {self.inventory.product.product_name} x{self.quantity}"
+
+

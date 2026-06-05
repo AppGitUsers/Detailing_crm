@@ -39,3 +39,8 @@ export const removeJobCardProductUsage = (usageId) =>
 export const getCustomerAnalytics = () => api.get('jobcards/customer-analytics/').then(r => r.data);
 export const getCustomerTiers     = () => api.get('jobcards/customer-tiers/').then(r => r.data);
 export const getCustomerReport    = (params) => api.get('jobcards/customer-report/', { params }).then(r => r.data);
+
+// Sales Products
+export const listSalesInventory        = (params) => api.get('jobcards/sales-inventory/', { params }).then(r => r.data);
+export const addJobCardSalesProduct    = (jobCardId, data) => api.post(`jobcards/${jobCardId}/sales-products/`, data).then(r => r.data);
+export const removeJobCardSalesProduct = (id) => api.delete(`jobcards/sales-products/${id}/`).then(r => r.data);

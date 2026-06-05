@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ChevronLeft, CheckCircle2, Plus, Trash2, UserPlus, Wrench, IndianRupee, Trash, CreditCard, ClipboardList, Download, Pencil } from 'lucide-react';
+import { ChevronLeft, CheckCircle2, Plus, Trash2, UserPlus, Wrench, IndianRupee, Trash, CreditCard, ClipboardList, Download, Pencil, ShoppingCart } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Button from '../../components/Button';
 import Loading from '../../components/Loading';
@@ -25,6 +25,9 @@ import {
   listInventoryOptions,
   addJobCardProductUsage,
   removeJobCardProductUsage,
+  listSalesInventory,
+  addJobCardSalesProduct,
+  removeJobCardSalesProduct,
 } from '../../api/jobcards';
 import { listServices } from '../../api/services';
 import { listEmployees } from '../../api/employees';
@@ -54,6 +57,8 @@ export default function JobCardDetail() {
   const [confirmRemoveService, setConfirmRemoveService] = useState(null);
   const [confirmRemovePayment, setConfirmRemovePayment] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [salesProductModal, setSalesProductModal] = useState(false);
+  const [confirmRemoveSalesProduct, setConfirmRemoveSalesProduct] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -176,6 +181,18 @@ export default function JobCardDetail() {
     }
   };
 
+  const onRemoveSalesProduct = async () => {
+    if (!confirmRemoveSalesProduct) return;
+    try {
+      await removeJobCardSalesProduct(confirmRemoveSalesProduct);
+      toast.success('Sales product removed — inventory restored');
+      setConfirmRemoveSalesProduct(null);
+      await reload();
+    } catch (err) {
+      toast.error(extractError(err));
+    }
+  };
+
   if (loading) return <Loading />;
   if (!job) return <div className="text-gray-400">Job card not found</div>;
 
@@ -227,9 +244,14 @@ export default function JobCardDetail() {
                 <Wrench size={16} /> Services
               </h2>
               {!isCompleted && (
-                <Button size="sm" onClick={() => setServiceModal(true)}>
-                  <Plus size={14} /> Add Service
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="secondary" onClick={() => setSalesProductModal(true)}>
+                    <ShoppingCart size={14} /> Add Sales Products
+                  </Button>
+                  <Button size="sm" onClick={() => setServiceModal(true)}>
+                    <Plus size={14} /> Add Service
+                  </Button>
+                </div>
               )}
             </div>
             {(job.job_card_services || []).length === 0 ? (
@@ -323,6 +345,46 @@ export default function JobCardDetail() {
               </div>
             )}
           </div>
+
+          {/* Sales Products card */}
+          {(job.sales_products || []).length > 0 && (
+            <div className="bg-bg-card border border-border rounded-xl">
+              <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+                <h2 className="text-base font-semibold text-gray-100 flex items-center gap-2">
+                  <ShoppingCart size={16} /> Sales Products
+                </h2>
+                {!isCompleted && (
+                  <Button size="sm" variant="secondary" onClick={() => setSalesProductModal(true)}>
+                    <Plus size={14} /> Add
+                  </Button>
+                )}
+              </div>
+              <div className="divide-y divide-border">
+                {job.sales_products.map((sp) => (
+                  <div key={sp.id} className="px-5 py-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-medium text-gray-100 text-sm">{sp.product_name}</div>
+                      <div className="text-xs text-gray-400 mt-0.5">
+                        {sp.brand ? `${sp.brand} · ` : ''}{sp.unit_amount} {sp.unit} · qty {sp.quantity}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-sm font-semibold text-gray-100">{formatCurrency(sp.line_total)}</span>
+                      {!isCompleted && (
+                        <button
+                          onClick={() => setConfirmRemoveSalesProduct(sp.id)}
+                          className="text-gray-500 hover:text-red-400"
+                          title="Remove"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="space-y-6">
@@ -365,8 +427,18 @@ export default function JobCardDetail() {
                 <dt className="text-gray-500">GST ({job.gst_percent}%)</dt>
                 <dd className="text-gray-200">{formatCurrency(job.gst_amount)}</dd>
               </div>
+              <div className="flex justify-between">
+                <dt className="text-gray-500">Services Total</dt>
+                <dd className="text-gray-200">{formatCurrency(job.services_total)}</dd>
+              </div>
+              {Number(job.sales_products_total || 0) > 0 && (
+                <div className="flex justify-between">
+                  <dt className="text-gray-500">Sales Products</dt>
+                  <dd className="text-gray-200">{formatCurrency(job.sales_products_total)}</dd>
+                </div>
+              )}
               <div className="flex justify-between border-t border-border pt-2">
-                <dt className="text-gray-200 font-medium">Total</dt>
+                <dt className="text-gray-200 font-medium">Grand Total</dt>
                 <dd className="text-gray-100 font-semibold">{formatCurrency(job.total_amount)}</dd>
               </div>
               <div className="flex justify-between">
@@ -501,6 +573,22 @@ export default function JobCardDetail() {
         message="This will move the job card back to In Progress. The vehicle exit time will be cleared. Are you sure?"
         confirmText="Yes, Revert"
       />
+
+      <ConfirmDialog
+        open={!!confirmRemoveSalesProduct}
+        onClose={() => setConfirmRemoveSalesProduct(null)}
+        onConfirm={onRemoveSalesProduct}
+        title="Remove sales product?"
+        message="This will remove the item from the job card and restore its quantity back to inventory."
+        confirmText="Remove"
+      />
+
+      <AddSalesProductModal
+        open={salesProductModal}
+        onClose={() => setSalesProductModal(false)}
+        jobCardId={id}
+        onAdded={reload}
+      />
     </div>
   );
 }
@@ -574,6 +662,7 @@ function buildComprehensiveBillHTML({ payments, jobCard, totalAmount }) {
     cash: 'Cash', upi: 'UPI', card: 'Card',
     netbanking: 'Net Banking', cheque: 'Cheque', other: 'Other',
   };
+  const UNIT_LABEL = { l: 'L', ml: 'ml', pcs: 'pcs', kg: 'kg', g: 'g', box: 'Box', set: 'Set' };
 
   const total    = Number(totalAmount || 0);
   const paidAmt  = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
@@ -587,6 +676,20 @@ function buildComprehensiveBillHTML({ payments, jobCard, totalAmount }) {
       <td style="padding:9px 14px;border-bottom:1px solid #1f2431">${s.service_name || s.service || '—'}</td>
       <td style="padding:9px 14px;border-bottom:1px solid #1f2431;text-align:right;font-weight:600">${fmt(s.price_at_time)}</td>
     </tr>`).join('');
+
+  const salesProds = jobCard.sales_products || [];
+  const salesTotal = salesProds.reduce((s, sp) => s + Number(sp.line_total || 0), 0);
+  const salesRows  = salesProds.map(sp => {
+    const unitStr = `${sp.unit_amount} ${UNIT_LABEL[sp.unit] || sp.unit || ''}`.trim();
+    const desc = [sp.brand, unitStr].filter(Boolean).join(' · ');
+    return `<tr>
+      <td style="padding:9px 14px;border-bottom:1px solid #1f2431">
+        ${sp.product_name || '—'}${desc ? `<span style="font-size:11px;color:#6b7280;margin-left:6px">${desc}</span>` : ''}
+      </td>
+      <td style="padding:9px 14px;border-bottom:1px solid #1f2431;text-align:center;color:#9ca3af">${sp.quantity}</td>
+      <td style="padding:9px 14px;border-bottom:1px solid #1f2431;text-align:right;font-weight:600;color:#38bdf8">${fmt(sp.line_total)}</td>
+    </tr>`;
+  }).join('');
 
   /* Running balance per instalment */
   let runningPaid = 0;
@@ -677,8 +780,25 @@ th{padding:9px 14px;color:#6b7280;font-weight:500;text-align:left;border-bottom:
       </tr></thead>
       <tbody>${serviceRows}</tbody>
       <tfoot><tr style="background:#1a1e27">
-        <td style="padding:11px 14px;font-weight:800;color:#fff;font-size:14px">TOTAL</td>
-        <td style="padding:11px 14px;text-align:right;font-weight:800;color:#c4b5fd;font-size:16px">${fmt(total)}</td>
+        <td style="padding:11px 14px;font-weight:800;color:#fff;font-size:14px">Services Total</td>
+        <td style="padding:11px 14px;text-align:right;font-weight:800;color:#c4b5fd;font-size:16px">${fmt(Number(jobCard.services_total || total))}</td>
+      </tr></tfoot>
+    </table>
+  </div>` : ''}
+
+  <!-- ④b Sales Products -->
+  ${salesRows ? `<div class="card">
+    <div class="section-title">Sales Products</div>
+    <table>
+      <thead><tr>
+        <th>Product</th>
+        <th style="text-align:center">Qty</th>
+        <th style="text-align:right">Total</th>
+      </tr></thead>
+      <tbody>${salesRows}</tbody>
+      <tfoot><tr style="background:#1a1e27">
+        <td colspan="2" style="padding:11px 14px;font-weight:800;color:#fff;font-size:14px">Sales Total</td>
+        <td style="padding:11px 14px;text-align:right;font-weight:800;color:#38bdf8;font-size:16px">${fmt(salesTotal)}</td>
       </tr></tfoot>
     </table>
   </div>` : ''}
@@ -1254,6 +1374,180 @@ function ProductUsageModal({ product, onClose, onChanged }) {
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function AddSalesProductModal({ open, onClose, jobCardId, onAdded }) {
+  const toast = useToast();
+  const [inventory, setInventory]   = useState([]);
+  const [loading, setLoading]       = useState(false);
+  const [search, setSearch]         = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [quantities, setQuantities] = useState({});   // { inventoryId: string }
+  const [prices, setPrices]         = useState({});   // { inventoryId: string }
+  const [submitting, setSubmitting] = useState(null); // inventoryId being submitted
+
+  useEffect(() => {
+    if (!open) return;
+    setSearch('');
+    setTypeFilter('');
+    setQuantities({});
+    setPrices({});
+    setLoading(true);
+    listSalesInventory()
+      .then((data) => setInventory(Array.isArray(data) ? data : []))
+      .catch((err) => toast.error(extractError(err)))
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const productTypes = [...new Set(inventory.map((i) => i.product_type).filter(Boolean))].sort();
+
+  const filtered = inventory.filter((item) => {
+    const q = search.toLowerCase();
+    const matchSearch = !q ||
+      item.product_name.toLowerCase().includes(q) ||
+      (item.brand || '').toLowerCase().includes(q);
+    const matchType = !typeFilter || item.product_type === typeFilter;
+    return matchSearch && matchType;
+  });
+
+  const UNIT_LABEL = { l: 'L', ml: 'ml', pcs: 'pcs', kg: 'kg', g: 'g', box: 'Box', set: 'Set' };
+
+  const handleAdd = async (item) => {
+    const qty = Number(quantities[item.id] || 0);
+    const price = Number(prices[item.id] || item.selling_price || 0);
+    if (!qty || qty <= 0) { toast.error('Enter a valid quantity'); return; }
+    if (!price || price <= 0) { toast.error('Enter a valid price'); return; }
+    setSubmitting(item.id);
+    try {
+      await addJobCardSalesProduct(jobCardId, {
+        inventory_id: item.id,
+        quantity:     qty,
+        unit_price:   price,
+      });
+      toast.success(`${item.product_name} added`);
+      setQuantities((q) => { const n = { ...q }; delete n[item.id]; return n; });
+      setPrices((p)     => { const n = { ...p }; delete n[item.id]; return n; });
+      // Refresh inventory stock display
+      setInventory((prev) =>
+        prev.map((i) => i.id === item.id
+          ? { ...i, quantity_available: i.quantity_available - qty }
+          : i
+        )
+      );
+      onAdded();
+    } catch (err) {
+      toast.error(extractError(err));
+    } finally {
+      setSubmitting(null);
+    }
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Add Sales Products"
+      size="lg"
+      footer={<Button variant="secondary" onClick={onClose}>Close</Button>}
+    >
+      <div className="space-y-4">
+        {/* Search + type filter */}
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <Input
+              placeholder="Search by product or brand…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <div className="w-48">
+            <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+              <option value="">All Types</option>
+              {productTypes.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </Select>
+          </div>
+        </div>
+
+        {loading ? (
+          <Loading />
+        ) : filtered.length === 0 ? (
+          <p className="text-sm text-gray-500 text-center py-6">
+            {inventory.length === 0
+              ? 'No sales products found in inventory. Add products with category "Sales" in the Vendors section.'
+              : 'No items match your search.'}
+          </p>
+        ) : (
+          <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+            {filtered.map((item) => {
+              const outOfStock = item.quantity_available <= 0;
+              return (
+                <div
+                  key={item.id}
+                  className={`rounded-lg border p-3 transition-colors ${outOfStock ? 'border-border opacity-50' : 'border-border hover:border-accent/40'}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-medium text-gray-100 text-sm">{item.product_name}</div>
+                      <div className="text-xs text-gray-400 mt-0.5 flex flex-wrap gap-x-2">
+                        {item.brand && <span>{item.brand}</span>}
+                        <span>{item.unit_amount} {UNIT_LABEL[item.unit_label] || item.unit_label}</span>
+                        {item.product_type && <span className="text-accent">{item.product_type}</span>}
+                        <span className={outOfStock ? 'text-red-400' : 'text-emerald-400'}>
+                          {outOfStock ? 'Out of stock' : `${item.quantity_available} in stock`}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="text-xs text-gray-500">Selling price</div>
+                      <div className="text-sm font-semibold text-gray-100">
+                        {item.selling_price ? `₹${Number(item.selling_price).toLocaleString('en-IN')}` : '—'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {!outOfStock && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <div className="w-24">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          placeholder="Qty"
+                          value={quantities[item.id] || ''}
+                          onChange={(e) => setQuantities((q) => ({ ...q, [item.id]: e.target.value }))}
+                        />
+                      </div>
+                      <div className="w-32">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          placeholder="Price ₹"
+                          value={prices[item.id] !== undefined ? prices[item.id] : (item.selling_price || '')}
+                          onChange={(e) => setPrices((p) => ({ ...p, [item.id]: e.target.value }))}
+                        />
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => handleAdd(item)}
+                        loading={submitting === item.id}
+                        disabled={!quantities[item.id]}
+                      >
+                        <Plus size={13} /> Add
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
