@@ -69,7 +69,7 @@ const STAT_CARDS = [
     label: 'In Progress',
     sub: 'Being serviced now',
     statKey: 'active',
-    route: null,
+    route: '/jobcards/by-status/IN_PROGRESS',
     img: '/images/workshop.jpg',
     fallback: 'linear-gradient(145deg,#422006 0%,#a16207 100%)',
     accent: '#facc15',
@@ -79,7 +79,7 @@ const STAT_CARDS = [
     label: 'Completed',
     sub: 'Jobs finished',
     statKey: 'completed',
-    route: null,
+    route: '/jobcards/by-status/COMPLETED',
     img: '/images/completed.jpg',
     fallback: 'linear-gradient(145deg,#052e16 0%,#15803d 100%)',
     accent: '#34d399',
@@ -379,17 +379,18 @@ export default function JobCardsList() {
 
       {/* ── Search / Filter ─────────────────────────────────────────────── */}
       <div className="bg-bg-card border border-border rounded-xl p-4 mb-4 space-y-3">
-        {/* Row 1: search + status */}
+        {/* Row 1: search — full width */}
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <Input
+            placeholder="Search by job card #, customer, vehicle, or company"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 w-full"
+          />
+        </div>
+        {/* Row 2: status + date */}
         <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-            <Input
-              placeholder="Search by job card #, customer, vehicle, or company"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
-          </div>
           <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="">All Statuses</option>
             <option value="IN_PROGRESS">In Progress</option>
@@ -402,7 +403,7 @@ export default function JobCardsList() {
             title="Filter by date"
           />
         </div>
-        {/* Row 2: employee + company + model + usage + payment */}
+        {/* Row 3: employee + company + model + usage + payment */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <Select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)}>
             <option value="">All Employees</option>

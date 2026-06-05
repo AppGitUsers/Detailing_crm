@@ -326,10 +326,12 @@ class JobCardPaymentDeleteView(APIView):
 class FetchVehicleTypeList(APIView):
     def get(self, request, vehicle_type):
         qs = JobCard.objects.filter(customer_asset__vehicle_type=vehicle_type)
-        date     = request.query_params.get('date')
-        company  = request.query_params.get('company')
-        model    = request.query_params.get('model')
-        employee = request.query_params.get('employee')
+        date       = request.query_params.get('date')
+        company    = request.query_params.get('company')
+        model      = request.query_params.get('model')
+        employee   = request.query_params.get('employee')
+        job_status = request.query_params.get('status')
+        owner_type = request.query_params.get('owner_type')
         if date:
             qs = qs.filter(job_card_date=date)
         if company:
@@ -338,6 +340,12 @@ class FetchVehicleTypeList(APIView):
             qs = qs.filter(customer_asset__vehicle_model__icontains=model)
         if employee:
             qs = qs.filter(employee_id=employee)
+        if job_status:
+            qs = qs.filter(job_card_status=job_status)
+        if owner_type == 'customer':
+            qs = qs.filter(garage_owner__isnull=True)
+        elif owner_type == 'garage':
+            qs = qs.filter(garage_owner__isnull=False)
         serializer = JobCardSerializer(qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
     

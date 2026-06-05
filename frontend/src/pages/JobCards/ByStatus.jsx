@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ChevronLeft, ClipboardList, Pencil, Plus, Search } from 'lucide-react';
+import { ChevronLeft, ClipboardList, Pencil, Plus, Search, FileText } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Button from '../../components/Button';
 import Loading from '../../components/Loading';
@@ -9,19 +9,17 @@ import EmptyState from '../../components/EmptyState';
 import Table from '../../components/Table';
 import { Input, Select } from '../../components/Field';
 import { useToast } from '../../components/Toast';
-import { listJobCardsByTypeList } from '../../api/jobcards';
+import { listJobCards } from '../../api/jobcards';
 import { listVehicleCompanies, listVehicleModels } from '../../api/customers';
 import { listEmployees } from '../../api/employees';
 import { extractError } from '../../api/axios';
 import { jobCardTotal } from '../../utils/jobcard';
 import { downloadJobCardInvoice } from '../../utils/invoice';
 import { AddPaymentModal } from './Detail';
-import { FileText } from 'lucide-react';
 
-const VEHICLE_LABELS = {
-  two_wheeler:  'Two Wheelers',
-  four_wheeler: 'Four Wheelers',
-  other:        'Others',
+const STATUS_LABELS = {
+  IN_PROGRESS: 'In Progress',
+  COMPLETED:   'Completed',
 };
 
 const PAY_STATUS = {
@@ -30,15 +28,14 @@ const PAY_STATUS = {
   unpaid:  { label: 'Unpaid',  cls: 'bg-red-900/30 text-red-300 border-red-700/50' },
 };
 
-export default function JobCardsByVehicle() {
-  const { vehicleType } = useParams();
-  const navigate = useNavigate();
-  const toast = useToast();
+export default function JobCardsByStatus() {
+  const { statusType } = useParams();           // 'IN_PROGRESS' | 'COMPLETED'
+  const navigate       = useNavigate();
+  const toast          = useToast();
 
   const [loading, setLoading]               = useState(true);
   const [jobs, setJobs]                     = useState([]);
   const [search, setSearch]                 = useState('');
-  const [statusFilter, setStatusFilter]     = useState('');
   const [dateFilter, setDateFilter]         = useState('');
   const [employeeFilter, setEmployeeFilter] = useState('');
   const [companyFilter, setCompanyFilter]   = useState('');
@@ -52,15 +49,13 @@ export default function JobCardsByVehicle() {
   const [payJobCard, setPayJobCard]         = useState(null);
   const [refreshKey, setRefreshKey]         = useState(0);
 
-  const label = VEHICLE_LABELS[vehicleType] || vehicleType;
+  const label = STATUS_LABELS[statusType] || statusType;
 
-  // Load employees + companies filtered by vehicle type
+  // Load employees + all companies once
   useEffect(() => {
     listEmployees().then(d => setEmployees(Array.isArray(d) ? d : (d.results || []))).catch(() => {});
-    listVehicleCompanies({ vehicle_type: vehicleType })
-      .then(d => setCompanies(Array.isArray(d) ? d : []))
-      .catch(() => {});
-  }, [vehicleType]);
+    listVehicleCompanies({}).then(d => setCompanies(Array.isArray(d) ? d : [])).catch(() => {});
+  }, []);
 
   // Reload models when company changes
   useEffect(() => {
@@ -74,14 +69,13 @@ export default function JobCardsByVehicle() {
     async function load() {
       setLoading(true);
       try {
-        const params = {};
+        const params = { status: statusType };
         if (dateFilter)      params.date       = dateFilter;
+        if (employeeFilter)  params.employee   = employeeFilter;
         if (companyFilter)   params.company    = companyFilter;
         if (modelFilter)     params.model      = modelFilter;
-        if (employeeFilter)  params.employee   = employeeFilter;
-        if (statusFilter)    params.status     = statusFilter;
         if (ownerTypeFilter) params.owner_type = ownerTypeFilter;
-        const data = await listJobCardsByTypeList(vehicleType, Object.keys(params).length ? params : undefined);
+        const data = await listJobCards(params);
         setJobs(Array.isArray(data) ? data : (data.results || []));
       } catch (err) {
         toast.error(extractError(err));
@@ -90,7 +84,7 @@ export default function JobCardsByVehicle() {
       }
     }
     load();
-  }, [vehicleType, dateFilter, companyFilter, modelFilter, employeeFilter, statusFilter, ownerTypeFilter, refreshKey]); // eslint-disable-line
+  }, [statusType, dateFilter, employeeFilter, companyFilter, modelFilter, ownerTypeFilter, refreshKey]); // eslint-disable-line
 
   const filtered = useMemo(() => {
     let list = jobs;
@@ -157,25 +151,6 @@ export default function JobCardsByVehicle() {
       },
     },
     {
-      key: 'job_card_status',
-      header: 'Job Status',
-      render: (r) => {
-        const hasCompleted = (r.job_card_services || []).some(s => s.service_status === 'completed');
-        return (
-          <div className="leading-tight space-y-1">
-            <Badge variant={r.job_card_status === 'COMPLETED' ? 'green' : 'yellow'}>
-              {r.job_card_status === 'COMPLETED' ? 'Completed' : 'In Progress'}
-            </Badge>
-            {hasCompleted && (
-              r.usage_complete
-                ? <div className="text-[10px] text-emerald-400">✓ Usages marked</div>
-                : <div className="text-[10px] text-amber-400">⚠ Usages pending</div>
-            )}
-          </div>
-        );
-      },
-    },
-    {
       key: 'payment_status',
       header: 'Payment',
       render: (r) => {
@@ -185,6 +160,17 @@ export default function JobCardsByVehicle() {
             {cfg.label}
           </span>
         );
+      },
+    },
+    {
+      key: 'usage',
+      header: 'Usage',
+      render: (r) => {
+        const hasCompleted = (r.job_card_services || []).some(s => s.service_status === 'completed');
+        if (!hasCompleted) return <span className="text-gray-600 text-xs">—</span>;
+        return r.usage_complete
+          ? <span className="text-[10px] text-emerald-400">✓ Marked</span>
+          : <span className="text-[10px] text-amber-400">⚠ Pending</span>;
       },
     },
     {
@@ -210,14 +196,13 @@ export default function JobCardsByVehicle() {
     },
   ];
 
-  const hasServerFilter = !!(dateFilter || companyFilter || modelFilter || employeeFilter || statusFilter || ownerTypeFilter);
-  const hasClientFilter = !!(usageFilter || paymentFilter);
+  const hasFilter = !!(dateFilter || employeeFilter || companyFilter || modelFilter || ownerTypeFilter || usageFilter || paymentFilter);
 
   return (
     <div>
       <PageHeader
         title={`Job Cards — ${label}`}
-        subtitle={`All job cards for ${label.toLowerCase()}`}
+        subtitle={`All ${label.toLowerCase()} job cards`}
         actions={
           <Link to="/jobcards">
             <Button variant="secondary"><ChevronLeft size={16} /> Back to Job Cards</Button>
@@ -246,19 +231,14 @@ export default function JobCardsByVehicle() {
         <div className="relative">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <Input
-            placeholder="Search by job card #, customer, or vehicle"
+            placeholder="Search by job card #, customer, vehicle, or company"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9 w-full"
           />
         </div>
-        {/* Row 2: status + date */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            <option value="">All Statuses</option>
-            <option value="IN_PROGRESS">In Progress</option>
-            <option value="COMPLETED">Completed</option>
-          </Select>
+        {/* Row 2: date */}
+        <div>
           <Input
             type="date"
             value={dateFilter}
@@ -298,10 +278,10 @@ export default function JobCardsByVehicle() {
           </Select>
         </div>
 
-        {(hasServerFilter || hasClientFilter) && (
+        {hasFilter && (
           <button
             type="button"
-            onClick={() => { setDateFilter(''); setCompanyFilter(''); setModelFilter(''); setEmployeeFilter(''); setStatusFilter(''); setUsageFilter(''); setPaymentFilter(''); setOwnerTypeFilter(''); }}
+            onClick={() => { setDateFilter(''); setEmployeeFilter(''); setCompanyFilter(''); setModelFilter(''); setUsageFilter(''); setPaymentFilter(''); setOwnerTypeFilter(''); }}
             className="text-xs text-gray-400 hover:text-gray-200 underline"
           >
             Clear all filters
@@ -325,7 +305,7 @@ export default function JobCardsByVehicle() {
         <EmptyState
           icon={ClipboardList}
           title={`No ${label.toLowerCase()} job cards found`}
-          message={search || hasServerFilter || hasClientFilter ? 'Try adjusting your filters.' : `No job cards for ${label.toLowerCase()} yet.`}
+          message={search || hasFilter ? 'Try adjusting your filters.' : `No ${label.toLowerCase()} job cards yet.`}
           action={<Link to="/jobcards/new"><Button><Plus size={16} /> New Job Card</Button></Link>}
         />
       ) : (
