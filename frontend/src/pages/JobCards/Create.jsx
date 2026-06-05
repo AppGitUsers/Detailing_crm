@@ -501,7 +501,9 @@ export default function JobCardCreate() {
 
       <Stepper step={step} skippedCustomer={skippedCustomer} />
 
-      <div className="bg-bg-card border border-border rounded-xl p-4 sm:p-6 max-w-3xl mt-4">
+      <div className="flex gap-4 items-start mt-4">
+        {/* ── Main form card ─────────────────────────────────────── */}
+        <div className="bg-bg-card border border-border rounded-xl p-4 sm:p-6 flex-1 min-w-0 max-w-3xl">
         {step === 1 && (
           <div className="space-y-5">
             {/* Owner type toggle */}
@@ -515,18 +517,6 @@ export default function JobCardCreate() {
               update={updateJobCard}
               errors={errors}
             />
-
-            {/* Garage selection panel — only in garage mode */}
-            {ownerType === 'garage' && (
-              <GaragePanel
-                garages={garages}
-                loading={loadingGarages}
-                selected={selectedGarage}
-                onSelect={setSelectedGarage}
-                search={garageSearch}
-                onSearch={setGarageSearch}
-              />
-            )}
           </div>
         )}
 
@@ -606,6 +596,20 @@ export default function JobCardCreate() {
             )}
           </div>
         </div>
+        {/* ── Right-side garage panel — only visible in garage mode, step 1 ── */}
+        </div>
+        {ownerType === 'garage' && step === 1 && (
+          <div className="w-80 shrink-0 bg-bg-card border border-border rounded-xl overflow-hidden sticky top-4">
+            <GaragePanel
+              garages={garages}
+              loading={loadingGarages}
+              selected={selectedGarage}
+              onSelect={setSelectedGarage}
+              search={garageSearch}
+              onSearch={setGarageSearch}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -688,7 +692,7 @@ function GaragePanel({ garages, loading, selected, onSelect, search, onSearch })
           />
         </div>
       </div>
-      <div className="max-h-52 overflow-y-auto divide-y divide-border">
+      <div className="overflow-y-auto divide-y divide-border" style={{ maxHeight: 'calc(100vh - 14rem)' }}>
         {loading ? (
           <div className="py-6 text-center text-xs text-gray-500">Loading…</div>
         ) : garages.length === 0 ? (
