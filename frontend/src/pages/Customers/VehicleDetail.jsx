@@ -137,6 +137,9 @@ export default function VehicleDetail() {
             </div>
             <dl className="px-5 py-3">
               <Row label="Name" value={vehicle.customer_name || '—'} />
+              {vehicle.customer_phone_number && (
+                <Row label="Phone" value={vehicle.customer_phone_number} />
+              )}
             </dl>
           </div>
 

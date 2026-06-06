@@ -275,7 +275,14 @@ function VehiclesTab() {
     {
       key: 'customer_name',
       header: 'Customer',
-      render: (r) => <span className="text-gray-200">{r.customer_name}</span>,
+      render: (r) => (
+        <div>
+          <div className="text-gray-200">{r.customer_name}</div>
+          {r.customer_phone_number && (
+            <div className="text-xs text-gray-500 mt-0.5">{r.customer_phone_number}</div>
+          )}
+        </div>
+      ),
     },
     {
       key: 'last_service_date',
