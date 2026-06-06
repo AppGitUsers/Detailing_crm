@@ -627,12 +627,14 @@ class IncentiveSettingView(APIView):
 
 
 # ── Incentive Compute ─────────────────────────────────────────────────────────
-# Counts distinct JobCard services the employee worked on in the given month.
-# Returns whether the threshold is met and the incentive amount.
+# Counts job-card services the employee worked on in the given month.
+# Fixed: (orders_above_threshold) × fixed_amount_per_order
+# Percent: salary × incentive_salary_percent / 100  (if threshold met)
 
 class IncentiveComputeView(APIView):
     def get(self, request):
-        from apps.jobcards.models import JobCardEmployee
+        from apps.site_settings.models import Setting
+
         emp_id = request.query_params.get('employee')
         month  = request.query_params.get('month')
         year   = request.query_params.get('year')
@@ -644,20 +646,135 @@ class IncentiveComputeView(APIView):
         except (ValueError, TypeError):
             return Response({'error': 'Invalid month or year'}, status=status.HTTP_400_BAD_REQUEST)
 
-        order_count = JobCardEmployee.objects.filter(
+        try:
+            emp = Employee.objects.get(pk=emp_id)
+        except Employee.DoesNotExist:
+            return Response({'error': 'Employee not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        from apps.jobcards.models import JobCard
+        order_count = JobCard.objects.filter(
             employee_id=emp_id,
-            job_card_service__job_card__job_card_date__year=year_int,
-            job_card_service__job_card__job_card_date__month=month_int,
+            job_card_date__year=year_int,
+            job_card_date__month=month_int,
         ).count()
 
-        setting           = IncentiveSetting.get_settings()
-        threshold_met     = order_count >= setting.order_threshold
-        incentive_amount  = str(setting.incentive_amount) if threshold_met else '0.00'
+        def _s(key, default='0'):
+            try:
+                return Setting.objects.get(field_name=key).value or default
+            except Setting.DoesNotExist:
+                return default
+
+        order_threshold        = int(_s('incentive_order_threshold', '10'))
+        incentive_type         = _s('incentive_type', 'fixed')
+        incentive_fixed_amount = Decimal(_s('incentive_fixed_amount', '0'))
+        incentive_salary_pct   = Decimal(_s('incentive_salary_percent', '0'))
+
+        threshold_met = order_count >= order_threshold
+        orders_above  = max(0, order_count - order_threshold)
+
+        if not threshold_met:
+            incentive_amount = Decimal('0.00')
+        elif incentive_type == 'fixed':
+            incentive_amount = (Decimal(str(orders_above)) * incentive_fixed_amount).quantize(Decimal('0.01'))
+        else:
+            incentive_amount = (Decimal(str(emp.salary)) * incentive_salary_pct / Decimal('100')).quantize(Decimal('0.01'))
 
         return Response({
-            'order_count':       order_count,
-            'order_threshold':   setting.order_threshold,
-            'incentive_amount':  incentive_amount,
-            'setting_amount':    str(setting.incentive_amount),
-            'threshold_met':     threshold_met,
+            'order_count':              order_count,
+            'order_threshold':          order_threshold,
+            'orders_above_threshold':   orders_above,
+            'incentive_type':           incentive_type,
+            'incentive_fixed_amount':   str(incentive_fixed_amount),
+            'incentive_salary_percent': str(incentive_salary_pct),
+            'incentive_amount':         str(incentive_amount),
+            'setting_amount':           str(incentive_amount),
+            'threshold_met':            threshold_met,
+        })
+
+
+# ── Employee Performance Dashboard ───────────────────────────────────────────
+# Per-employee order count + revenue vs targets fetched from site_settings.
+
+class EmployeePerformanceDashboardView(APIView):
+    def get(self, request):
+        from apps.jobcards.models import JobCard, JobCardService
+        from apps.site_settings.models import Setting
+        from django.db.models import Sum
+
+        today = date.today()
+        try:
+            month_int = int(request.query_params.get('month', today.month))
+            year_int  = int(request.query_params.get('year',  today.year))
+        except (ValueError, TypeError):
+            return Response({'error': 'Invalid month or year'}, status=status.HTTP_400_BAD_REQUEST)
+
+        def _s(key, default='0'):
+            try:
+                return Setting.objects.get(field_name=key).value or default
+            except Setting.DoesNotExist:
+                return default
+
+        order_threshold      = int(_s('incentive_order_threshold', '10'))
+        revenue_target       = Decimal(_s('monthly_revenue_target', '0'))
+        incentive_type       = _s('incentive_type', 'fixed')
+        incentive_fixed_amt  = Decimal(_s('incentive_fixed_amount', '0'))
+        incentive_salary_pct = Decimal(_s('incentive_salary_percent', '0'))
+
+        employees = Employee.objects.filter(status='active').order_by('employee_name')
+
+        emp_data = []
+        for emp in employees:
+            # Count job cards directly assigned to this employee
+            service_count = JobCard.objects.filter(
+                employee=emp,
+                job_card_date__year=year_int,
+                job_card_date__month=month_int,
+            ).count()
+
+            # Revenue = sum of all service prices on those job cards
+            revenue = JobCardService.objects.filter(
+                job_card__employee=emp,
+                job_card__job_card_date__year=year_int,
+                job_card__job_card_date__month=month_int,
+            ).aggregate(total=Sum('price_at_time'))['total'] or Decimal('0')
+
+            threshold_met = service_count >= order_threshold
+            orders_above  = max(0, service_count - order_threshold)
+
+            if not threshold_met:
+                incentive = Decimal('0.00')
+            elif incentive_type == 'fixed':
+                incentive = (Decimal(str(orders_above)) * incentive_fixed_amt).quantize(Decimal('0.01'))
+            else:
+                incentive = (Decimal(str(emp.salary)) * incentive_salary_pct / Decimal('100')).quantize(Decimal('0.01'))
+
+            order_pct   = round(service_count / order_threshold * 100, 1) if order_threshold > 0 else 0
+            revenue_pct = round(float(revenue) / float(revenue_target) * 100, 1) if revenue_target > 0 else 0
+
+            emp_data.append({
+                'employee_id':            emp.id,
+                'employee_name':          emp.employee_name,
+                'employee_code':          emp.employee_code,
+                'role':                   emp.role or '',
+                'base_salary':            str(emp.salary),
+                'service_count':          service_count,
+                'revenue':                str(revenue.quantize(Decimal('0.01'))),
+                'threshold_met':          threshold_met,
+                'orders_above_threshold': orders_above,
+                'incentive_earned':       str(incentive),
+                'order_pct':              min(order_pct, 999),
+                'revenue_pct':            min(revenue_pct, 999),
+            })
+
+        return Response({
+            'employees': emp_data,
+            'targets': {
+                'order_threshold':          order_threshold,
+                'revenue_target':           str(revenue_target),
+                'incentive_type':           incentive_type,
+                'incentive_fixed_amount':   str(incentive_fixed_amt),
+                'incentive_salary_percent': str(incentive_salary_pct),
+            },
+            'month': month_int,
+            'year':  year_int,
         })

@@ -48,3 +48,6 @@ export const autoCheckout   = ()     => api.post('employees/attendance/auto-chec
 export const getIncentiveSettings    = ()       => api.get('employees/salary/incentive/settings/').then(r => r.data);
 export const updateIncentiveSettings = (data)   => api.put('employees/salary/incentive/settings/', data).then(r => r.data);
 export const computeIncentive        = (params) => api.get('employees/salary/incentive/compute/', { params }).then(r => r.data);
+
+// ── Performance Dashboard ─────────────────────────────────────────────────────
+export const getEmployeePerformance  = (params) => api.get('employees/performance/', { params }).then(r => r.data);

@@ -719,9 +719,15 @@ function TransactionFormModal({ modal, onClose, onSaved, employees, currentMonth
               label="Incentive (+₹)"
               hint={
                 modal?.mode !== 'edit' && incentiveData
-                  ? incentiveData.threshold_met
-                    ? `Auto-filled — ${incentiveData.order_count} orders ≥ threshold`
-                    : `${incentiveData.order_count}/${incentiveData.order_threshold} orders — threshold not met`
+                  ? (() => {
+                      const { order_count, order_threshold, threshold_met, incentive_type,
+                              orders_above_threshold, incentive_fixed_amount, incentive_salary_percent } = incentiveData;
+                      if (!threshold_met)
+                        return `${order_count}/${order_threshold} orders — threshold not met`;
+                      if (incentive_type === 'fixed')
+                        return `${orders_above_threshold} orders above threshold × ₹${Number(incentive_fixed_amount).toLocaleString('en-IN')} = ₹${Number(incentiveData.incentive_amount).toLocaleString('en-IN')}`;
+                      return `Threshold met (${order_count} orders) — ${incentive_salary_percent}% of salary = ₹${Number(incentiveData.incentive_amount).toLocaleString('en-IN')}`;
+                    })()
                   : undefined
               }
             >
