@@ -46,5 +46,6 @@ export const addJobCardSalesProduct    = (jobCardId, data) => api.post(`jobcards
 export const removeJobCardSalesProduct = (id) => api.delete(`jobcards/sales-products/${id}/`).then(r => r.data);
 
 // Garage Groups
-export const listGarageGroups   = (params) => api.get('jobcards/garage-groups/', { params }).then(r => r.data);
-export const createGaragePayment = (data)  => api.post('jobcards/garage-payments/', data).then(r => r.data);
+export const listGarageGroups    = (params)   => api.get('jobcards/garage-groups/', { params }).then(r => r.data);
+export const getGarageGroup      = (garageId) => api.get('jobcards/garage-groups/', { params: { garage_id: garageId } }).then(r => r.data[0] || null);
+export const createGaragePayment = (data)     => api.post('jobcards/garage-payments/', data).then(r => r.data);

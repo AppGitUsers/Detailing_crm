@@ -36,7 +36,6 @@ function buildGarageInvoiceHTML(group) {
     hour: '2-digit', minute: '2-digit',
   });
 
-  // Build one section per job card
   const jcSections = job_cards.map((jc) => {
     const services  = jc.job_card_services  || [];
     const payments  = jc.payments           || [];
@@ -50,7 +49,7 @@ function buildGarageInvoiceHTML(group) {
         <td style="padding:8px 12px;border-bottom:1px solid #1f2431;text-align:right;font-weight:600;color:#c4b5fd">${fmt(s.price_at_time)}</td>
       </tr>`).join('');
 
-    const payRows = payments.map((p, i) => `
+    const payRows = payments.map((p) => `
       <tr>
         <td style="padding:6px 12px;border-bottom:1px solid #1f2431;color:#6b7280;font-size:11px">${fmtDate(p.payment_date)}</td>
         <td style="padding:6px 12px;border-bottom:1px solid #1f2431;color:#9ca3af;font-size:11px">${METHOD[p.payment_method] || p.payment_method}</td>
@@ -108,7 +107,6 @@ function buildGarageInvoiceHTML(group) {
     </div>`;
   }).join('');
 
-  // Summary rows for the grand total table
   const summaryRows = job_cards.map((jc) => `
     <tr>
       <td style="padding:8px 14px;border-bottom:1px solid #1f2431;color:#a78bfa;font-weight:600">${jc.job_card_number}</td>
@@ -141,11 +139,10 @@ table{width:100%;border-collapse:collapse}
 <body>
 <div class="page">
 
-<!-- Header -->
 <div class="card" style="background:linear-gradient(135deg,#1a1e27,#0f1117);margin-bottom:20px">
   <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px">
     <div>
-      <div style="font-size:22px;font-weight:800;color:#fff;letter-spacing:-.3px">🏭 Garage Group Invoice</div>
+      <div style="font-size:22px;font-weight:800;color:#fff;letter-spacing:-.3px">Garage Group Invoice</div>
       <div style="font-size:12px;color:#6b7280;margin-top:4px">Detailing Workshop · Combined Job Card Invoice</div>
     </div>
     <div style="text-align:right">
@@ -155,7 +152,6 @@ table{width:100%;border-collapse:collapse}
   </div>
 </div>
 
-<!-- Garage Info -->
 <div class="card">
   <div class="sec">Garage Details</div>
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;flex-wrap:wrap">
@@ -180,7 +176,6 @@ table{width:100%;border-collapse:collapse}
   </div>
 </div>
 
-<!-- Summary Table -->
 <div class="card">
   <div class="sec">Summary — All Job Cards</div>
   <table>
@@ -206,7 +201,6 @@ table{width:100%;border-collapse:collapse}
   </table>
 </div>
 
-<!-- Individual Job Card Details -->
 <div class="card">
   <div class="sec">Individual Job Card Details</div>
   ${jcSections}

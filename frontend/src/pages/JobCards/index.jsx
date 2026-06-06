@@ -10,7 +10,7 @@ import Table from '../../components/Table';
 import { Input, Select } from '../../components/Field';
 import SearchableSelect from '../../components/SearchableSelect';
 import { useToast } from '../../components/Toast';
-import { listJobCards, listJobCardsByType, getCustomerTiers, listGarageGroups, createGaragePayment } from '../../api/jobcards';
+import { listJobCards, listJobCardsByType, getCustomerTiers, listGarageGroups } from '../../api/jobcards';
 import { listVehicleCompanies, listVehicleModels } from '../../api/customers';
 import { listEmployees } from '../../api/employees';
 import { extractError } from '../../api/axios';
@@ -18,23 +18,23 @@ import { jobCardTotal } from '../../utils/jobcard';
 import { downloadJobCardInvoice } from '../../utils/invoice';
 import { downloadGarageInvoice } from '../../utils/garageInvoice';
 
-/* ─── Stat card definitions ─────────────────────────────────────────────────
-   img   → Unsplash photo URL (loaded via <img> tag so onError works reliably)
-   fallback → CSS gradient shown when photo fails / while loading
-   accent   → badge / hover glow colour
-   statKey  → maps to stats state object key
-   route    → optional — makes card a clickable button navigating there
-────────────────────────────────────────────────────────────────────────────── */
-/* ─── Local image paths ─────────────────────────────────────────────────────
+/* â”€â”€â”€ Stat card definitions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   img   â†’ Unsplash photo URL (loaded via <img> tag so onError works reliably)
+   fallback â†’ CSS gradient shown when photo fails / while loading
+   accent   â†’ badge / hover glow colour
+   statKey  â†’ maps to stats state object key
+   route    â†’ optional â€” makes card a clickable button navigating there
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* â”€â”€â”€ Local image paths â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    Place the image files in:  frontend/public/images/
    File names expected:
-     two-wheeler.jpg    – photo of a motorcycle / scooter
-     four-wheeler.jpg   – photo of a car / SUV
-     other-vehicle.jpg  – heavy / commercial vehicle
-     workshop.jpg       – photo of a car-detailing workshop / garage
-     completed.jpg      – photo of a freshly-detailed / clean car
+     two-wheeler.jpg    â€“ photo of a motorcycle / scooter
+     four-wheeler.jpg   â€“ photo of a car / SUV
+     other-vehicle.jpg  â€“ heavy / commercial vehicle
+     workshop.jpg       â€“ photo of a car-detailing workshop / garage
+     completed.jpg      â€“ photo of a freshly-detailed / clean car
    The gradient fallback is always shown until the image loads.
-────────────────────────────────────────────────────────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const STAT_CARDS = [
   {
     key: 'two_wheeler',
@@ -218,7 +218,7 @@ export default function JobCardsList() {
           <div className="text-gray-100">{r.vehicle_number}</div>
           {(r.vehicle_company || r.vehicle_model) && (
             <div className="text-[10px] text-gray-500 mt-0.5">
-              {[r.vehicle_company, r.vehicle_model, r.vehicle_colour].filter(Boolean).join(' · ')}
+              {[r.vehicle_company, r.vehicle_model, r.vehicle_colour].filter(Boolean).join(' Â· ')}
             </div>
           )}
         </div>
@@ -229,7 +229,7 @@ export default function JobCardsList() {
       header: 'Employee',
       render: (r) => r.employee_name
         ? <span className="text-gray-200">{r.employee_name}</span>
-        : <span className="text-gray-600 text-xs">—</span>,
+        : <span className="text-gray-600 text-xs">â€”</span>,
     },
     { key: 'job_card_date', header: 'Date' },
     {
@@ -262,8 +262,8 @@ export default function JobCardsList() {
             </Badge>
             {hasCompletedSvcs && (
               r.usage_complete
-                ? <div className="text-[10px] text-emerald-400 flex items-center gap-0.5">✓ Usages marked</div>
-                : <div className="text-[10px] text-amber-400 flex items-center gap-0.5">⚠ Usages pending</div>
+                ? <div className="text-[10px] text-emerald-400 flex items-center gap-0.5">âœ“ Usages marked</div>
+                : <div className="text-[10px] text-amber-400 flex items-center gap-0.5">âš  Usages pending</div>
             )}
           </div>
         );
@@ -340,7 +340,7 @@ export default function JobCardsList() {
         }
       />
 
-      {/* ── 5 photo stat cards ──────────────────────────────────────────── */}
+      {/* â”€â”€ 5 photo stat cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 mb-4">
         {STAT_CARDS.map((card) => (
           <PhotoStatCard
@@ -356,7 +356,7 @@ export default function JobCardsList() {
         ))}
       </div>
 
-      {/* ── Owner type quick filter ─────────────────────────────────────── */}
+      {/* â”€â”€ Owner type quick filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="flex items-center gap-1 mb-3 bg-bg-card border border-border rounded-xl px-4 py-3">
         <span className="text-xs text-gray-500 mr-2 font-medium">Show:</span>
         {[
@@ -379,9 +379,9 @@ export default function JobCardsList() {
         ))}
       </div>
 
-      {/* ── Search / Filter ─────────────────────────────────────────────── */}
+      {/* â”€â”€ Search / Filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="bg-bg-card border border-border rounded-xl p-4 mb-4 space-y-3">
-        {/* Row 1: search — full width */}
+        {/* Row 1: search â€” full width */}
         <div className="relative">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <Input
@@ -437,14 +437,14 @@ export default function JobCardsList() {
           />
           <Select value={usageFilter} onChange={(e) => setUsageFilter(e.target.value)}>
             <option value="">All Usage Statuses</option>
-            <option value="complete">✓ Usages Complete</option>
-            <option value="incomplete">⚠ Usages Pending</option>
+            <option value="complete">âœ“ Usages Complete</option>
+            <option value="incomplete">âš  Usages Pending</option>
           </Select>
           <Select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)}>
             <option value="">All Payment Statuses</option>
-            <option value="paid">✓ Paid</option>
-            <option value="partial">⚡ Partial</option>
-            <option value="unpaid">✗ Unpaid</option>
+            <option value="paid">âœ“ Paid</option>
+            <option value="partial">âš¡ Partial</option>
+            <option value="unpaid">âœ— Unpaid</option>
           </Select>
         </div>
         {(dateFilter || employeeFilter || companyFilter || modelFilter || statusFilter || usageFilter || paymentFilter) && (
@@ -460,7 +460,7 @@ export default function JobCardsList() {
         )}
       </div>
 
-      {/* Payment modal — outside filter bar so it renders correctly */}
+      {/* Payment modal â€” outside filter bar so it renders correctly */}
       <AddPaymentModal
         open={!!payJobCard}
         onClose={() => setPayJobCard(null)}
@@ -506,34 +506,28 @@ export default function JobCardsList() {
   );
 }
 
-/* ─── Garage Groups View ─────────────────────────────────────────────────────
+/* â”€â”€â”€ Garage Groups View â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    Shown in place of the regular table when ownerTypeFilter === 'garage'.
-   Fetches grouped garage data from the backend and renders one accordion row
-   per garage owner.
-────────────────────────────────────────────────────────────────────────────── */
+   Each row is a clickable card that navigates to the garage detail page.
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function GarageGroupsView({ statusFilter, dateFilter, employeeFilter, refreshTrigger }) {
-  const toast = useToast();
+  const toast    = useToast();
   const navigate = useNavigate();
-  const [groups, setGroups]     = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [expanded, setExpanded] = useState({});
-  const [payGroup, setPayGroup] = useState(null);
-  const [search, setSearch]     = useState('');
+  const [groups,  setGroups]  = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search,  setSearch]  = useState('');
 
-  const load = (sf, df, ef) => {
+  useEffect(() => {
     setLoading(true);
     const params = {};
-    if (sf) params.status   = sf;
-    if (df) params.date     = df;
-    if (ef) params.employee = ef;
+    if (statusFilter)   params.status   = statusFilter;
+    if (dateFilter)     params.date     = dateFilter;
+    if (employeeFilter) params.employee = employeeFilter;
     listGarageGroups(params)
       .then(d => setGroups(Array.isArray(d) ? d : (d.results || [])))
       .catch(err => toast.error(extractError(err)))
       .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { load(statusFilter, dateFilter, employeeFilter); },
-    [statusFilter, dateFilter, employeeFilter, refreshTrigger]); // eslint-disable-line
+  }, [statusFilter, dateFilter, employeeFilter, refreshTrigger]); // eslint-disable-line
 
   const filtered = useMemo(() => {
     if (!search.trim()) return groups;
@@ -543,8 +537,6 @@ function GarageGroupsView({ statusFilter, dateFilter, employeeFilter, refreshTri
       (g.garage_phone || '').toLowerCase().includes(s)
     );
   }, [groups, search]);
-
-  const toggle = (id) => setExpanded(e => ({ ...e, [id]: !e[id] }));
 
   if (loading) return <Loading />;
   if (!filtered.length) return (
@@ -561,32 +553,28 @@ function GarageGroupsView({ statusFilter, dateFilter, employeeFilter, refreshTri
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
         <input
           className="w-full bg-bg-card border border-border rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-accent/40"
-          placeholder="Search garage by name or phone…"
+          placeholder="Search garage by name or phoneâ€¦"
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
       </div>
 
       {filtered.map(group => {
-        const open        = !!expanded[group.garage_id];
         const outstanding = Number(group.outstanding || 0);
         const payStatus   = PAY_STATUS[group.payment_status] || PAY_STATUS.unpaid;
 
         return (
-          <div key={group.garage_id} className="bg-bg-card border border-border rounded-xl overflow-hidden">
-            {/* ── Garage header row ── */}
-            <div
-              className="flex items-center gap-3 p-4 cursor-pointer hover:bg-bg-hover transition-colors select-none"
-              onClick={() => toggle(group.garage_id)}
-            >
-              <ChevronRight
-                size={16}
-                className={`text-gray-500 transition-transform duration-200 shrink-0 ${open ? 'rotate-90' : ''}`}
-              />
-
+          <div
+            key={group.garage_id}
+            className="bg-bg-card border border-border rounded-xl overflow-hidden hover:border-accent/40 hover:bg-bg-hover/30 transition-colors cursor-pointer group"
+            onClick={() => navigate(`/jobcards/garage/${group.garage_id}`, { state: { group } })}
+          >
+            <div className="flex items-center gap-3 p-4">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-semibold text-sky-300">{group.garage_name}</span>
+                  <span className="font-semibold text-sky-300 group-hover:text-sky-200 transition-colors">
+                    {group.garage_name}
+                  </span>
                   {group.garage_phone && (
                     <span className="text-xs text-gray-500">{group.garage_phone}</span>
                   )}
@@ -627,279 +615,24 @@ function GarageGroupsView({ statusFilter, dateFilter, employeeFilter, refreshTri
                 >
                   <FileText size={13} />
                 </Button>
-                <Button
-                  size="sm"
-                  onClick={() => setPayGroup(group)}
-                  variant={group.payment_status === 'paid' ? 'secondary' : 'primary'}
-                >
-                  {group.payment_status === 'paid' ? 'View' : 'Pay Group'}
-                </Button>
               </div>
+
+              <ChevronRight size={15} className="text-gray-600 group-hover:text-gray-400 shrink-0 transition-colors" />
             </div>
-
-            {/* ── Individual job cards (expanded) ── */}
-            {open && (
-              <div className="border-t border-border">
-                {(group.job_cards || []).map(jc => {
-                  const jcPay = PAY_STATUS[jc.payment_status] || PAY_STATUS.unpaid;
-                  const jcDue = Number(jc.outstanding || 0);
-                  return (
-                    <div
-                      key={jc.id}
-                      className="flex items-center gap-3 px-6 py-3 border-b border-border/50 hover:bg-bg-hover/50 cursor-pointer"
-                      onClick={() => navigate(`/jobcards/${jc.id}`)}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-violet-300 font-semibold text-sm">{jc.job_card_number}</span>
-                          <span className="text-sky-300 font-medium">{jc.vehicle_number}</span>
-                          {(jc.vehicle_company || jc.vehicle_model) && (
-                            <span className="text-[11px] text-gray-500">
-                              {[jc.vehicle_company, jc.vehicle_model].filter(Boolean).join(' · ')}
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-[11px] text-gray-500 mt-0.5">
-                          {jc.job_card_date}{jc.employee_name ? ` · ${jc.employee_name}` : ''}
-                        </div>
-                      </div>
-
-                      <div className="text-right shrink-0 text-sm">
-                        <div className="text-gray-100">
-                          ₹{Number(jc.total_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                        </div>
-                        {jcDue > 0 && (
-                          <div className="text-[11px] text-red-400">
-                            ₹{jcDue.toLocaleString('en-IN', { minimumFractionDigits: 2 })} due
-                          </div>
-                        )}
-                      </div>
-
-                      <Badge variant={jc.job_card_status === 'COMPLETED' ? 'green' : 'yellow'}>
-                        {jc.job_card_status === 'COMPLETED' ? 'Done' : 'In Progress'}
-                      </Badge>
-
-                      <span className={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full border ${jcPay.cls} shrink-0`}>
-                        {jcPay.label}
-                      </span>
-
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={e => { e.stopPropagation(); downloadJobCardInvoice(jc); }}
-                        title="Download invoice"
-                      >
-                        <FileText size={13} />
-                      </Button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
           </div>
         );
       })}
-
-      {payGroup && (
-        <GaragePaymentModal
-          group={payGroup}
-          onClose={() => setPayGroup(null)}
-          onPaid={() => {
-            setPayGroup(null);
-            load(statusFilter, dateFilter, employeeFilter);
-          }}
-        />
-      )}
     </div>
   );
 }
 
-/* ─── Garage Payment Modal ────────────────────────────────────────────────────
-   Shows all outstanding job cards for the garage, lets the user enter an
-   amount, previews distribution (oldest-first), then submits to the backend.
-────────────────────────────────────────────────────────────────────────────── */
-function GaragePaymentModal({ group, onClose, onPaid }) {
-  const toast = useToast();
-  const [amount,     setAmount]     = useState('');
-  const [method,     setMethod]     = useState('cash');
-  const [payDate,    setPayDate]    = useState(new Date().toISOString().split('T')[0]);
-  const [notes,      setNotes]      = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
-  const outstanding     = Number(group.outstanding || 0);
-  const outstandingCards = useMemo(() =>
-    (group.job_cards || [])
-      .filter(jc => Number(jc.outstanding || 0) > 0)
-      .sort((a, b) => new Date(a.job_card_date) - new Date(b.job_card_date) || a.id - b.id),
-    [group]
-  );
-
-  // Live distribution preview (mirrors backend oldest-first logic)
-  const distribution = useMemo(() => {
-    const amt = Number(amount);
-    if (!amt || amt <= 0) return [];
-    let remaining = amt;
-    const dist = [];
-    for (const jc of outstandingCards) {
-      if (remaining <= 0) break;
-      const due   = Number(jc.outstanding || 0);
-      const apply = Math.min(remaining, due);
-      dist.push({ ...jc, apply });
-      remaining -= apply;
-    }
-    return dist;
-  }, [amount, outstandingCards]);
-
-  const handleSubmit = async () => {
-    const amt = Number(amount);
-    if (!amt || amt <= 0) { toast.error('Enter a valid amount'); return; }
-    setSubmitting(true);
-    try {
-      await createGaragePayment({
-        garage_id:      group.garage_id,
-        amount:         amt,
-        payment_method: method,
-        payment_date:   payDate,
-        notes,
-      });
-      toast.success('Payment recorded');
-      onPaid();
-    } catch (err) {
-      toast.error(extractError(err));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="p-6">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h2 className="text-lg font-bold text-gray-100">Group Payment</h2>
-              <p className="text-sm text-sky-400 mt-0.5">{group.garage_name}</p>
-            </div>
-            <button onClick={onClose} className="text-gray-500 hover:text-gray-300 text-2xl font-bold leading-none">×</button>
-          </div>
-
-          {/* Total outstanding pill */}
-          <div className="bg-bg-hover rounded-xl p-3 mb-4 flex items-center justify-between">
-            <span className="text-sm text-gray-400">Total Outstanding</span>
-            <span className="text-xl font-bold text-red-400">
-              ₹{outstanding.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-            </span>
-          </div>
-
-          {/* Per-card outstanding list */}
-          {outstandingCards.length > 0 && (
-            <div className="mb-4">
-              <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">Outstanding Job Cards</div>
-              <div className="space-y-1.5">
-                {outstandingCards.map(jc => (
-                  <div key={jc.id} className="flex items-center justify-between text-sm bg-bg-hover/50 rounded-lg px-3 py-2">
-                    <div>
-                      <span className="text-violet-300 font-medium">{jc.job_card_number}</span>
-                      <span className="text-gray-500 ml-2">{jc.vehicle_number}</span>
-                    </div>
-                    <span className="text-red-400 font-semibold">
-                      ₹{Number(jc.outstanding).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Inputs */}
-          <div className="space-y-3 mb-4">
-            <div>
-              <label className="text-xs text-gray-500 uppercase tracking-wide mb-1 block">Payment Amount (₹)</label>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={amount}
-                  onChange={e => setAmount(e.target.value)}
-                  placeholder="0.00"
-                  className="flex-1 bg-bg-hover border border-border rounded-lg px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-accent/40"
-                />
-                <Button variant="secondary" size="sm" onClick={() => setAmount(String(outstanding))}>
-                  Full
-                </Button>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs text-gray-500 uppercase tracking-wide mb-1 block">Payment Method</label>
-              <Select value={method} onChange={e => setMethod(e.target.value)}>
-                <option value="cash">Cash</option>
-                <option value="upi">UPI</option>
-                <option value="card">Card</option>
-                <option value="netbanking">Net Banking</option>
-                <option value="cheque">Cheque</option>
-                <option value="other">Other</option>
-              </Select>
-            </div>
-
-            <div>
-              <label className="text-xs text-gray-500 uppercase tracking-wide mb-1 block">Date</label>
-              <Input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} />
-            </div>
-
-            <div>
-              <label className="text-xs text-gray-500 uppercase tracking-wide mb-1 block">Notes</label>
-              <Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional notes…" />
-            </div>
-          </div>
-
-          {/* Live distribution preview */}
-          {distribution.length > 0 && (
-            <div className="mb-4 bg-emerald-950/30 border border-emerald-800/30 rounded-xl p-3">
-              <div className="text-xs text-emerald-500 uppercase tracking-wide mb-2">Distribution Preview (oldest first)</div>
-              <div className="space-y-1">
-                {distribution.map(d => (
-                  <div key={d.id} className="flex items-center justify-between text-sm">
-                    <div>
-                      <span className="text-violet-300">{d.job_card_number}</span>
-                      <span className="text-gray-500 ml-2">{d.vehicle_number}</span>
-                    </div>
-                    <span className="text-emerald-400 font-semibold">
-                      +₹{d.apply.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              {Number(amount) > outstanding && (
-                <div className="mt-2 text-xs text-yellow-400">
-                  ⚠ Amount exceeds total outstanding by ₹{(Number(amount) - outstanding).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="flex gap-3">
-            <Button variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
-            <Button className="flex-1" onClick={handleSubmit} disabled={submitting || !amount || Number(amount) <= 0}>
-              {submitting ? 'Processing…' : 'Record Payment'}
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─── Unified photo stat card ────────────────────────────────────────────────
+/* â”€â”€â”€ Unified photo stat card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    Uses a real <img> tag so the browser fires onError on broken URLs.
-   The gradient fallback div sits behind the img — always visible until/unless
+   The gradient fallback div sits behind the img â€” always visible until/unless
    the photo loads; permanently visible if the URL fails.
-────────────────────────────────────────────────────────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function PhotoStatCard({ label, sub, value, img, fallback, accent, onClick }) {
-  // If onClick is provided → render as <button>; otherwise → plain <div>
+  // If onClick is provided â†’ render as <button>; otherwise â†’ plain <div>
   const Tag = onClick ? 'button' : 'div';
 
   return (
@@ -915,10 +648,10 @@ function PhotoStatCard({ label, sub, value, img, fallback, accent, onClick }) {
       ].join(' ')}
       style={{ aspectRatio: '1 / 1.05', minHeight: '130px' }}
     >
-      {/* ① Gradient fallback — always behind the photo */}
+      {/* â‘  Gradient fallback â€” always behind the photo */}
       <div className="absolute inset-0" style={{ background: fallback }} />
 
-      {/* ② Real photo — <img> with onError so broken URLs degrade cleanly */}
+      {/* â‘¡ Real photo â€” <img> with onError so broken URLs degrade cleanly */}
       <img
         src={img}
         alt={label}
@@ -927,7 +660,7 @@ function PhotoStatCard({ label, sub, value, img, fallback, accent, onClick }) {
         onError={(e) => { e.currentTarget.style.display = 'none'; }}
       />
 
-      {/* ③ Dark gradient — so text is always readable */}
+      {/* â‘¢ Dark gradient â€” so text is always readable */}
       <div
         className="absolute inset-0"
         style={{
@@ -936,7 +669,7 @@ function PhotoStatCard({ label, sub, value, img, fallback, accent, onClick }) {
         }}
       />
 
-      {/* ④ Accent glow on hover */}
+      {/* â‘£ Accent glow on hover */}
       {onClick && (
         <div
           className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
@@ -944,9 +677,9 @@ function PhotoStatCard({ label, sub, value, img, fallback, accent, onClick }) {
         />
       )}
 
-      {/* ⑤ Content */}
+      {/* â‘¤ Content */}
       <div className="absolute inset-0 flex flex-col justify-between p-3">
-        {/* Count badge — top-right: solid black circle so it's always readable over any photo */}
+        {/* Count badge â€” top-right: solid black circle so it's always readable over any photo */}
         <div className="self-end">
           <span
             className="text-[12px] font-extrabold leading-none flex items-center justify-center rounded-full"
@@ -963,7 +696,7 @@ function PhotoStatCard({ label, sub, value, img, fallback, accent, onClick }) {
           </span>
         </div>
 
-        {/* Label — bottom-left */}
+        {/* Label â€” bottom-left */}
         <div>
           <div className="text-[11px] font-bold text-white leading-tight tracking-wide">
             {label}

@@ -1028,9 +1028,11 @@ class GarageJobCardGroupView(APIView):
         job_status = request.query_params.get('status')
         date_str   = request.query_params.get('date')
         employee   = request.query_params.get('employee')
+        garage_id  = request.query_params.get('garage_id')
         if job_status: qs = qs.filter(job_card_status=job_status)
         if date_str:   qs = qs.filter(job_card_date=date_str)
         if employee:   qs = qs.filter(employee_id=employee)
+        if garage_id:  qs = qs.filter(garage_owner_id=garage_id)
 
         qs = qs.select_related(
             'garage_owner', 'customer_asset', 'employee'
