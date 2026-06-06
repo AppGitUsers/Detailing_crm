@@ -18,23 +18,23 @@ import { jobCardTotal } from '../../utils/jobcard';
 import { downloadJobCardInvoice } from '../../utils/invoice';
 import { downloadGarageInvoice } from '../../utils/garageInvoice';
 
-/* â”€â”€â”€ Stat card definitions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-   img   â†’ Unsplash photo URL (loaded via <img> tag so onError works reliably)
-   fallback â†’ CSS gradient shown when photo fails / while loading
-   accent   â†’ badge / hover glow colour
-   statKey  â†’ maps to stats state object key
-   route    â†’ optional â€” makes card a clickable button navigating there
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-/* â”€â”€â”€ Local image paths â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/* ─── Stat card definitions ─────────────────────────────────────────────────
+   img   → Unsplash photo URL (loaded via <img> tag so onError works reliably)
+   fallback → CSS gradient shown when photo fails / while loading
+   accent   → badge / hover glow colour
+   statKey  → maps to stats state object key
+   route    → optional — makes card a clickable button navigating there
+────────────────────────────────────────────────────────────────────────────── */
+/* ─── Local image paths ─────────────────────────────────────────────────────
    Place the image files in:  frontend/public/images/
    File names expected:
-     two-wheeler.jpg    â€“ photo of a motorcycle / scooter
-     four-wheeler.jpg   â€“ photo of a car / SUV
-     other-vehicle.jpg  â€“ heavy / commercial vehicle
-     workshop.jpg       â€“ photo of a car-detailing workshop / garage
-     completed.jpg      â€“ photo of a freshly-detailed / clean car
+     two-wheeler.jpg    – photo of a motorcycle / scooter
+     four-wheeler.jpg   – photo of a car / SUV
+     other-vehicle.jpg  – heavy / commercial vehicle
+     workshop.jpg       – photo of a car-detailing workshop / garage
+     completed.jpg      – photo of a freshly-detailed / clean car
    The gradient fallback is always shown until the image loads.
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+────────────────────────────────────────────────────────────────────────────── */
 const STAT_CARDS = [
   {
     key: 'two_wheeler',
@@ -218,7 +218,7 @@ export default function JobCardsList() {
           <div className="text-gray-100">{r.vehicle_number}</div>
           {(r.vehicle_company || r.vehicle_model) && (
             <div className="text-[10px] text-gray-500 mt-0.5">
-              {[r.vehicle_company, r.vehicle_model, r.vehicle_colour].filter(Boolean).join(' Â· ')}
+              {[r.vehicle_company, r.vehicle_model, r.vehicle_colour].filter(Boolean).join(' · ')}
             </div>
           )}
         </div>
@@ -229,7 +229,7 @@ export default function JobCardsList() {
       header: 'Employee',
       render: (r) => r.employee_name
         ? <span className="text-gray-200">{r.employee_name}</span>
-        : <span className="text-gray-600 text-xs">â€”</span>,
+        : <span className="text-gray-600 text-xs">—</span>,
     },
     { key: 'job_card_date', header: 'Date' },
     {
@@ -262,8 +262,8 @@ export default function JobCardsList() {
             </Badge>
             {hasCompletedSvcs && (
               r.usage_complete
-                ? <div className="text-[10px] text-emerald-400 flex items-center gap-0.5">âœ“ Usages marked</div>
-                : <div className="text-[10px] text-amber-400 flex items-center gap-0.5">âš  Usages pending</div>
+                ? <div className="text-[10px] text-emerald-400 flex items-center gap-0.5">✓ Usages marked</div>
+                : <div className="text-[10px] text-amber-400 flex items-center gap-0.5">⚠ Usages pending</div>
             )}
           </div>
         );
@@ -340,7 +340,7 @@ export default function JobCardsList() {
         }
       />
 
-      {/* â”€â”€ 5 photo stat cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── 5 photo stat cards ──────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 mb-4">
         {STAT_CARDS.map((card) => (
           <PhotoStatCard
@@ -356,7 +356,7 @@ export default function JobCardsList() {
         ))}
       </div>
 
-      {/* â”€â”€ Owner type quick filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Owner type quick filter ─────────────────────────────────────── */}
       <div className="flex items-center gap-1 mb-3 bg-bg-card border border-border rounded-xl px-4 py-3">
         <span className="text-xs text-gray-500 mr-2 font-medium">Show:</span>
         {[
@@ -379,9 +379,9 @@ export default function JobCardsList() {
         ))}
       </div>
 
-      {/* â”€â”€ Search / Filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Search / Filter ─────────────────────────────────────────────── */}
       <div className="bg-bg-card border border-border rounded-xl p-4 mb-4 space-y-3">
-        {/* Row 1: search â€” full width */}
+        {/* Row 1: search — full width */}
         <div className="relative">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <Input
@@ -437,14 +437,14 @@ export default function JobCardsList() {
           />
           <Select value={usageFilter} onChange={(e) => setUsageFilter(e.target.value)}>
             <option value="">All Usage Statuses</option>
-            <option value="complete">âœ“ Usages Complete</option>
-            <option value="incomplete">âš  Usages Pending</option>
+            <option value="complete">✓ Usages Complete</option>
+            <option value="incomplete">⚠ Usages Pending</option>
           </Select>
           <Select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)}>
             <option value="">All Payment Statuses</option>
-            <option value="paid">âœ“ Paid</option>
-            <option value="partial">âš¡ Partial</option>
-            <option value="unpaid">âœ— Unpaid</option>
+            <option value="paid">✓ Paid</option>
+            <option value="partial">⚡ Partial</option>
+            <option value="unpaid">✗ Unpaid</option>
           </Select>
         </div>
         {(dateFilter || employeeFilter || companyFilter || modelFilter || statusFilter || usageFilter || paymentFilter) && (
@@ -460,7 +460,7 @@ export default function JobCardsList() {
         )}
       </div>
 
-      {/* Payment modal â€” outside filter bar so it renders correctly */}
+      {/* Payment modal — outside filter bar so it renders correctly */}
       <AddPaymentModal
         open={!!payJobCard}
         onClose={() => setPayJobCard(null)}
@@ -506,10 +506,10 @@ export default function JobCardsList() {
   );
 }
 
-/* â”€â”€â”€ Garage Groups View â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/* ─── Garage Groups View ─────────────────────────────────────────────────────
    Shown in place of the regular table when ownerTypeFilter === 'garage'.
    Each row is a clickable card that navigates to the garage detail page.
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+────────────────────────────────────────────────────────────────────────────── */
 function GarageGroupsView({ statusFilter, dateFilter, employeeFilter, refreshTrigger }) {
   const toast    = useToast();
   const navigate = useNavigate();
@@ -553,7 +553,7 @@ function GarageGroupsView({ statusFilter, dateFilter, employeeFilter, refreshTri
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
         <input
           className="w-full bg-bg-card border border-border rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-accent/40"
-          placeholder="Search garage by name or phoneâ€¦"
+          placeholder="Search garage by name or phone…"
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
@@ -626,13 +626,13 @@ function GarageGroupsView({ statusFilter, dateFilter, employeeFilter, refreshTri
   );
 }
 
-/* â”€â”€â”€ Unified photo stat card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/* ─── Unified photo stat card ────────────────────────────────────────────────
    Uses a real <img> tag so the browser fires onError on broken URLs.
-   The gradient fallback div sits behind the img â€” always visible until/unless
+   The gradient fallback div sits behind the img — always visible until/unless
    the photo loads; permanently visible if the URL fails.
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+────────────────────────────────────────────────────────────────────────────── */
 function PhotoStatCard({ label, sub, value, img, fallback, accent, onClick }) {
-  // If onClick is provided â†’ render as <button>; otherwise â†’ plain <div>
+  // If onClick is provided → render as <button>; otherwise → plain <div>
   const Tag = onClick ? 'button' : 'div';
 
   return (
@@ -648,10 +648,10 @@ function PhotoStatCard({ label, sub, value, img, fallback, accent, onClick }) {
       ].join(' ')}
       style={{ aspectRatio: '1 / 1.05', minHeight: '130px' }}
     >
-      {/* â‘  Gradient fallback â€” always behind the photo */}
+      {/* ① Gradient fallback — always behind the photo */}
       <div className="absolute inset-0" style={{ background: fallback }} />
 
-      {/* â‘¡ Real photo â€” <img> with onError so broken URLs degrade cleanly */}
+      {/* ② Real photo — <img> with onError so broken URLs degrade cleanly */}
       <img
         src={img}
         alt={label}
@@ -660,7 +660,7 @@ function PhotoStatCard({ label, sub, value, img, fallback, accent, onClick }) {
         onError={(e) => { e.currentTarget.style.display = 'none'; }}
       />
 
-      {/* â‘¢ Dark gradient â€” so text is always readable */}
+      {/* ③ Dark gradient — so text is always readable */}
       <div
         className="absolute inset-0"
         style={{
@@ -669,7 +669,7 @@ function PhotoStatCard({ label, sub, value, img, fallback, accent, onClick }) {
         }}
       />
 
-      {/* â‘£ Accent glow on hover */}
+      {/* ④ Accent glow on hover */}
       {onClick && (
         <div
           className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
@@ -677,9 +677,9 @@ function PhotoStatCard({ label, sub, value, img, fallback, accent, onClick }) {
         />
       )}
 
-      {/* â‘¤ Content */}
+      {/* ⑤ Content */}
       <div className="absolute inset-0 flex flex-col justify-between p-3">
-        {/* Count badge â€” top-right: solid black circle so it's always readable over any photo */}
+        {/* Count badge — top-right: solid black circle so it's always readable over any photo */}
         <div className="self-end">
           <span
             className="text-[12px] font-extrabold leading-none flex items-center justify-center rounded-full"
@@ -696,7 +696,7 @@ function PhotoStatCard({ label, sub, value, img, fallback, accent, onClick }) {
           </span>
         </div>
 
-        {/* Label â€” bottom-left */}
+        {/* Label — bottom-left */}
         <div>
           <div className="text-[11px] font-bold text-white leading-tight tracking-wide">
             {label}
