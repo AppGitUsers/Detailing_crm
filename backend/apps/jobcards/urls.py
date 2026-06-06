@@ -17,6 +17,8 @@ from .views import (
     SalesOrderListCreateView,
     SalesOrderDeleteView,
     SalesAnalyticsView,
+    GarageJobCardGroupView,
+    GaragePaymentView,
 )
 
 urlpatterns = [
@@ -61,4 +63,8 @@ urlpatterns = [
     path('sales-orders/',            SalesOrderListCreateView.as_view(), name='sales-order-list'),
     path('sales-orders/<int:pk>/',   SalesOrderDeleteView.as_view(),     name='sales-order-delete'),
     path('sales-analytics/',         SalesAnalyticsView.as_view(),       name='sales-analytics'),
+
+    # Garage groups
+    path('garage-groups/',   GarageJobCardGroupView.as_view(), name='garage-groups'),
+    path('garage-payments/', GaragePaymentView.as_view(),      name='garage-payments'),
 ]

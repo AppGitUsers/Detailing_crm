@@ -1,5 +1,6 @@
 from collections import defaultdict
-from datetime import timedelta
+from datetime import timedelta, date as _date
+from decimal import Decimal
 from django.db import transaction
 from django.db.models import Count
 from rest_framework import status
@@ -1014,3 +1015,140 @@ class SalesAnalyticsView(APIView):
             },
             'feed': feed,
         })
+
+
+# ─── Garage Job-Card Groups ────────────────────────────────────────────────────
+# Returns all garage job cards grouped by garage owner.
+# Each group carries per-garage totals (total, paid, outstanding, payment_status)
+# plus a full list of serialized job cards.
+
+class GarageJobCardGroupView(APIView):
+    def get(self, request):
+        qs = JobCard.objects.filter(garage_owner__isnull=False)
+        job_status = request.query_params.get('status')
+        date_str   = request.query_params.get('date')
+        employee   = request.query_params.get('employee')
+        if job_status: qs = qs.filter(job_card_status=job_status)
+        if date_str:   qs = qs.filter(job_card_date=date_str)
+        if employee:   qs = qs.filter(employee_id=employee)
+
+        qs = qs.select_related(
+            'garage_owner', 'customer_asset', 'employee'
+        ).prefetch_related(
+            'payments', 'job_card_services__service', 'sales_products'
+        ).order_by('garage_owner_id', 'job_card_date')
+
+        serialized_list = JobCardSerializer(qs, many=True).data
+
+        groups = {}
+        for jc_data, jc_obj in zip(serialized_list, qs):
+            g_id = jc_obj.garage_owner_id
+            if g_id not in groups:
+                go = jc_obj.garage_owner
+                groups[g_id] = {
+                    'garage_id':    g_id,
+                    'garage_name':  go.garage_name,
+                    'garage_phone': go.phone_number,
+                    'garage_location': go.location or '',
+                    'garage_gstin':    go.gstin or '',
+                    'job_cards': [],
+                }
+            groups[g_id]['job_cards'].append(jc_data)
+
+        result = []
+        for group in groups.values():
+            total = sum(Decimal(str(jc.get('total_amount') or '0')) for jc in group['job_cards'])
+            paid  = sum(Decimal(str(jc.get('paid_amount')  or '0')) for jc in group['job_cards'])
+            outstanding = total - paid
+            completed   = sum(1 for jc in group['job_cards'] if jc.get('job_card_status') == 'COMPLETED')
+            in_progress = len(group['job_cards']) - completed
+
+            if total <= 0:
+                pay_status = 'unpaid'
+            elif paid >= total:
+                pay_status = 'paid'
+            elif paid > 0:
+                pay_status = 'partial'
+            else:
+                pay_status = 'unpaid'
+
+            result.append({
+                **group,
+                'total_amount':     str(total.quantize(Decimal('0.01'))),
+                'paid_amount':      str(paid.quantize(Decimal('0.01'))),
+                'outstanding':      str(outstanding.quantize(Decimal('0.01'))),
+                'payment_status':   pay_status,
+                'job_card_count':   len(group['job_cards']),
+                'completed_count':  completed,
+                'in_progress_count': in_progress,
+            })
+
+        result.sort(key=lambda g: g['garage_name'])
+        return Response(result)
+
+
+# ─── Garage Group Payment ──────────────────────────────────────────────────────
+# Distributes a single payment amount across a garage's outstanding job cards
+# (oldest first). Creates individual JobCardPayment records atomically.
+
+class GaragePaymentView(APIView):
+    @transaction.atomic
+    def post(self, request):
+        garage_id      = request.data.get('garage_id')
+        try:
+            amount     = Decimal(str(request.data.get('amount', '0')))
+        except Exception:
+            return Response({'error': 'Invalid amount'}, status=status.HTTP_400_BAD_REQUEST)
+        payment_method = request.data.get('payment_method', 'cash')
+        payment_date   = request.data.get('payment_date') or str(_date.today())
+        notes          = request.data.get('notes', '')
+
+        if not garage_id:
+            return Response({'error': 'garage_id required'}, status=status.HTTP_400_BAD_REQUEST)
+        if amount <= 0:
+            return Response({'error': 'Amount must be greater than 0'}, status=status.HTTP_400_BAD_REQUEST)
+
+        job_cards = list(
+            JobCard.objects.filter(garage_owner_id=garage_id)
+            .prefetch_related('payments', 'job_card_services', 'sales_products')
+            .order_by('job_card_date', 'id')
+        )
+
+        remaining = amount
+        payments_created = []
+
+        for jc in job_cards:
+            if remaining <= Decimal('0.00'):
+                break
+            svc_total = sum(s.price_at_time for s in jc.job_card_services.all())
+            sales_total = sum(
+                sp.unit_price * sp.quantity
+                for sp in jc.sales_products.all()
+            )
+            paid_so_far = sum(p.amount for p in jc.payments.all())
+            outstanding = (svc_total + sales_total) - paid_so_far
+
+            if outstanding <= Decimal('0.00'):
+                continue
+
+            pay_this = min(remaining, outstanding)
+            JobCardPayment.objects.create(
+                job_card=jc,
+                amount=pay_this,
+                payment_date=payment_date,
+                payment_method=payment_method,
+                notes=notes or 'Garage group payment',
+            )
+            payments_created.append({
+                'job_card_id':     jc.id,
+                'job_card_number': jc.job_card_number,
+                'amount':          str(pay_this.quantize(Decimal('0.01'))),
+                'outstanding_was': str(outstanding.quantize(Decimal('0.01'))),
+            })
+            remaining -= pay_this
+
+        return Response({
+            'payments_created':  payments_created,
+            'total_applied':     str((amount - remaining).quantize(Decimal('0.01'))),
+            'remaining':         str(remaining.quantize(Decimal('0.01'))),
+        }, status=status.HTTP_201_CREATED)

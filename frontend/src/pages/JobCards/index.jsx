@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, ClipboardList, Filter, Search, ChevronRight, Pencil, FileText } from 'lucide-react';
+import { Plus, ClipboardList, Filter, Search, ChevronRight, Pencil, FileText, Warehouse } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Button from '../../components/Button';
 import Loading from '../../components/Loading';
@@ -10,12 +10,13 @@ import Table from '../../components/Table';
 import { Input, Select } from '../../components/Field';
 import SearchableSelect from '../../components/SearchableSelect';
 import { useToast } from '../../components/Toast';
-import { listJobCards, listJobCardsByType, getCustomerTiers } from '../../api/jobcards';
+import { listJobCards, listJobCardsByType, getCustomerTiers, listGarageGroups, createGaragePayment } from '../../api/jobcards';
 import { listVehicleCompanies, listVehicleModels } from '../../api/customers';
 import { listEmployees } from '../../api/employees';
 import { extractError } from '../../api/axios';
 import { jobCardTotal } from '../../utils/jobcard';
 import { downloadJobCardInvoice } from '../../utils/invoice';
+import { downloadGarageInvoice } from '../../utils/garageInvoice';
 
 /* ─── Stat card definitions ─────────────────────────────────────────────────
    img   → Unsplash photo URL (loaded via <img> tag so onError works reliably)
@@ -470,7 +471,14 @@ export default function JobCardsList() {
         onAdded={() => setRefreshKey(k => k + 1)}
       />
 
-      {loading ? (
+      {ownerTypeFilter === 'garage' ? (
+        <GarageGroupsView
+          statusFilter={statusFilter}
+          dateFilter={dateFilter}
+          employeeFilter={employeeFilter}
+          refreshTrigger={refreshKey}
+        />
+      ) : loading ? (
         <Loading />
       ) : filtered.length === 0 ? (
         <EmptyState
@@ -494,6 +502,393 @@ export default function JobCardsList() {
           onRowClick={(r) => navigate(`/jobcards/${r.id}`)}
         />
       )}
+    </div>
+  );
+}
+
+/* ─── Garage Groups View ─────────────────────────────────────────────────────
+   Shown in place of the regular table when ownerTypeFilter === 'garage'.
+   Fetches grouped garage data from the backend and renders one accordion row
+   per garage owner.
+────────────────────────────────────────────────────────────────────────────── */
+function GarageGroupsView({ statusFilter, dateFilter, employeeFilter, refreshTrigger }) {
+  const toast = useToast();
+  const navigate = useNavigate();
+  const [groups, setGroups]     = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [expanded, setExpanded] = useState({});
+  const [payGroup, setPayGroup] = useState(null);
+  const [search, setSearch]     = useState('');
+
+  const load = (sf, df, ef) => {
+    setLoading(true);
+    const params = {};
+    if (sf) params.status   = sf;
+    if (df) params.date     = df;
+    if (ef) params.employee = ef;
+    listGarageGroups(params)
+      .then(d => setGroups(Array.isArray(d) ? d : (d.results || [])))
+      .catch(err => toast.error(extractError(err)))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(statusFilter, dateFilter, employeeFilter); },
+    [statusFilter, dateFilter, employeeFilter, refreshTrigger]); // eslint-disable-line
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return groups;
+    const s = search.toLowerCase();
+    return groups.filter(g =>
+      (g.garage_name  || '').toLowerCase().includes(s) ||
+      (g.garage_phone || '').toLowerCase().includes(s)
+    );
+  }, [groups, search]);
+
+  const toggle = (id) => setExpanded(e => ({ ...e, [id]: !e[id] }));
+
+  if (loading) return <Loading />;
+  if (!filtered.length) return (
+    <EmptyState
+      icon={Warehouse}
+      title="No garage job cards found"
+      message="No job cards linked to garage owners match the current filters."
+    />
+  );
+
+  return (
+    <div className="space-y-3">
+      <div className="relative">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+        <input
+          className="w-full bg-bg-card border border-border rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-accent/40"
+          placeholder="Search garage by name or phone…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+      </div>
+
+      {filtered.map(group => {
+        const open        = !!expanded[group.garage_id];
+        const outstanding = Number(group.outstanding || 0);
+        const payStatus   = PAY_STATUS[group.payment_status] || PAY_STATUS.unpaid;
+
+        return (
+          <div key={group.garage_id} className="bg-bg-card border border-border rounded-xl overflow-hidden">
+            {/* ── Garage header row ── */}
+            <div
+              className="flex items-center gap-3 p-4 cursor-pointer hover:bg-bg-hover transition-colors select-none"
+              onClick={() => toggle(group.garage_id)}
+            >
+              <ChevronRight
+                size={16}
+                className={`text-gray-500 transition-transform duration-200 shrink-0 ${open ? 'rotate-90' : ''}`}
+              />
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold text-sky-300">{group.garage_name}</span>
+                  {group.garage_phone && (
+                    <span className="text-xs text-gray-500">{group.garage_phone}</span>
+                  )}
+                  {group.garage_location && (
+                    <span className="text-xs text-gray-600">{group.garage_location}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 mt-1 flex-wrap text-[11px] text-gray-500">
+                  <span>{group.job_card_count} vehicle{group.job_card_count !== 1 ? 's' : ''}</span>
+                  <span className="text-emerald-400">{group.completed_count} done</span>
+                  {group.in_progress_count > 0 && (
+                    <span className="text-yellow-400">{group.in_progress_count} in progress</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="text-right shrink-0">
+                <div className="font-semibold text-gray-100">
+                  ₹{Number(group.total_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </div>
+                {outstanding > 0 && (
+                  <div className="text-xs text-red-400 mt-0.5">
+                    ₹{outstanding.toLocaleString('en-IN', { minimumFractionDigits: 2 })} due
+                  </div>
+                )}
+              </div>
+
+              <span className={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full border ${payStatus.cls} shrink-0`}>
+                {payStatus.label}
+              </span>
+
+              <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => downloadGarageInvoice(group)}
+                  title="Download group invoice"
+                >
+                  <FileText size={13} />
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => setPayGroup(group)}
+                  variant={group.payment_status === 'paid' ? 'secondary' : 'primary'}
+                >
+                  {group.payment_status === 'paid' ? 'View' : 'Pay Group'}
+                </Button>
+              </div>
+            </div>
+
+            {/* ── Individual job cards (expanded) ── */}
+            {open && (
+              <div className="border-t border-border">
+                {(group.job_cards || []).map(jc => {
+                  const jcPay = PAY_STATUS[jc.payment_status] || PAY_STATUS.unpaid;
+                  const jcDue = Number(jc.outstanding || 0);
+                  return (
+                    <div
+                      key={jc.id}
+                      className="flex items-center gap-3 px-6 py-3 border-b border-border/50 hover:bg-bg-hover/50 cursor-pointer"
+                      onClick={() => navigate(`/jobcards/${jc.id}`)}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-violet-300 font-semibold text-sm">{jc.job_card_number}</span>
+                          <span className="text-sky-300 font-medium">{jc.vehicle_number}</span>
+                          {(jc.vehicle_company || jc.vehicle_model) && (
+                            <span className="text-[11px] text-gray-500">
+                              {[jc.vehicle_company, jc.vehicle_model].filter(Boolean).join(' · ')}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-gray-500 mt-0.5">
+                          {jc.job_card_date}{jc.employee_name ? ` · ${jc.employee_name}` : ''}
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0 text-sm">
+                        <div className="text-gray-100">
+                          ₹{Number(jc.total_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </div>
+                        {jcDue > 0 && (
+                          <div className="text-[11px] text-red-400">
+                            ₹{jcDue.toLocaleString('en-IN', { minimumFractionDigits: 2 })} due
+                          </div>
+                        )}
+                      </div>
+
+                      <Badge variant={jc.job_card_status === 'COMPLETED' ? 'green' : 'yellow'}>
+                        {jc.job_card_status === 'COMPLETED' ? 'Done' : 'In Progress'}
+                      </Badge>
+
+                      <span className={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full border ${jcPay.cls} shrink-0`}>
+                        {jcPay.label}
+                      </span>
+
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={e => { e.stopPropagation(); downloadJobCardInvoice(jc); }}
+                        title="Download invoice"
+                      >
+                        <FileText size={13} />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {payGroup && (
+        <GaragePaymentModal
+          group={payGroup}
+          onClose={() => setPayGroup(null)}
+          onPaid={() => {
+            setPayGroup(null);
+            load(statusFilter, dateFilter, employeeFilter);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ─── Garage Payment Modal ────────────────────────────────────────────────────
+   Shows all outstanding job cards for the garage, lets the user enter an
+   amount, previews distribution (oldest-first), then submits to the backend.
+────────────────────────────────────────────────────────────────────────────── */
+function GaragePaymentModal({ group, onClose, onPaid }) {
+  const toast = useToast();
+  const [amount,     setAmount]     = useState('');
+  const [method,     setMethod]     = useState('cash');
+  const [payDate,    setPayDate]    = useState(new Date().toISOString().split('T')[0]);
+  const [notes,      setNotes]      = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const outstanding     = Number(group.outstanding || 0);
+  const outstandingCards = useMemo(() =>
+    (group.job_cards || [])
+      .filter(jc => Number(jc.outstanding || 0) > 0)
+      .sort((a, b) => new Date(a.job_card_date) - new Date(b.job_card_date) || a.id - b.id),
+    [group]
+  );
+
+  // Live distribution preview (mirrors backend oldest-first logic)
+  const distribution = useMemo(() => {
+    const amt = Number(amount);
+    if (!amt || amt <= 0) return [];
+    let remaining = amt;
+    const dist = [];
+    for (const jc of outstandingCards) {
+      if (remaining <= 0) break;
+      const due   = Number(jc.outstanding || 0);
+      const apply = Math.min(remaining, due);
+      dist.push({ ...jc, apply });
+      remaining -= apply;
+    }
+    return dist;
+  }, [amount, outstandingCards]);
+
+  const handleSubmit = async () => {
+    const amt = Number(amount);
+    if (!amt || amt <= 0) { toast.error('Enter a valid amount'); return; }
+    setSubmitting(true);
+    try {
+      await createGaragePayment({
+        garage_id:      group.garage_id,
+        amount:         amt,
+        payment_method: method,
+        payment_date:   payDate,
+        notes,
+      });
+      toast.success('Payment recorded');
+      onPaid();
+    } catch (err) {
+      toast.error(extractError(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="bg-bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="p-6">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="text-lg font-bold text-gray-100">Group Payment</h2>
+              <p className="text-sm text-sky-400 mt-0.5">{group.garage_name}</p>
+            </div>
+            <button onClick={onClose} className="text-gray-500 hover:text-gray-300 text-2xl font-bold leading-none">×</button>
+          </div>
+
+          {/* Total outstanding pill */}
+          <div className="bg-bg-hover rounded-xl p-3 mb-4 flex items-center justify-between">
+            <span className="text-sm text-gray-400">Total Outstanding</span>
+            <span className="text-xl font-bold text-red-400">
+              ₹{outstanding.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+
+          {/* Per-card outstanding list */}
+          {outstandingCards.length > 0 && (
+            <div className="mb-4">
+              <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">Outstanding Job Cards</div>
+              <div className="space-y-1.5">
+                {outstandingCards.map(jc => (
+                  <div key={jc.id} className="flex items-center justify-between text-sm bg-bg-hover/50 rounded-lg px-3 py-2">
+                    <div>
+                      <span className="text-violet-300 font-medium">{jc.job_card_number}</span>
+                      <span className="text-gray-500 ml-2">{jc.vehicle_number}</span>
+                    </div>
+                    <span className="text-red-400 font-semibold">
+                      ₹{Number(jc.outstanding).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Inputs */}
+          <div className="space-y-3 mb-4">
+            <div>
+              <label className="text-xs text-gray-500 uppercase tracking-wide mb-1 block">Payment Amount (₹)</label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={amount}
+                  onChange={e => setAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="flex-1 bg-bg-hover border border-border rounded-lg px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-accent/40"
+                />
+                <Button variant="secondary" size="sm" onClick={() => setAmount(String(outstanding))}>
+                  Full
+                </Button>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs text-gray-500 uppercase tracking-wide mb-1 block">Payment Method</label>
+              <Select value={method} onChange={e => setMethod(e.target.value)}>
+                <option value="cash">Cash</option>
+                <option value="upi">UPI</option>
+                <option value="card">Card</option>
+                <option value="netbanking">Net Banking</option>
+                <option value="cheque">Cheque</option>
+                <option value="other">Other</option>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-xs text-gray-500 uppercase tracking-wide mb-1 block">Date</label>
+              <Input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} />
+            </div>
+
+            <div>
+              <label className="text-xs text-gray-500 uppercase tracking-wide mb-1 block">Notes</label>
+              <Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional notes…" />
+            </div>
+          </div>
+
+          {/* Live distribution preview */}
+          {distribution.length > 0 && (
+            <div className="mb-4 bg-emerald-950/30 border border-emerald-800/30 rounded-xl p-3">
+              <div className="text-xs text-emerald-500 uppercase tracking-wide mb-2">Distribution Preview (oldest first)</div>
+              <div className="space-y-1">
+                {distribution.map(d => (
+                  <div key={d.id} className="flex items-center justify-between text-sm">
+                    <div>
+                      <span className="text-violet-300">{d.job_card_number}</span>
+                      <span className="text-gray-500 ml-2">{d.vehicle_number}</span>
+                    </div>
+                    <span className="text-emerald-400 font-semibold">
+                      +₹{d.apply.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {Number(amount) > outstanding && (
+                <div className="mt-2 text-xs text-yellow-400">
+                  ⚠ Amount exceeds total outstanding by ₹{(Number(amount) - outstanding).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-3">
+            <Button variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
+            <Button className="flex-1" onClick={handleSubmit} disabled={submitting || !amount || Number(amount) <= 0}>
+              {submitting ? 'Processing…' : 'Record Payment'}
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
