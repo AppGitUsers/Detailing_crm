@@ -24,6 +24,7 @@ import Finance from './pages/Finance';
 import Kiosk from './pages/Kiosk';
 import Settings from './pages/Settings';
 import Notifications from './pages/Notifications';
+import UserGuide from './pages/UserGuide';
 
 export default function App() {
   return (
@@ -52,6 +53,7 @@ export default function App() {
             <Route path="kiosk" element={<Kiosk />} />
             <Route path="settings" element={<Settings />} />
             <Route path="notifications" element={<Notifications />} />
+            <Route path="guide" element={<UserGuide />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
