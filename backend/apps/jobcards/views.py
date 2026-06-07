@@ -74,10 +74,16 @@ class JobCardListCreateView(APIView):
         model       = request.query_params.get('model')
         vehicle_id  = request.query_params.get('vehicle_id')
         owner_type  = request.query_params.get('owner_type')  # 'customer' | 'garage'
+        date_from   = request.query_params.get('date_from')
+        date_to     = request.query_params.get('date_to')
         if job_status:
             qs = qs.filter(job_card_status=job_status)
         if date:
             qs = qs.filter(job_card_date=date)
+        if date_from:
+            qs = qs.filter(job_card_date__gte=date_from)
+        if date_to:
+            qs = qs.filter(job_card_date__lte=date_to)
         if employee:
             qs = qs.filter(employee_id=employee)
         if company:
