@@ -15,6 +15,7 @@ import { getSalesAnalytics, createSalesOrder, deleteSalesOrder, lookupCustomer }
 import { listSalesInventory } from '../../api/jobcards';
 import { extractError }       from '../../api/axios';
 import { downloadSalesInvoice } from '../../utils/salesInvoice';
+import UpiQr from '../../components/UpiQr';
 
 const fmt  = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtD = (s) => s ? new Date(s + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
@@ -603,6 +604,7 @@ function NewSaleModal({ open, onClose, onSaved }) {
             </Select>
           </Field>
         </div>
+        {payMethod === 'upi' && <UpiQr amount={grandTotal} />}
 
         {/* ── Product selection ── */}
         <div>

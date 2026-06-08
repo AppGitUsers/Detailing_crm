@@ -11,6 +11,7 @@ import Loading from '../../components/Loading';
 import { Input, Select } from '../../components/Field';
 import { useToast } from '../../components/Toast';
 import { getGarageGroup, createGaragePayment } from '../../api/jobcards';
+import UpiQr from '../../components/UpiQr';
 import { extractError } from '../../api/axios';
 import { downloadJobCardInvoice } from '../../utils/invoice';
 import { downloadGarageInvoice } from '../../utils/garageInvoice';
@@ -390,6 +391,7 @@ function GaragePaymentModal({ group, onClose, onPaid }) {
                 <option value="other">Other</option>
               </Select>
             </div>
+            {method === 'upi' && <UpiQr amount={amount} />}
             <div>
               <label className="text-xs text-gray-500 uppercase tracking-wide mb-1 block">Date</label>
               <Input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} />

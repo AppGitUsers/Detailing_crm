@@ -36,7 +36,11 @@
       "Bash(backend/venv/Scripts/python.exe -c ' *)",
       "Bash(Get-ChildItem -Path \"d:\\\\Projects\\\\Detailing_crm\" -Directory)",
       "Bash(Select-Object Name)",
-      "Bash(python manage.py migrate site_settings)"
+      "Bash(python manage.py migrate site_settings)",
+      "Bash(xargs grep -l \"whatsapp\\\\|WhatsApp\")",
+      "Bash(xargs grep -l \"QR\\\\|qr\\\\|payment\\\\|Payment\")",
+      "Bash(xargs grep -l \"Sales\\\\|Garage\")",
+      "Bash(.\\\\venv\\\\Scripts\\\\python.exe manage.py migrate site_settings 0008_auto_absent_settings)"
     ],
     "additionalDirectories": [
       "C:\\Users\\HP-PC\\.claude\\projects\\d--Projects-Detailing-crm"

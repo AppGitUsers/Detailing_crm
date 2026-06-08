@@ -14,6 +14,7 @@ class Notification(models.Model):
         ('garage_all_completed',   'Garage All Completed'),
         ('low_stock_alert',        'Low Stock Alert'),
         ('salary_processed',       'Salary Processed'),
+        ('member_absent',          'Member Absent'),
     ]
 
     recipient_name  = models.CharField(max_length=255)

@@ -606,6 +606,7 @@ const NOTIFY_TOGGLES = [
   { key: 'NOTIFY_GARAGE_ALL_COMPLETED',  label: 'Garage All Jobs Done',       desc: 'Sent to garage owner when all their job cards are completed' },
   { key: 'NOTIFY_LOW_STOCK',             label: 'Low Stock Alert',            desc: 'Sent to admin when inventory drops below minimum threshold' },
   { key: 'NOTIFY_SALARY',               label: 'Salary Processed',           desc: 'Sent to employee when salary is processed' },
+  { key: 'NOTIFY_AUTO_ABSENT',          label: 'Auto-Absent Alert',           desc: 'Sent to employee and admin when someone is auto-marked absent' },
 ];
 
 function NotificationTogglesCard({ values, onChange }) {

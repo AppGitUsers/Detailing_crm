@@ -41,6 +41,14 @@ TEMPLATES = {
         "Hi {name}, your salary of ₹{amount} for {month} has been processed at {business_name}. "
         "Thank you for your hard work!"
     ),
+    "member_absent": (
+        "Hi {name}, you have been marked absent today ({date}) at {business_name} "
+        "as no check-in was recorded after your shift start time."
+    ),
+    "member_absent_admin": (
+        "Absent Alert — {business_name}: {name} ({employee_code}) has been marked absent today ({date}). "
+        "No check-in was recorded {threshold}h after their shift start time."
+    ),
 }
 
 _TRIGGER_SETTING_KEY = {
@@ -53,6 +61,8 @@ _TRIGGER_SETTING_KEY = {
     "garage_all_completed":    "NOTIFY_GARAGE_ALL_COMPLETED",
     "low_stock_alert":         "NOTIFY_LOW_STOCK",
     "salary_processed":        "NOTIFY_SALARY",
+    "member_absent":           "NOTIFY_AUTO_ABSENT",
+    "member_absent_admin":     "NOTIFY_AUTO_ABSENT",
 }
 
 
@@ -82,6 +92,15 @@ def _get_business_name() -> str:
         return Setting.objects.get(field_name='business_name').value or 'Detailing Workshop'
     except Setting.DoesNotExist:
         return 'Detailing Workshop'
+
+
+def _get_absent_threshold_hours() -> float:
+    from apps.site_settings.models import Setting
+    try:
+        val = Setting.objects.get(field_name='auto_absent_threshold_hours').value
+        return float(val) if val else 1.0
+    except (Setting.DoesNotExist, ValueError):
+        return 1.0
 
 
 def _get_admin_phone() -> str:
