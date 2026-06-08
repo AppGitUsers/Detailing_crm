@@ -993,7 +993,7 @@ class SalesAnalyticsView(APIView):
 
         sorted_products = sorted(merged_products.values(), key=lambda x: x['revenue'], reverse=True)
         top_products    = sorted_products[:5]
-        bottom_products = sorted_products[-5:] if len(sorted_products) > 5 else []
+        bottom_products = sorted(merged_products.values(), key=lambda x: x['revenue'])[:5]
 
         # ── 4. Combined customer ranking ──────────────────────────────────
         merged_customers = {}
@@ -1106,7 +1106,7 @@ class SalesAnalyticsView(APIView):
                 'bottom_products':    [
                     {'name': p['name'], 'brand': p['brand'],
                      'quantity': str(p['quantity']), 'revenue': str(p['revenue'].quantize(Decimal('0.01')))}
-                    for p in reversed(bottom_products)
+                    for p in bottom_products
                 ],
                 'top_customers':      [
                     {'name': c['name'], 'phone': c['phone'],

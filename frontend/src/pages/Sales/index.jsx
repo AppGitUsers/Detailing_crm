@@ -30,15 +30,19 @@ function BarChart({ rows, valueKey = 'revenue', labelKey = 'name', color = '#38b
   return (
     <div>
       {title && <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">{title}</div>}
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         {rows.map((r, i) => {
           const val = Number(r[valueKey] || 0);
+          const qty = Number(r.quantity || 0);
           const pct = max > 0 ? (val / max) * 100 : 0;
           return (
             <div key={i}>
               <div className="flex justify-between text-xs mb-0.5">
-                <span className="text-gray-300 truncate max-w-[60%]">{r[labelKey]}{r.brand ? ` · ${r.brand}` : ''}</span>
-                <span style={{ color }}>{valueKey === 'revenue' ? fmt(val) : val}</span>
+                <span className="text-gray-300 truncate max-w-[55%]">{r[labelKey]}{r.brand ? ` · ${r.brand}` : ''}</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-gray-500">{qty} unit{qty !== 1 ? 's' : ''}</span>
+                  <span style={{ color }} className="font-medium">{fmt(val)}</span>
+                </div>
               </div>
               <div className="h-1.5 rounded-full bg-bg-elev overflow-hidden">
                 <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
