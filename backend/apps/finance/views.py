@@ -439,7 +439,7 @@ class DailyReportView(APIView):
                 total_qty=Sum('quantity_used'),
                 unit_amount=Max('product__unit_amount'),
             )
-            .order_by('-total_qty')
+            .order_by('-total_qty')[:5]
         )
         product_usage = [
             {

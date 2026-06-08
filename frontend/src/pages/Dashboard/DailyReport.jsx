@@ -773,7 +773,7 @@ export default function DailyReport() {
                 <Package size={14} className="text-cyan-400" />
                 Inventory Products Consumed
                 <span className="ml-auto text-xs text-gray-500 font-normal">
-                  {report.product_usage.length} product{report.product_usage.length !== 1 ? 's' : ''} used today
+                  Top {report.product_usage.length} most consumed today
                 </span>
               </h3>
 
