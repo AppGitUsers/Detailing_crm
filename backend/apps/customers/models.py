@@ -72,6 +72,8 @@ class Customer(models.Model):
 
     def save(self, *args, **kwargs):
         self.phone_number = normalize_phone(self.phone_number)
+        if not self.email:
+            self.email = None
         super().save(*args, **kwargs)
 
     def __str__(self):
