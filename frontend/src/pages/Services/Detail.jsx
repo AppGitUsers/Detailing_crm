@@ -7,6 +7,7 @@ import Loading from '../../components/Loading';
 import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { Field, Input, Select } from '../../components/Field';
+import SearchableSelect from '../../components/SearchableSelect';
 import { useToast } from '../../components/Toast';
 import {
   getService,
@@ -217,12 +218,15 @@ function AddProductModal({ open, onClose, onSaved, serviceId, products, existing
       }
     >
       <Field label="Product" required>
-        <Select value={productId} onChange={(e) => setProductId(e.target.value)}>
-          <option value="">Select product...</option>
-          {available.map((p) => (
-            <option key={p.id} value={p.id}>{p.product_name} ({p.product_unit})</option>
-          ))}
-        </Select>
+        <SearchableSelect
+          value={productId}
+          onChange={setProductId}
+          placeholder="Select product…"
+          options={available.map(p => ({
+            value: String(p.id),
+            label: `${p.product_name} (${p.product_unit})`,
+          }))}
+        />
       </Field>
     </Modal>
   );
