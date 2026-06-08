@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   Download, Calendar, TrendingUp, Car, AlertCircle,
   Wallet, CreditCard, Banknote, ArrowUpCircle, ArrowDownCircle,
-  CheckCircle2, Clock,
+  CheckCircle2, Clock, Package,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
@@ -275,6 +275,49 @@ function generateHTML(r) {
         })()
     }
   </div>
+
+  <!-- Inventory Products Used -->
+  ${(r.product_usage || []).length > 0 ? (() => {
+    const UNIT = { l:'L', ml:'ml', kg:'kg', g:'g', pcs:'pcs', pair:'pair', set:'set', m:'m', ft:'ft' };
+    const maxQty = Number(r.product_usage[0].total_qty);
+    const fmtN = n => n % 1 === 0 ? String(n) : n.toFixed(2);
+    const prodRows = r.product_usage.map((p, i) => {
+      const qty   = Number(p.total_qty);
+      const ua    = Number(p.unit_amount);
+      const total = qty * ua;
+      const pct   = maxQty > 0 ? Math.round((qty / maxQty) * 100) : 0;
+      const uLabel = UNIT[p.unit] || p.unit;
+      const medals = ['🥇', '🥈', '🥉'];
+      return `<tr>
+        <td style="width:28px;text-align:center;color:#6b7280;font-family:monospace">${medals[i] || (i + 1)}</td>
+        <td>
+          <div style="font-weight:500;color:#e5e7eb">${p.product_name}</div>
+          ${p.brand ? `<div style="font-size:10px;color:#6b7280">${p.brand}</div>` : ''}
+        </td>
+        <td style="width:200px">
+          <div style="height:8px;background:#1a1e27;border-radius:4px;overflow:hidden">
+            <div style="height:100%;width:${pct}%;background:#06b6d4;border-radius:4px"></div>
+          </div>
+        </td>
+        <td style="text-align:right;white-space:nowrap">
+          <div style="color:#67e8f9;font-weight:600">${fmtN(qty)} × ${fmtN(ua)} ${uLabel}</div>
+          <div style="color:#22d3ee;font-size:10px">= ${fmtN(total)} ${uLabel}</div>
+        </td>
+      </tr>`;
+    }).join('');
+    return `<div class="section">
+      <h2 style="color:#06b6d4">📦 Inventory Products Consumed (${r.product_usage.length})</h2>
+      <table>
+        <thead><tr>
+          <th style="width:28px">#</th>
+          <th>Product</th>
+          <th>Usage</th>
+          <th style="text-align:right">Qty</th>
+        </tr></thead>
+        <tbody>${prodRows}</tbody>
+      </table>
+    </div>`;
+  })() : ''}
 
   <!-- Pending Sales -->
   ${r.pending_sales.length > 0 ? `
@@ -722,6 +765,84 @@ export default function DailyReport() {
               </div>
               </>
             )}
+          </div>
+
+          {/* ── 4. Inventory Products Used ──────────────────────── */}
+          <div className="bg-bg rounded-xl border border-border p-4">
+              <h3 className="text-sm font-semibold text-gray-200 mb-4 flex items-center gap-2">
+                <Package size={14} className="text-cyan-400" />
+                Inventory Products Consumed
+                <span className="ml-auto text-xs text-gray-500 font-normal">
+                  {report.product_usage.length} product{report.product_usage.length !== 1 ? 's' : ''} used today
+                </span>
+              </h3>
+
+              {(report.product_usage || []).length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-6">No product usage recorded for this date</p>
+              ) : (<>
+              {/* Top-3 highlight chips */}
+              <div className="flex flex-wrap gap-2 mb-4">
+                {report.product_usage.slice(0, 3).map((p, i) => {
+                  const UNIT   = { l:'L', ml:'ml', kg:'kg', g:'g', pcs:'pcs', pair:'pair', set:'set', m:'m', ft:'ft' };
+                  const qty    = Number(p.total_qty);
+                  const ua     = Number(p.unit_amount);
+                  const total  = qty * ua;
+                  const fmtN   = n => n % 1 === 0 ? String(n) : n.toFixed(2);
+                  const uLabel = UNIT[p.unit] || p.unit;
+                  const colors = [
+                    'border-amber-600/40 bg-amber-900/20 text-amber-300',
+                    'border-gray-600/40  bg-gray-800/40  text-gray-300',
+                    'border-orange-700/40 bg-orange-900/20 text-orange-300',
+                  ];
+                  const medals = ['🥇', '🥈', '🥉'];
+                  return (
+                    <div key={i} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium ${colors[i]}`}>
+                      <span>{medals[i]}</span>
+                      <span>{p.product_name}{p.brand ? ` · ${p.brand}` : ''}</span>
+                      <span className="opacity-60">—</span>
+                      <span>{fmtN(qty)} × {fmtN(ua)} {uLabel} = {fmtN(total)} {uLabel}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Horizontal bar rows */}
+              <div className="space-y-2.5">
+                {report.product_usage.map((p, i) => {
+                  const UNIT    = { l:'L', ml:'ml', kg:'kg', g:'g', pcs:'pcs', pair:'pair', set:'set', m:'m', ft:'ft' };
+                  const maxQty  = Number(report.product_usage[0].total_qty);
+                  const qty     = Number(p.total_qty);
+                  const ua      = parseFloat(p.unit_amount) || 1;
+                  const total   = qty * ua;
+                  const pct     = maxQty > 0 ? (qty / maxQty) * 100 : 0;
+                  const fmtN    = n => n % 1 === 0 ? String(n) : n.toFixed(2);
+                  const unitLabel = UNIT[p.unit] || p.unit;
+                  return (
+                    <div key={i} className="flex items-center gap-3">
+                      {/* Rank */}
+                      <div className="w-5 text-center text-[11px] text-gray-600 font-mono shrink-0">{i + 1}</div>
+                      {/* Name + brand */}
+                      <div className="w-40 shrink-0">
+                        <div className="text-xs font-medium text-gray-200 truncate">{p.product_name}</div>
+                        {p.brand && <div className="text-[10px] text-gray-500 truncate">{p.brand}</div>}
+                      </div>
+                      {/* Bar */}
+                      <div className="flex-1 h-4 bg-bg-elev rounded-full overflow-hidden">
+                        <div className="h-full rounded-full bg-cyan-500/60" style={{ width: `${pct}%` }} />
+                      </div>
+                      {/* qty × unit_amount unit */}
+                      <div className="w-32 text-right text-xs shrink-0">
+                        <span className="font-semibold text-cyan-300">{fmtN(qty)}</span>
+                        <span className="text-gray-500 mx-0.5">×</span>
+                        <span className="text-gray-400">{fmtN(ua)}</span>
+                        <span className="text-gray-500 ml-0.5">{unitLabel}</span>
+                        <div className="text-[10px] text-cyan-500/70">= {fmtN(total)} {unitLabel}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>)}
           </div>
 
           {/* ── 5. Pending / Credit Sales ───────────────────────── */}

@@ -1,12 +1,12 @@
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime, date
 
-from django.db.models import Q, Sum, Count
+from django.db.models import Q, Sum, Count, Max
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
-from apps.jobcards.models import JobCard, JobCardPayment
+from apps.jobcards.models import JobCard, JobCardPayment, JobCardProductUsage
 from apps.employees.models import SalaryTransaction, SalaryAdvance
 from apps.vendors.models import InvoicePayment
 
@@ -426,6 +426,32 @@ class DailyReportView(APIView):
         opening_bal = collected_before - exp_before
         closing_bal = opening_bal + collected_today - total_expenses
 
+        # ── Inventory products consumed on this date (most used first) ─────
+        usage_qs = (
+            JobCardProductUsage.objects
+            .filter(job_card_product__job_card_service__job_card__job_card_date=report_date)
+            .values(
+                'product__product__product_name',
+                'product__brand',
+                'product__product__product_unit',
+            )
+            .annotate(
+                total_qty=Sum('quantity_used'),
+                unit_amount=Max('product__unit_amount'),
+            )
+            .order_by('-total_qty')
+        )
+        product_usage = [
+            {
+                'product_name': row['product__product__product_name'],
+                'brand':        row['product__brand'] or '',
+                'unit':         row['product__product__product_unit'],
+                'unit_amount':  str(row['unit_amount'] or 1),
+                'total_qty':    str(row['total_qty']),
+            }
+            for row in usage_qs
+        ]
+
         # ── Service revenue list (sorted by billed desc) ─────────────────
         service_revenue = sorted([
             {
@@ -449,6 +475,7 @@ class DailyReportView(APIView):
             'payment_breakdown': payment_breakdown,
             'service_revenue':   service_revenue,
             'pending_sales':     pending_sales,
+            'product_usage':  product_usage,
             'cash_expenses': {
                 'total': str(total_expenses),
                 'items': expense_items,
