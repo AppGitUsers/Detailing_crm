@@ -1,5 +1,6 @@
+from calendar import monthrange
 from decimal import Decimal, ROUND_HALF_UP
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 from django.db.models import Q, Sum, Count, Max
 from rest_framework.views import APIView
@@ -26,7 +27,7 @@ def _parse_month(param):
     return today.year, today.month
 
 
-def _jc_financials(jc):
+def _jc_base_gst_total(jc):
     # Service prices are GST-inclusive; back-calculate base and GST portion
     total = sum(s.price_at_time for s in jc.job_card_services.all())
     if jc.gst_percent > 0:
@@ -36,8 +37,54 @@ def _jc_financials(jc):
     else:
         base = total
         gst  = Decimal('0')
+    return base, gst, total
+
+
+def _jc_financials(jc):
+    base, gst, total = _jc_base_gst_total(jc)
     paid = sum(p.amount for p in jc.payments.all())
     return base, gst, total, paid
+
+
+def _allocate_gst_first(amount, gst_liability, cumulative_before):
+    """Split `amount` into (gst_portion, base_portion) given GST-first rule
+    and how much of the JC was already paid before this payment."""
+    cumulative_after = cumulative_before + amount
+    if cumulative_after <= gst_liability:
+        return amount, Decimal('0')
+    if cumulative_before >= gst_liability:
+        return Decimal('0'), amount
+    gst_portion = gst_liability - cumulative_before
+    return gst_portion, amount - gst_portion
+
+
+def _outstanding_thru(end_date):
+    """Returns (total, base, gst) outstanding across every JC billed on or
+    before end_date, minus payments received on or before end_date, applying
+    GST-first allocation."""
+    qs = JobCard.objects.filter(
+        job_card_date__lte=end_date,
+    ).prefetch_related('job_card_services', 'payments')
+
+    o_total = o_base = o_gst = Decimal('0')
+    for jc in qs:
+        base, gst, _ = _jc_base_gst_total(jc)
+        paid_thru = sum(
+            (p.amount for p in jc.payments.all() if p.payment_date <= end_date),
+            Decimal('0'),
+        )
+        if paid_thru <= gst:
+            gst_rem  = gst - paid_thru
+            base_rem = base
+        else:
+            gst_rem  = Decimal('0')
+            base_rem = max(Decimal('0'), base + gst - paid_thru)
+        out = gst_rem + base_rem
+        if out > 0:
+            o_total += out
+            o_base  += base_rem
+            o_gst   += gst_rem
+    return o_total, o_base, o_gst
 
 
 def _expense_for_period(year, month):
@@ -67,40 +114,75 @@ class FinanceDashboardView(APIView):
         if year is None:
             return Response({'error': 'Invalid month format. Use YYYY-MM'}, status=status.HTTP_400_BAD_REQUEST)
 
-        current_year = date.today().year
+        current_year      = date.today().year
+        end_of_month      = date(year, month, monthrange(year, month)[1])
+        end_of_prev_month = date(year, month, 1) - timedelta(days=1)
 
-        # ── Month job cards ──────────────────────────────
-        month_jcs = JobCard.objects.filter(
+        # ── Outstanding (cumulative, still owed right now as of end of month).
+        # Drops when payments come in this month. Drives the "Outstanding" tile.
+        out_total, _, _ = _outstanding_thru(end_of_month)
+
+        # ── To Be Collected (this-month obligation snapshot).
+        # = outstanding carried in from previous months  +  full billed amount
+        #   of JCs created this month (regardless of payments this month).
+        # Does NOT decrease when this month's payments are received; it only
+        # rolls forward when the month changes.
+        prev_total, prev_base, prev_gst = _outstanding_thru(end_of_prev_month)
+
+        this_total = this_base = this_gst = Decimal('0')
+        this_month_jcs = JobCard.objects.filter(
             job_card_date__year=year,
             job_card_date__month=month,
-        ).prefetch_related('job_card_services', 'payments')
+        ).prefetch_related('job_card_services')
+        for jc in this_month_jcs:
+            base, gst, total = _jc_base_gst_total(jc)
+            this_total += total
+            this_base  += base
+            this_gst   += gst
 
-        tbc_total = tbc_base = tbc_gst = Decimal('0')
+        tbc_total = prev_total + this_total
+        tbc_base  = prev_base  + this_base
+        tbc_gst   = prev_gst   + this_gst
+
+        # ── Collected this month: payments whose payment_date falls in this
+        # month (regardless of when the JC was created). GST-first split needs
+        # the cumulative paid for each JC before this payment.
         col_total = col_base = col_gst = Decimal('0')
 
-        for jc in month_jcs:
-            base, gst, total, paid = _jc_financials(jc)
-            outstanding = total - paid
+        month_pays = JobCardPayment.objects.filter(
+            payment_date__year=year,
+            payment_date__month=month,
+        ).select_related('job_card').prefetch_related(
+            'job_card__job_card_services',
+            'job_card__payments',
+        )
 
-            if total > 0:
-                base_r = base / total
-                gst_r  = gst  / total
-            else:
-                base_r = gst_r = Decimal('0')
+        jc_cache = {}  # jc_id -> (gst_amount, payments_chronological)
+        for p in month_pays:
+            jc_id = p.job_card_id
+            if jc_id not in jc_cache:
+                _, gst_amt, _ = _jc_base_gst_total(p.job_card)
+                ordered = sorted(
+                    p.job_card.payments.all(),
+                    key=lambda x: (x.payment_date, x.created_at),
+                )
+                jc_cache[jc_id] = (gst_amt, ordered)
+            gst_amt, ordered = jc_cache[jc_id]
 
-            if outstanding > 0:
-                tbc_total += outstanding
-                tbc_base  += (outstanding * base_r).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-                tbc_gst   += (outstanding * gst_r ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            cumulative_before = Decimal('0')
+            for pp in ordered:
+                if pp.id == p.id:
+                    break
+                cumulative_before += pp.amount
 
-            if paid > 0:
-                col_total += paid
-                col_base  += (paid * base_r).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-                col_gst   += (paid * gst_r ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            gst_portion, base_portion = _allocate_gst_first(p.amount, gst_amt, cumulative_before)
+            col_total += p.amount
+            col_base  += base_portion
+            col_gst   += gst_portion
 
-        expense_of_month   = _expense_for_period(year, month)
-        net_savings        = col_total - expense_of_month
-        outstanding_month  = tbc_total
+        expense_of_month  = _expense_for_period(year, month)
+        net_savings       = col_total - expense_of_month
+        outstanding_month = out_total
 
         # ── Yearly income (billed, current year) ─────────
         year_jcs = JobCard.objects.filter(
@@ -111,18 +193,23 @@ class FinanceDashboardView(APIView):
             yearly_income += sum(s.price_at_time for s in jc.job_card_services.all())
 
         # ── Monthly chart (12 months of current year) ────
+        # income    = billed for JCs created in that month (what was sold).
+        # collected = payments received in that month (when cash came in).
         monthly_chart = []
         for m in range(1, 13):
             m_jcs = JobCard.objects.filter(
                 job_card_date__year=current_year,
                 job_card_date__month=m,
-            ).prefetch_related('job_card_services', 'payments')
+            ).prefetch_related('job_card_services')
 
-            m_income = m_collected = Decimal('0')
+            m_income = Decimal('0')
             for jc in m_jcs:
-                base, gst, total, paid = _jc_financials(jc)
-                m_income    += total
-                m_collected += paid
+                m_income += sum(s.price_at_time for s in jc.job_card_services.all())
+
+            m_collected = JobCardPayment.objects.filter(
+                payment_date__year=current_year,
+                payment_date__month=m,
+            ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
 
             m_expense = _expense_for_period(current_year, m)
             m_savings = m_collected - m_expense
@@ -163,53 +250,79 @@ class FinanceIncomeView(APIView):
 
         search = request.query_params.get('search', '').strip()
 
-        qs = JobCard.objects.filter(
-            job_card_date__year=year,
-            job_card_date__month=month,
-        ).prefetch_related('job_card_services__service', 'payments').select_related(
-            'customer_asset__customer'
+        # One row per payment received in this month (not per job card).
+        pay_qs = JobCardPayment.objects.filter(
+            payment_date__year=year,
+            payment_date__month=month,
+        ).select_related(
+            'job_card__customer_asset__customer',
+        ).prefetch_related(
+            'job_card__job_card_services__service',
         )
 
         if search:
-            qs = qs.filter(
-                Q(job_card_number__icontains=search) |
-                Q(customer_asset__customer__customer_name__icontains=search) |
-                Q(customer_asset__vehicle_number__icontains=search)
+            pay_qs = pay_qs.filter(
+                Q(job_card__job_card_number__icontains=search) |
+                Q(job_card__customer_asset__customer__customer_name__icontains=search) |
+                Q(job_card__customer_asset__vehicle_number__icontains=search)
             )
 
-        results = []
-        for jc in qs.order_by('-job_card_date'):
-            base, gst, total, paid = _jc_financials(jc)
-            outstanding = total - paid
+        # Cache per-JC totals + chronological payment list so outstanding-after-this-payment
+        # can be computed cheaply when multiple payments belong to the same job card.
+        jc_cache = {}
 
-            if total <= 0:
-                pstatus = 'unpaid'
-            elif paid >= total:
-                pstatus = 'paid'
-            elif paid > 0:
-                pstatus = 'partial'
+        results = []
+        for p in pay_qs.order_by('-payment_date', '-created_at'):
+            jc = p.job_card
+            if jc.id not in jc_cache:
+                base, gst, total, _ = _jc_financials(jc)
+                ordered_pays = list(jc.payments.order_by('payment_date', 'created_at'))
+                jc_cache[jc.id] = {
+                    'base': base, 'gst': gst, 'total': total,
+                    'ordered_pays': ordered_pays,
+                }
+            info = jc_cache[jc.id]
+
+            cumulative = Decimal('0')
+            for pp in info['ordered_pays']:
+                cumulative += pp.amount
+                if pp.id == p.id:
+                    break
+
+            # GST-first allocation: payments clear the GST liability first, then base.
+            jc_gst, jc_base, jc_total = info['gst'], info['base'], info['total']
+            if cumulative <= jc_gst:
+                gst_to_collect  = jc_gst - cumulative
+                base_to_collect = jc_base
             else:
-                pstatus = 'unpaid'
+                gst_to_collect  = Decimal('0')
+                base_to_collect = max(Decimal('0'), jc_total - cumulative)
+            outstanding_after = gst_to_collect + base_to_collect
+
+            pstatus = 'paid' if outstanding_after <= 0 else 'partial'
 
             service_names = ', '.join(
                 s.service.service_name for s in jc.job_card_services.all()
             )
 
             results.append({
-                'id':             jc.id,
-                'date':           jc.job_card_date.isoformat(),
-                'job_card_number': jc.job_card_number,
-                'customer_name':  jc.customer_asset.customer.customer_name if jc.customer_asset else '',
-                'vehicle_number': jc.customer_asset.vehicle_number if jc.customer_asset else '',
-                'services':       service_names,
-                'base_amount':    str(base),
-                'gst_percent':    str(jc.gst_percent),
-                'gst_amount':     str(gst),
-                'total_amount':   str(total),
-                'paid_amount':    str(paid),
-                'outstanding':    str(outstanding),
-                'payment_status': pstatus,
-                'category':       'Job Card',
+                'id':                f'pay-{p.id}',
+                'date':              p.payment_date.isoformat(),
+                'job_card_number':   jc.job_card_number,
+                'customer_name':     jc.customer_asset.customer.customer_name if jc.customer_asset else '',
+                'vehicle_number':    jc.customer_asset.vehicle_number if jc.customer_asset else '',
+                'services':          service_names,
+                'base_amount':       str(jc_base),
+                'gst_percent':       str(jc.gst_percent),
+                'gst_amount':        str(jc_gst),
+                'total_amount':      str(jc_total),
+                'paid_amount':       str(p.amount),
+                'base_to_collect':   str(base_to_collect),
+                'gst_to_collect':    str(gst_to_collect),
+                'outstanding':       str(outstanding_after),
+                'payment_status':    pstatus,
+                'payment_method':    p.payment_method,
+                'category':          'Job Card',
             })
 
         return Response(results)

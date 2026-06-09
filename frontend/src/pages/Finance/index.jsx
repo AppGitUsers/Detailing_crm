@@ -195,7 +195,7 @@ export default function FinanceDashboard() {
   const col = dash?.collected || {};
 
   const incomeByCat = income.length
-    ? [{ category: 'Job Card', amount: income.reduce((s, r) => s + Number(r.total_amount || 0), 0) }]
+    ? [{ category: 'Job Card', amount: income.reduce((s, r) => s + Number(r.paid_amount || 0), 0) }]
     : [];
 
   const expenseByCat = expense.reduce((acc, r) => {
@@ -320,6 +320,8 @@ export default function FinanceDashboard() {
                   { key: 'gst_percent', label: 'GST %' },
                   { key: 'gst_amount', label: 'GST Amt (₹)' },
                   { key: 'paid_amount', label: 'Paid (₹)' },
+                  { key: 'base_to_collect', label: 'Base To Collect (₹)' },
+                  { key: 'gst_to_collect', label: 'GST To Collect (₹)' },
                   { key: 'outstanding', label: 'Outstanding (₹)' },
                   { key: 'payment_status', label: 'Status' },
                 ], `income-${month}`)}
@@ -336,7 +338,7 @@ export default function FinanceDashboard() {
               <table className="w-full text-xs">
                 <thead className="sticky top-0 bg-bg-card border-b border-border">
                   <tr>
-                    {['Date', 'Job Card', 'Customer', 'Total', 'Base', 'GST%', 'GST Amt', 'Paid', 'Status'].map(h => (
+                    {['Date', 'Job Card', 'Customer', 'Total', 'Base', 'GST%', 'GST Amt', 'Paid', 'Base To Collect', 'GST To Collect', 'Status'].map(h => (
                       <th key={h} className="px-3 py-2.5 text-left text-gray-400 font-medium whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -352,6 +354,8 @@ export default function FinanceDashboard() {
                       <td className="px-3 py-2.5 text-gray-400 whitespace-nowrap">{r.gst_percent}%</td>
                       <td className="px-3 py-2.5 text-indigo-300 whitespace-nowrap">{fmt(r.gst_amount)}</td>
                       <td className="px-3 py-2.5 text-emerald-400 whitespace-nowrap">{fmt(r.paid_amount)}</td>
+                      <td className="px-3 py-2.5 text-yellow-300 whitespace-nowrap">{fmt(r.base_to_collect)}</td>
+                      <td className="px-3 py-2.5 text-yellow-300 whitespace-nowrap">{fmt(r.gst_to_collect)}</td>
                       <td className="px-3 py-2.5">
                         <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] border capitalize ${STATUS_CLS[r.payment_status] || ''}`}>
                           {r.payment_status}
