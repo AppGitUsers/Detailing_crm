@@ -53,7 +53,7 @@ class ServiceVehiclePrice(models.Model):
     
 class ServiceProduct(models.Model):
     service = models.ForeignKey(Service, related_name='products', on_delete=models.CASCADE)
-    product = models.ForeignKey('vendors.Product', on_delete=models.PROTECT)
+    product = models.ForeignKey('vendors.Product', on_delete=models.CASCADE)
     class Meta:
         unique_together = ('service', 'product')
     def __str__(self):
