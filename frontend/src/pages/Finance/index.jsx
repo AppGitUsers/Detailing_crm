@@ -15,6 +15,8 @@ import { useToast } from '../../components/Toast';
 import { getFinanceDashboard, getFinanceIncome, getFinanceExpense } from '../../api/finance';
 import { extractError } from '../../api/axios';
 
+
+
 const fmt = (n) =>
   `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -24,25 +26,27 @@ const todayMonth = () => {
 };
 
 const CHART_COLORS = { income: '#6366f1', expense: '#f43f5e', savings: '#10b981' };
-const BAR_COLORS   = ['#6366f1', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#f43f5e'];
+const BAR_COLORS = ['#6366f1', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#f43f5e'];
 
 const EXPENSE_CATS = [
   { value: '', label: 'All Categories' },
   { value: 'salary', label: 'Salary' },
   { value: 'advance', label: 'Advance' },
   { value: 'vendor_invoice', label: 'Vendor Invoice' },
+  { value: 'others', label: 'Others' },
 ];
 
+
 const STATUS_CLS = {
-  paid:    'bg-emerald-900/30 text-emerald-300 border-emerald-700',
+  paid: 'bg-emerald-900/30 text-emerald-300 border-emerald-700',
   partial: 'bg-yellow-900/30 text-yellow-300 border-yellow-700',
-  unpaid:  'bg-red-900/30 text-red-300 border-red-700',
+  unpaid: 'bg-red-900/30 text-red-300 border-red-700',
 };
 
 function MetricBox({ label, value, accent = 'indigo', loading }) {
   const bg = {
     indigo: 'border-indigo-500/30 bg-indigo-500/5',
-    green:  'border-emerald-500/30 bg-emerald-500/5',
+    green: 'border-emerald-500/30 bg-emerald-500/5',
     yellow: 'border-yellow-500/30 bg-yellow-500/5',
   }[accent] || 'border-indigo-500/30 bg-indigo-500/5';
   return (
@@ -143,18 +147,22 @@ export default function FinanceDashboard() {
   const toast = useToast();
   const [month, setMonth] = useState(todayMonth);
 
-  const [dash, setDash]               = useState(null);
+  const [dash, setDash] = useState(null);
   const [dashLoading, setDashLoading] = useState(true);
 
-  const [income, setIncome]               = useState([]);
-  const [incomeLoading, setIncLoading]    = useState(true);
-  const [incomeSearch, setIncomeSearch]   = useState('');
-
-  const [expense, setExpense]             = useState([]);
-  const [expLoading, setExpLoading]       = useState(true);
-  const [expSearch, setExpSearch]         = useState('');
-  const [expCat, setExpCat]               = useState('');
-
+  const [income, setIncome] = useState([]);
+  const [incomeLoading, setIncLoading] = useState(true);
+  const [incomeSearch, setIncomeSearch] = useState('');
+  const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
+  const [expense, setExpense] = useState([]);
+  const [expLoading, setExpLoading] = useState(true);
+  const [expSearch, setExpSearch] = useState('');
+  const [expCat, setExpCat] = useState('');
+  const [amount, setAmount] = useState();
+  const [customer, setCustomer] = useState('');
+  const [date, setDate] = useState('');
+  const [category, setCategory] = useState('');
+  const [reference, setReference] = useState('');
   // dash
   useEffect(() => {
     let cancelled = false;
@@ -164,7 +172,7 @@ export default function FinanceDashboard() {
       .catch(err => { if (!cancelled) toast.error(extractError(err)); })
       .finally(() => { if (!cancelled) setDashLoading(false); });
     return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [month]);
 
   // income
@@ -176,7 +184,7 @@ export default function FinanceDashboard() {
       .catch(err => { if (!cancelled) toast.error(extractError(err)); })
       .finally(() => { if (!cancelled) setIncLoading(false); });
     return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [month, incomeSearch]);
 
   // expense
@@ -188,7 +196,7 @@ export default function FinanceDashboard() {
       .catch(err => { if (!cancelled) toast.error(extractError(err)); })
       .finally(() => { if (!cancelled) setExpLoading(false); });
     return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [month, expSearch, expCat]);
 
   const tbc = dash?.to_be_collected || {};
@@ -284,7 +292,7 @@ export default function FinanceDashboard() {
               />
               <Tooltip content={<ChartTip />} />
               <Legend wrapperStyle={{ fontSize: 12, color: '#9ca3af' }} formatter={v => v.charAt(0).toUpperCase() + v.slice(1)} />
-              <Bar dataKey="income"  fill={CHART_COLORS.income}  radius={[3, 3, 0, 0]} maxBarSize={28} />
+              <Bar dataKey="income" fill={CHART_COLORS.income} radius={[3, 3, 0, 0]} maxBarSize={28} />
               <Bar dataKey="expense" fill={CHART_COLORS.expense} radius={[3, 3, 0, 0]} maxBarSize={28} />
               <Line type="monotone" dataKey="savings" stroke={CHART_COLORS.savings} strokeWidth={2} dot={{ r: 3, fill: CHART_COLORS.savings }} />
             </ComposedChart>
@@ -307,6 +315,7 @@ export default function FinanceDashboard() {
                   onChange={e => setIncomeSearch(e.target.value)}
                   className="pl-7 pr-3 py-1.5 bg-bg-elev border border-border rounded-md text-xs text-gray-200 focus:outline-none focus:border-accent w-36"
                 />
+
               </div>
               <button
                 onClick={() => exportExcel(income, [
@@ -405,6 +414,25 @@ export default function FinanceDashboard() {
               >
                 <Download size={12} /> Excel
               </button>
+              <button size="xs" variant="light" onClick={() => setShowAddExpenseModal(true)} className="flex items-center gap-1 px-2.5 py-1.5 bg-bg-elev border border-border rounded-md text-xs text-gray-300 hover:text-gray-100 hover:bg-bg-hover transition-colors" >
+                Add Expense +
+              </button>
+              {showAddExpenseModal && (
+                <AddExpenseModal
+                  onClose={() => setShowAddExpenseModal(false)}
+                  Amount={amount}
+                  Customer={customer}
+                  Date={date}
+                  Category={category}
+                  Reference={reference}
+                  setAmount={setAmount}
+                  setCustomer={setCustomer}
+                  setDate={setDate}
+                  setCategory={setCategory}
+                  setReference={setReference}
+                  onSubmit={handleSubmit}
+                />
+              )}
             </div>
           </div>
           <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
@@ -448,3 +476,61 @@ export default function FinanceDashboard() {
     </div>
   );
 }
+
+export function AddExpenseModal({ onClose, Amount, Customer, Date, Category, Reference, setAmount, setCustomer, setDate, setCategory, setReference, onSubmit }) {
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-bg-card border border-border rounded-xl p-6 w-full max-w-md">
+        <h2 className="text-lg font-semibold text-gray-100 mb-4">Add Expense</h2>
+        <p className="text-sm text-gray-400 mb-4">Amount Given</p>
+        <input
+          type="number"
+          placeholder="Enter amount"
+          className="w-full bg-bg-elev border border-border rounded-md px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-accent"
+          value={Amount}
+          onChange={(e) => setAmount(e.target.value)}
+        />
+        <p className="text-sm text-gray-400 mt-4">Customer Name</p>
+        <input
+          type="text"
+          placeholder="Enter customer name"
+          className="w-full bg-bg-elev border border-border rounded-md px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-accent"
+          value={Customer}
+          onChange={(e) => setCustomer(e.target.value)}
+        />
+        <p className="text-sm text-gray-400 mt-4">Date</p>
+        <input
+          type="date"
+          className="w-full bg-bg-elev border border-border rounded-md px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-accent"
+          value={Date}
+          onChange={(e) => setDate(e.target.value)}
+        />
+        <p className="text-sm text-gray-400 mt-4">Category</p>
+        <select
+          className="w-full bg-bg-elev border border-border rounded-md px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-accent"
+          value={Category}
+          onChange={(e) => setCategory(e.target.value)}
+        >
+          {EXPENSE_CATS.filter(c => c.value).map(c => (
+            <option key={c.value} value={c.value}>{c.label}</option>
+          ))}
+        </select>
+        <p className="text-sm text-gray-400 mt-4">Reference</p>
+        <input
+          type="text"
+          placeholder="Enter reference"
+          className="w-full bg-bg-elev border border-border rounded-md px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-accent"
+          value={Reference}
+          onChange={(e) => setReference(e.target.value)}
+        />
+        <button className="mt-4 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors" onClick={() => { handleSubmit() }}>
+          Record Expense
+        </button>
+        <button onClick={onClose} className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors">
+          Close
+        </button>
+      </div>
+    </div>
+  );
+}
+

@@ -584,7 +584,7 @@ export default function JobCardCreate() {
               paymentType={paymentType}
               setPaymentType={setPaymentType}
               totalPrice={totalPrice}
-              amountGiven={amountGiven}
+              amountGiven={amountGiven === 0 ? totalPrice : amountGiven}
               setAmountGiven={setAmountGiven}
             />
           )}
@@ -1095,61 +1095,90 @@ function Step3({ services, loading, selectedIds, onToggle, effectivePricingType,
 
 function PayMentModal({ value, onChange, totalPrice, setAmountGiven, amountGiven }) {
   return (
-    <div>
-      <div className="flex items-center gap-1 bg-bg-elev border border-border rounded-lg p-1 w-fit">
-        <p> Select Payment Type </p>
+    <div className="space-y-4 mt-4">
+      <div className="flex items-center gap-3">
+        <span className="text-xs font-medium text-gray-400 shrink-0">Payment Type</span>
         <Select value={value} onChange={onChange}>
           <option value="cash">Cash</option>
           <option value="upi">UPI</option>
         </Select>
       </div>
-      {value === 'cash' ? <CashModal totalPrice={totalPrice} setAmountGiven={setAmountGiven} amountGiven={amountGiven} /> : <UPIModal totalPrice={totalPrice} />}
+      {value === 'cash'
+        ? <CashModal totalPrice={totalPrice} setAmountGiven={setAmountGiven} amountGiven={amountGiven} />
+        : <UPIModal totalPrice={totalPrice} />
+      }
     </div>
   );
 }
 
 function Step4({ showPaymentPage, onYes, onNo, paymentType, setPaymentType, totalPrice, amountGiven, setAmountGiven }) {
-
   return (
-    <div>
-      <h2> Payment Page </h2>
+    <div className="space-y-6">
       <div>
-        <p> Do you want to pay Now </p>
-        <Button onClick={() => onYes()}> Yes </Button>
-        <Button onClick={() => onNo()}> No </Button>
+        <h2 className="text-base font-semibold text-gray-100 mb-1">Payment</h2>
+        <p className="text-sm text-gray-400">Would you like to collect payment now?</p>
       </div>
-      {showPaymentPage === true ? <PayMentModal value={paymentType} onChange={(e) => setPaymentType(e.target.value)} totalPrice={totalPrice} setAmountGiven={setAmountGiven} amountGiven={amountGiven} /> : <p> You can pay later from the Job Card details page </p>}
+      <div className="flex gap-3">
+        <Button type="button" variant={showPaymentPage ? 'success' : 'secondary'} onClick={onYes}>
+          Yes, pay now
+        </Button>
+        <Button type="button" variant={!showPaymentPage ? 'secondary' : 'ghost'} onClick={onNo}>
+          Pay later
+        </Button>
+      </div>
+      {showPaymentPage
+        ? (
+          <PayMentModal
+            value={paymentType}
+            onChange={(e) => setPaymentType(e.target.value)}
+            totalPrice={totalPrice}
+            setAmountGiven={setAmountGiven}
+            amountGiven={amountGiven}
+          />
+        ) : (
+          <div className="rounded-md border border-border bg-bg-elev px-4 py-3 text-sm text-gray-400">
+            Payment can be collected later from the Job Card details page.
+          </div>
+        )
+      }
     </div>
   );
 }
 
 function CashModal({ totalPrice, setAmountGiven, amountGiven }) {
-  const remaining = totalPrice - amountGiven;
-  console.log(totalPrice, 'totalPrice');
+  const change = totalPrice - amountGiven
   return (
-    <div>
-      <h2> Payment Details </h2>
-      <div>
-        <Field label="Total Amount">
-          <Input value={totalPrice} disabled />
-        </Field>
-        <Field label="Amount Received" >
-          <Input type="number" value={amountGiven} onChange={(e) => setAmountGiven(parseFloat(e.target.value) || 0)} />
-        </Field>
-        <Field label="Change to Return" >
-          <Input disabled value={remaining} />
-        </Field>
-      </div>
+    <div className="rounded-xl border border-border bg-bg-elev p-4 space-y-3">
+      <h3 className="text-sm font-semibold text-gray-200">Cash Payment</h3>
+      <Field label="Total Amount">
+        <Input value={`₹${totalPrice.toFixed(2)}`} disabled />
+      </Field>
+      <Field label="Amount Received">
+        <Input
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="0.00"
+          value={amountGiven || ''}
+          onChange={(e) => setAmountGiven(parseFloat(e.target.value) || 0)}
+        />
+      </Field>
+      <Field label="Change to Return">
+        <Input disabled value={change > 0 ? change.toFixed(2) : ''} />
+      </Field>
     </div>
   );
 }
 
 function UPIModal({ totalPrice }) {
   return (
-    <div>
-      <h2> UPI Payment </h2>
-      <p> Please scan the QR code below to pay ₹{totalPrice.toFixed(2)} </p>
-      <div className="w-64 h-64 bg-gray-300 flex items-center justify-center text-gray-500">
+    <div className="rounded-xl border border-border bg-bg-elev p-4 space-y-4">
+      <h3 className="text-sm font-semibold text-gray-200">UPI Payment</h3>
+      <p className="text-sm text-gray-400">
+        Please scan the QR code below to pay{' '}
+        <span className="font-semibold text-gray-100">₹{totalPrice.toFixed(2)}</span>
+      </p>
+      <div className="w-48 h-48 rounded-lg bg-white flex items-center justify-center text-gray-500 text-xs mx-auto">
         QR Code Placeholder
       </div>
     </div>
