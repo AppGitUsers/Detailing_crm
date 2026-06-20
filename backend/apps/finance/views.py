@@ -3,6 +3,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime, date, timedelta
 
 from django.db.models import Q, Sum, Count, Max
+from apps.finance.serializers import ExpenseSerializer
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -10,7 +11,7 @@ from rest_framework import status
 from apps.jobcards.models import JobCard, JobCardPayment, JobCardProductUsage
 from apps.employees.models import SalaryTransaction, SalaryAdvance
 from apps.vendors.models import InvoicePayment
-
+from apps.finance.models import Expense
 
 MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -29,14 +30,17 @@ def _parse_month(param):
 
 def _jc_base_gst_total(jc):
     # Service prices are GST-inclusive; back-calculate base and GST portion
-    total = sum(s.price_at_time for s in jc.job_card_services.all())
+    base = sum(s.price_at_time for s in jc.job_card_services.all())
+    total = Decimal('0')
     if jc.gst_percent > 0:
-        divisor = Decimal('1') + jc.gst_percent / Decimal('100')
-        base = (total / divisor).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        # divisor = Decimal('1') + jc.gst_percent / Decimal('100')
+        total = base + (base * jc.gst_percent / Decimal('100'))
+        # base = (total / divisor).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         gst  = total - base
     else:
         base = total
         gst  = Decimal('0')
+    total = sum(s.quantity * s.unit_price for s in jc.sales_products.all()) + total
     return base, gst, total
 
 
@@ -64,11 +68,11 @@ def _outstanding_thru(end_date):
     GST-first allocation."""
     qs = JobCard.objects.filter(
         job_card_date__lte=end_date,
-    ).prefetch_related('job_card_services', 'payments')
+    ).prefetch_related('job_card_services', 'payments', 'sales_products')
 
-    o_total = o_base = o_gst = Decimal('0')
+    o_total = o_base = o_gst =Decimal('0')
     for jc in qs:
-        base, gst, _ = _jc_base_gst_total(jc)
+        base, gst, total = _jc_base_gst_total(jc)
         paid_thru = sum(
             (p.amount for p in jc.payments.all() if p.payment_date <= end_date),
             Decimal('0'),
@@ -128,7 +132,6 @@ class FinanceDashboardView(APIView):
         # Does NOT decrease when this month's payments are received; it only
         # rolls forward when the month changes.
         prev_total, prev_base, prev_gst = _outstanding_thru(end_of_prev_month)
-
         this_total = this_base = this_gst = Decimal('0')
         this_month_jcs = JobCard.objects.filter(
             job_card_date__year=year,
@@ -143,7 +146,6 @@ class FinanceDashboardView(APIView):
         tbc_total = prev_total + this_total
         tbc_base  = prev_base  + this_base
         tbc_gst   = prev_gst   + this_gst
-
         # ── Collected this month: payments whose payment_date falls in this
         # month (regardless of when the JC was created). GST-first split needs
         # the cumulative paid for each JC before this payment.
@@ -389,8 +391,33 @@ class FinanceExpenseView(APIView):
                         'reference':   ip.invoice.invoice_number,
                     })
 
-        results.sort(key=lambda x: x['date'], reverse=True)
+        
+
+        if not category or category == "others":
+            for e in Expense.objects.filter(
+                date__year=year,
+                date__month=month,
+            ).order_by('-date'):
+                desc = e.description
+                if not search or search in desc.lower():
+                    results.append({
+                        'id':          f'exp-{e.id}',
+                        'date':        e.date.isoformat(),
+                        'description': e.customer,
+                        'amount':      str(e.amount),
+                        'category':    e.category,
+                        'reference':   e.reference or '',
+                    })
+        results.sort(key=lambda x: x['date'], reverse=True)   
         return Response(results)
+    
+    def post(self, request):
+        print("Hello")
+        serializer = ExpenseSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

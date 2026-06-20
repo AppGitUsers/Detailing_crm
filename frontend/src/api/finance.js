@@ -11,3 +11,5 @@ export const getFinanceExpense = (params) =>
 
 export const getDailyReport = (date) =>
   api.get('finance/daily-report/', { params: date ? { date } : {} }).then(r => r.data);
+
+export const createExpense = (data) => api.post('finance/expense/', data).then(r => r.data);

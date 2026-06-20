@@ -12,7 +12,7 @@ import {
 import PageHeader from '../../components/PageHeader';
 import Loading from '../../components/Loading';
 import { useToast } from '../../components/Toast';
-import { getFinanceDashboard, getFinanceIncome, getFinanceExpense } from '../../api/finance';
+import { getFinanceDashboard, getFinanceIncome, getFinanceExpense, createExpense } from '../../api/finance';
 import { extractError } from '../../api/axios';
 
 
@@ -158,7 +158,7 @@ export default function FinanceDashboard() {
   const [expLoading, setExpLoading] = useState(true);
   const [expSearch, setExpSearch] = useState('');
   const [expCat, setExpCat] = useState('');
-  const [amount, setAmount] = useState();
+  const [amount, setAmount] = useState(0);
   const [customer, setCustomer] = useState('');
   const [date, setDate] = useState('');
   const [category, setCategory] = useState('');
@@ -213,6 +213,24 @@ export default function FinanceDashboard() {
     return acc;
   }, []);
 
+  const handleSubmit = async () => {
+    try {
+      const t = await createExpense({ amount, customer, date, category, reference });
+      toast.success("Expense Added Successfully");
+      setShowAddExpenseModal(false);
+      // Reset fields
+      setAmount(0);
+      setCustomer('');
+      setDate('');
+      setCategory('');
+      setReference('');
+      // Refresh expense list
+      setExpSearch('');
+    }
+    catch (err) {
+      toast.error(extractError(err));
+    }
+  }
   return (
     <div>
       <PageHeader
@@ -523,7 +541,7 @@ export function AddExpenseModal({ onClose, Amount, Customer, Date, Category, Ref
           value={Reference}
           onChange={(e) => setReference(e.target.value)}
         />
-        <button className="mt-4 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors" onClick={() => { handleSubmit() }}>
+        <button className="mt-4 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors" onClick={onSubmit}>
           Record Expense
         </button>
         <button onClick={onClose} className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors">
