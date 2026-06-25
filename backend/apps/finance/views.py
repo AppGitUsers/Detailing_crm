@@ -408,7 +408,7 @@ class FinanceExpenseView(APIView):
                 payment_date__year=year,
                 payment_date__month=month,
             ).select_related('invoice__vendor').order_by('-payment_date'):
-                desc = f"Invoice – {ip.invoice.invoice_number} ({ip.invoice.vendor.vendor_name})"
+                desc = f"Invoice – {ip.invoice.invoice_number} "
                 if not search or search in desc.lower():
                     results.append({
                         'id':          f'inv-{ip.id}',

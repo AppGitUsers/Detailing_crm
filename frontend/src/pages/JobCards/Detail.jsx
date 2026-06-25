@@ -1074,7 +1074,7 @@ export function AddPaymentModal({ open, onClose, jobCardId, onAdded, outstanding
             </Field>
 
             {/* ── UPI QR Code — shown for any method, updates live with amount ── */}
-            <UpiQr amount={form.amount} />
+            {/* <UpiQr amount={form.amount} /> */}
 
             <Field label="Payment Date" required>
               <Input type="date" value={form.payment_date} onChange={e => upd('payment_date', e.target.value)} />
@@ -1085,6 +1085,7 @@ export function AddPaymentModal({ open, onClose, jobCardId, onAdded, outstanding
                   <option key={v} value={v}>{l}</option>
                 ))}
               </Select>
+              {form.payment_method === 'upi' ? <UpiQr amount={form.amount} /> : <></>}
             </Field>
             <Field label="Notes">
               <Input placeholder="Optional note" value={form.notes} onChange={e => upd('notes', e.target.value)} />

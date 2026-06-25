@@ -575,7 +575,7 @@ class CustomerAnalyticsView(APIView):
 
         # Fetch all job cards with their services and payments in one pass
         all_jcs = JobCard.objects.prefetch_related(
-            'job_card_services', 'payments', 'customer_asset__customer'
+            'job_card_services', 'payments', 'customer_asset__customer', 'sales_products'
         ).all()
 
         customer_revenue = defaultdict(lambda: {'name': '', 'revenue': Decimal('0'), 'visits': 0})
@@ -597,9 +597,13 @@ class CustomerAnalyticsView(APIView):
 
         for jc in all_jcs:
             # Financials
-            total = sum(s.price_at_time for s in jc.job_card_services.all())
+            base_total = sum(s.price_at_time for s in jc.job_card_services.all())
             paid  = sum(p.amount for p in jc.payments.all())
-
+            total = Decimal('0')
+            if jc.gst_percent>0:
+                total = base_total + (jc.gst_percent/100)*base_total
+            else:
+                total = base_total            
             # Customer aggregation
             cust = jc.customer_asset.customer
             key  = cust.id
@@ -763,10 +767,15 @@ class CustomerReportView(APIView):
                 in_range = False
             if date_to   and jc_date and jc_date > date_to:
                 in_range = False
-
+            base_amount = sum(s.price_at_time for s in jc.job_card_services.all())
+            total = Decimal('0')
+            if jc.gst_percent>0:
+                total = base_amount + (jc.gst_percent/100)* base_amount
+            else:
+                total = base_amount
             if in_range:
                 row['filtered_visits']  += 1
-                row['filtered_revenue'] += sum(s.price_at_time for s in jc.job_card_services.all())
+                row['filtered_revenue'] += total
 
         # ── Step 2: build report (include customers with 0 visits) ─────────
         all_customers = Customer.objects.all().order_by('customer_name')
@@ -832,7 +841,12 @@ class CustomerTiersView(APIView):
         revenue_map = defaultdict(lambda: {'revenue': Decimal('0'), 'visits': 0})
         for jc in all_jcs:
             cid   = jc.customer_asset.customer_id
-            total = sum(s.price_at_time for s in jc.job_card_services.all())
+            base_total = sum(s.price_at_time for s in jc.job_card_services.all())
+            total = Decimal('0')
+            if jc.gst_percent >0:
+                total = base_total + (jc.gst_percent/100)*base_total
+            else:
+                total = base_total
             revenue_map[cid]['revenue'] += total
             revenue_map[cid]['visits']  += 1
         by_rev   = sorted(revenue_map.items(), key=lambda x: x[1]['revenue'], reverse=True)[:5]
@@ -1254,7 +1268,12 @@ class GaragePaymentView(APIView):
         for jc in job_cards:
             if remaining <= Decimal('0.00'):
                 break
-            svc_total = sum(s.price_at_time for s in jc.job_card_services.all())
+            svc_base_total = sum(s.price_at_time for s in jc.job_card_services.all())
+            svc_total = Decimal('0')
+            if jc.gst_percent>0:
+                svc_total = svc_base_total + (jc.gst_percent/100)*svc_base_total
+            else:
+                svc_total = svc_base_total
             sales_total = sum(
                 sp.unit_price * sp.quantity
                 for sp in jc.sales_products.all()

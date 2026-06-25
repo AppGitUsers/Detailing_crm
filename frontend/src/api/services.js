@@ -5,7 +5,7 @@ export const createService = (data) => api.post('services/', data).then(r => r.d
 export const getService = (id) => api.get(`services/${id}/`).then(r => r.data);
 export const updateService = (id, data) => api.put(`services/${id}/`, data).then(r => r.data);
 export const deleteService = (id) => api.delete(`services/${id}/`).then(r => r.data);
-
+export const listServicesWithVehicleType = (vehicleType) => api.get(`services/${vehicleType}/`).then(r => r.data);
 export const listServiceProducts = (id) => api.get(`services/${id}/products/`).then(r => r.data);
 export const addServiceProduct = (id, data) => api.post(`services/${id}/products/`, data).then(r => r.data);
 export const removeServiceProduct = (productLinkId) => api.delete(`services/products/${productLinkId}/`).then(r => r.data);

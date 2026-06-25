@@ -8,12 +8,13 @@ import { Field, Input, Select, Textarea } from '../../components/Field';
 import { useToast } from '../../components/Toast';
 import { checkVehicle, checkCustomer, listVehicleCompanies, createVehicleCompany, listVehicleModels, createVehicleModel, listVehicleColours, createVehicleColour, listGarageOwners } from '../../api/customers';
 import { createFullJobCard, getCustomerTiers } from '../../api/jobcards';
-import { listServices } from '../../api/services';
+import { listServicesWithVehicleType } from '../../api/services';
 import { getSettings } from '../../api/settings';
 import { extractError } from '../../api/axios';
 import { listEmployees } from '../../api/employees';
 import VehicleAutocomplete from '../../components/VehicleAutocomplete';
 import { downloadJobCardInvoice } from '../../utils/invoice';
+import UpiQr from '../../components/UpiQr';
 
 const nowLocal = () => {
   const d = new Date();
@@ -304,7 +305,10 @@ export default function JobCardCreate() {
   useEffect(() => {
     if (step !== 3 || services.length > 0) return;
     setLoadingServices(true);
-    listServices()
+    const currentVehicleType = vehicleMatch
+      ? vehicleMatch.vehicle?.vehicle_type
+      : vehicle.vehicle_type;
+    listServicesWithVehicleType(currentVehicleType)
       .then((d) => setServices(Array.isArray(d) ? d : (d.results || [])))
       .catch((err) => toast.error(extractError(err)))
       .finally(() => setLoadingServices(false));
@@ -339,6 +343,13 @@ export default function JobCardCreate() {
     setErrors(e);
     return Object.keys(e).length === 0;
   };
+
+  const validateStep3 = () => {
+    const e = {};
+    if (!jobCard.employee) e.employee = 'Required';
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  }
 
   const resolveTier = (customerId) => {
     if (!customerId) return null;
@@ -405,6 +416,7 @@ export default function JobCardCreate() {
   };
 
   const handleNextFromStep3 = () => {
+    if (!validateStep3()) return;
     setStep(4);
 
   }
@@ -426,7 +438,6 @@ export default function JobCardCreate() {
   /* ── Submit ─────────────────────────────────────────────────────────────── */
   const submit = async () => {
     const e = {};
-    if (!jobCard.employee) e.employee = 'Required'; /* Employee assignment is mandatory at creation time to ensure proper job card processing and accountability. */
     if (Object.keys(e).length) { setErrors(e); return; }
     if (selectedServiceIds.length === 0) {
       toast.error('Select at least one service');
@@ -1179,7 +1190,7 @@ function UPIModal({ totalPrice }) {
         <span className="font-semibold text-gray-100">₹{totalPrice.toFixed(2)}</span>
       </p>
       <div className="w-48 h-48 rounded-lg bg-white flex items-center justify-center text-gray-500 text-xs mx-auto">
-        QR Code Placeholder
+        <UpiQr amount={totalPrice} />
       </div>
     </div>
   );

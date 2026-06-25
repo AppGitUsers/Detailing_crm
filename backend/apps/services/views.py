@@ -29,6 +29,17 @@ class ServiceListCreateView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+class ServiceListByVehicleTypeCreateView(APIView):
+    def get(self,request, vehicle_type):
+        if vehicle_type == "two_wheeler":
+            services  = Service.objects.filter(two_wheeler_service = True)
+        elif vehicle_type== "four_wheeler":
+            services  = Service.objects.filter(four_wheeler_service = True)
+        else:
+            services  = Service.objects.filter(other_wheeler_service = True)
+        serializer = ServiceSerializer(services,many = True)
+        return Response(serializer.data)
+        
 
 class ServiceDetailView(APIView):
     def get_object(self, pk):

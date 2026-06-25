@@ -3,14 +3,14 @@ from .views import (
     ServiceListCreateView, ServiceDetailView,
     ServiceProductListCreateView, ServiceProductDeleteView,
     ServiceEmployeeListCreateView, ServiceEmployeeDeleteView,
-    ServiceVehiclePriceListCreateView, ServiceVehiclePriceDeleteView,
+    ServiceVehiclePriceListCreateView, ServiceVehiclePriceDeleteView,ServiceListByVehicleTypeCreateView
 )
 
 urlpatterns = [
     # Service
     path('', ServiceListCreateView.as_view(), name='service-list'),
     path('<int:pk>/', ServiceDetailView.as_view(), name='service-detail'),
-
+    path('<str:vehicle_type>/', ServiceListByVehicleTypeCreateView.as_view(), name='service-list-by-vehicle-type'),
     # Service Products
     path('<int:service_pk>/products/', ServiceProductListCreateView.as_view(), name='service-product-list'),
     path('products/<int:pk>/', ServiceProductDeleteView.as_view(), name='service-product-delete'),

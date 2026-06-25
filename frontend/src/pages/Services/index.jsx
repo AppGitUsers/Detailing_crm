@@ -17,13 +17,13 @@ import {
 import { extractError } from '../../api/axios';
 
 const VEHICLE_PRICING_TYPES = [
-  { value: 'two_wheeler',         label: 'Two Wheeler' },
-  { value: 'sedan',               label: 'Sedan' },
-  { value: 'compact_suv',         label: 'Compact SUV' },
-  { value: 'suv',                 label: 'SUV' },
-  { value: 'hatchback',           label: 'Hatchback' },
+  { value: 'two_wheeler', label: 'Two Wheeler' },
+  { value: 'sedan', label: 'Sedan' },
+  { value: 'compact_suv', label: 'Compact SUV' },
+  { value: 'suv', label: 'SUV' },
+  { value: 'hatchback', label: 'Hatchback' },
   { value: 'four_wheeler_others', label: '4W Others' },
-  { value: 'others',              label: 'Others' },
+  { value: 'others', label: 'Others' },
 ];
 
 export default function ServicesList() {
@@ -178,7 +178,7 @@ function ServiceFormModal({ modal, onClose, onSaved }) {
   const toast = useToast();
   const [form, setForm] = useState({
     service_name: '', service_price: '', service_description: '', reduces_stock: true,
-    has_warranty: false, warranty_months: '',
+    has_warranty: false, warranty_months: '', two_wheeler_service: false, four_wheeler_service: false, other_wheeler_service: false
   });
   const [vehiclePrices, setVehiclePrices] = useState(emptyVehiclePrices());
   const [submitting, setSubmitting] = useState(false);
@@ -188,12 +188,15 @@ function ServiceFormModal({ modal, onClose, onSaved }) {
     if (!modal) return;
     if (modal.mode === 'edit') {
       setForm({
-        service_name:        modal.data.service_name || '',
-        service_price:       modal.data.service_price || '',
+        service_name: modal.data.service_name || '',
+        service_price: modal.data.service_price || '',
         service_description: modal.data.service_description || '',
-        reduces_stock:       modal.data.reduces_stock !== false,
-        has_warranty:        modal.data.has_warranty || false,
-        warranty_months:     modal.data.warranty_months ?? '',
+        reduces_stock: modal.data.reduces_stock !== false,
+        has_warranty: modal.data.has_warranty || false,
+        warranty_months: modal.data.warranty_months ?? '',
+        two_wheeler_service: modal.data.two_wheeler_service || false,
+        four_wheeler_service: modal.data.four_wheeler_service || false,
+        other_wheeler_service: modal.data.other_wheeler_service || false,
       });
       // Pre-fill existing vehicle prices
       const existing = emptyVehiclePrices();
@@ -202,7 +205,7 @@ function ServiceFormModal({ modal, onClose, onSaved }) {
       }
       setVehiclePrices(existing);
     } else {
-      setForm({ service_name: '', service_price: '', service_description: '', reduces_stock: true, has_warranty: false, warranty_months: '' });
+      setForm({ service_name: '', service_price: '', service_description: '', reduces_stock: true, has_warranty: false, warranty_months: '', two_wheeler_service: false, four_wheeler_service: false, other_wheeler_service: false });
       setVehiclePrices(emptyVehiclePrices());
     }
     setErrors({});
@@ -218,12 +221,15 @@ function ServiceFormModal({ modal, onClose, onSaved }) {
     setSubmitting(true);
     try {
       const payload = {
-        service_name:        form.service_name,
-        service_price:       Number(form.service_price),
+        service_name: form.service_name,
+        service_price: Number(form.service_price),
         service_description: form.service_description,
-        reduces_stock:       form.reduces_stock,
-        has_warranty:        form.has_warranty,
-        warranty_months:     form.has_warranty && form.warranty_months !== '' ? Number(form.warranty_months) : null,
+        reduces_stock: form.reduces_stock,
+        has_warranty: form.has_warranty,
+        warranty_months: form.has_warranty && form.warranty_months !== '' ? Number(form.warranty_months) : null,
+        two_wheeler_service: form.two_wheeler_service,
+        four_wheeler_service: form.four_wheeler_service,
+        other_wheeler_service: form.other_wheeler_service,
       };
       let savedService;
       if (modal.mode === 'edit') {
@@ -310,6 +316,44 @@ function ServiceFormModal({ modal, onClose, onSaved }) {
               {form.has_warranty ? 'Service includes warranty' : 'No warranty'}
             </p>
           </div>
+          {/* Two Wheeler Toggle */}
+          <div className='flex flex-col justify-center'>
+            <label className="block text-xs font-medium text-gray-400 mb-2">Two Wheelers</label>
+            <button
+              type="button"
+              onClick={() => setForm(f => ({ ...f, two_wheeler_service: !f.two_wheeler_service }))}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${form.two_wheeler_service ? 'bg-sky-500' : 'bg-gray-700'}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.two_wheeler_service ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
+
+
+          {/* Four Wheeler Toggle */}
+          <div className='flex flex-col justify-center'>
+            <label className="block text-xs font-medium text-gray-400 mb-2">Four Wheelers</label>
+            <button
+              type="button"
+              onClick={() => setForm(f => ({ ...f, four_wheeler_service: !f.four_wheeler_service }))}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${form.four_wheeler_service ? 'bg-sky-500' : 'bg-gray-700'}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.four_wheeler_service ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
+
+
+          {/* Two Wheeler Toggle */}
+          <div className='flex flex-col justify-center'>
+            <label className="block text-xs font-medium text-gray-400 mb-2">Other Wheelers</label>
+            <button
+              type="button"
+              onClick={() => setForm(f => ({ ...f, other_wheeler_service: !f.other_wheeler_service }))}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${form.other_wheeler_service ? 'bg-sky-500' : 'bg-gray-700'}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.other_wheeler_service ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
+
 
           {/* Warranty months (only when warranty is on) */}
           {form.has_warranty && (

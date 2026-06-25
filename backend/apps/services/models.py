@@ -8,6 +8,9 @@ class Service(models.Model):
     reduces_stock   = models.BooleanField(default=True)
     has_warranty    = models.BooleanField(default=False)
     warranty_months = models.PositiveIntegerField(blank=True, null=True)
+    two_wheeler_service = models.BooleanField(default = False)
+    four_wheeler_service = models.BooleanField(default = False)
+    other_wheeler_service = models.BooleanField(default= False)
 
     def save(self, *args, **kwargs):
         if not self.service_code:
