@@ -458,6 +458,7 @@ export default function JobCardCreate() {
         gst_percent: Number(gstPercent || 18),
         vehicle_sub_type: currentVehicleType === 'four_wheeler' ? (vehicleSubType || null) : null,
         ...(jobCard.employee ? { employee: Number(jobCard.employee) } : {}),
+        total_amount: totalPrice,
       };
 
       const vehiclePayload = vehicleMatch
@@ -591,7 +592,7 @@ export default function JobCardCreate() {
             <Step4
               showPaymentPage={showPaymentPage}
               onYes={() => setShowPaymentPage(true)}
-              onNo={() => setShowPaymentPage(false)}
+              onNo={() => submit()}
               paymentType={paymentType}
               setPaymentType={setPaymentType}
               totalPrice={totalPrice}
@@ -979,7 +980,7 @@ function Step3({ services, loading, selectedIds, onToggle, effectivePricingType,
             onChange={(e) => updateJobCard('vehicle_expected_exit_time', e.target.value)}
           />
         </Field>
-        <Field label="Employee">
+        <Field label="Employee" required error={errors.employee}>
           <Select
             value={jobCardForm.employee}
             onChange={(e) => updateJobCard('employee', e.target.value)}
@@ -1189,7 +1190,7 @@ function UPIModal({ totalPrice }) {
         Please scan the QR code below to pay{' '}
         <span className="font-semibold text-gray-100">₹{totalPrice.toFixed(2)}</span>
       </p>
-      <div className="w-48 h-48 rounded-lg bg-white flex items-center justify-center text-gray-500 text-xs mx-auto">
+      <div className="flex justify-center">
         <UpiQr amount={totalPrice} />
       </div>
     </div>

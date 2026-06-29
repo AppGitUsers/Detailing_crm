@@ -91,44 +91,44 @@ import { AddPaymentModal } from './Detail';
 
 /* Payment status badge config */
 const PAY_STATUS = {
-  paid:    { label: 'Paid',    cls: 'bg-emerald-900/40 text-emerald-300 border-emerald-700/50' },
+  paid: { label: 'Paid', cls: 'bg-emerald-900/40 text-emerald-300 border-emerald-700/50' },
   partial: { label: 'Partial', cls: 'bg-yellow-900/30 text-yellow-300 border-yellow-700/50' },
-  unpaid:  { label: 'Unpaid',  cls: 'bg-red-900/30 text-red-300 border-red-700/50' },
+  unpaid: { label: 'Unpaid', cls: 'bg-red-900/30 text-red-300 border-red-700/50' },
 };
 
 export default function JobCardsList() {
   const navigate = useNavigate();
   const toast = useToast();
-  const [loading, setLoading]             = useState(true);
-  const [jobs, setJobs]                   = useState([]);
-  const [search, setSearch]               = useState('');
-  const [statusFilter, setStatusFilter]   = useState('');
-  const [dateFilter, setDateFilter]       = useState('');
+  const [loading, setLoading] = useState(true);
+  const [jobs, setJobs] = useState([]);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState('');
   const [companyFilter, setCompanyFilter] = useState('');
-  const [modelFilter, setModelFilter]     = useState('');
-  const [usageFilter, setUsageFilter]     = useState(''); // '' | 'complete' | 'incomplete'
+  const [modelFilter, setModelFilter] = useState('');
+  const [usageFilter, setUsageFilter] = useState(''); // '' | 'complete' | 'incomplete'
   const [paymentFilter, setPaymentFilter] = useState(''); // '' | 'paid' | 'partial' | 'unpaid'
   const [ownerTypeFilter, setOwnerTypeFilter] = useState(''); // '' | 'customer' | 'garage'
-  const [employees, setEmployees]         = useState([]);
-  const [companies, setCompanies]         = useState([]);
-  const [models, setModels]               = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [companies, setCompanies] = useState([]);
+  const [models, setModels] = useState([]);
   const [stats, setStats] = useState({ active: 0, completed: 0, twoWheeler: 0, fourWheeler: 0, other: 0 });
-  const [payJobCard, setPayJobCard]       = useState(null);
-  const [refreshKey, setRefreshKey]       = useState(0);
-  const [tiers, setTiers]                 = useState({ high_value: [], frequent: [] });
+  const [payJobCard, setPayJobCard] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [tiers, setTiers] = useState({ high_value: [], frequent: [] });
 
   // Load employees + companies + tiers once
   useEffect(() => {
-    listEmployees().then(d => setEmployees(Array.isArray(d) ? d : (d.results || []))).catch(() => {});
-    listVehicleCompanies({}).then(d => setCompanies(Array.isArray(d) ? d : [])).catch(() => {});
-    getCustomerTiers().then(setTiers).catch(() => {});
+    listEmployees().then(d => setEmployees(Array.isArray(d) ? d : (d.results || []))).catch(() => { });
+    listVehicleCompanies({}).then(d => setCompanies(Array.isArray(d) ? d : [])).catch(() => { });
+    getCustomerTiers().then(setTiers).catch(() => { });
   }, []); // eslint-disable-line
 
   // Reload models when company filter changes
   useEffect(() => {
     if (!companyFilter) { setModels([]); return; }
-    listVehicleModels({ company: companyFilter }).then(d => setModels(Array.isArray(d) ? d : [])).catch(() => {});
+    listVehicleModels({ company: companyFilter }).then(d => setModels(Array.isArray(d) ? d : [])).catch(() => { });
   }, [companyFilter]);
 
   useEffect(() => {
@@ -137,28 +137,28 @@ export default function JobCardsList() {
       try {
         const params = {};
         if (statusFilter) params.status = statusFilter;
-        if (dateFilter)   params.date   = dateFilter;
+        if (dateFilter) params.date = dateFilter;
         if (employeeFilter) params.employee = employeeFilter;
         if (companyFilter) params.company = companyFilter;
-        if (modelFilter)  params.model   = modelFilter;
+        if (modelFilter) params.model = modelFilter;
         if (ownerTypeFilter) params.owner_type = ownerTypeFilter;
 
         const [jobsData, twoWheeler, fourWheeler, otherVehicle, active, completed] =
           await Promise.all([
             listJobCards(Object.keys(params).length ? params : undefined),
-            listJobCardsByType('two_wheeler'),
-            listJobCardsByType('four_wheeler'),
-            listJobCardsByType('other'),
-            listJobCards({ status: 'IN_PROGRESS' }),
-            listJobCards({ status: 'COMPLETED' }),
+            // listJobCardsByType('two_wheeler'),
+            // listJobCardsByType('four_wheeler'),
+            // listJobCardsByType('other'),
+            // listJobCards({ status: 'IN_PROGRESS' }),
+            // listJobCards({ status: 'COMPLETED' }),
           ]);
         setJobs(Array.isArray(jobsData) ? jobsData : (jobsData.results || []));
         setStats({
-          twoWheeler:  twoWheeler.count,
-          fourWheeler: fourWheeler.count,
-          other:       otherVehicle.count,
-          active:    Array.isArray(active)    ? active.length    : (active.count    || 0),
-          completed: Array.isArray(completed) ? completed.length : (completed.count || 0),
+          twoWheeler: jobsData.filter(j => j.vehicle_type === "two_wheeler").length,
+          fourWheeler: jobsData.filter(j => j.vehicle_type === "four_wheeler").length,
+          other: jobsData.filter(j => j.vehicle_type === "other_wheeler").length,
+          active: jobsData.filter(j => j.job_card_status === "IN_PROGRESS").length,
+          completed: jobsData.filter(j => j.vehicle_type === "COMPLETED").length,
         });
       } catch (err) {
         toast.error(extractError(err));
@@ -171,17 +171,17 @@ export default function JobCardsList() {
 
   const filtered = useMemo(() => {
     let list = jobs;
-    if (usageFilter === 'complete')   list = list.filter(j => j.usage_complete === true);
+    if (usageFilter === 'complete') list = list.filter(j => j.usage_complete === true);
     if (usageFilter === 'incomplete') list = list.filter(j => j.usage_complete === false);
     if (paymentFilter) list = list.filter(j => j.payment_status === paymentFilter);
     if (!search.trim()) return list;
     const s = search.toLowerCase();
     return list.filter((j) =>
       (j.job_card_number || '').toLowerCase().includes(s) ||
-      (j.customer_name   || '').toLowerCase().includes(s) ||
-      (j.vehicle_number  || '').toLowerCase().includes(s) ||
+      (j.customer_name || '').toLowerCase().includes(s) ||
+      (j.vehicle_number || '').toLowerCase().includes(s) ||
       (j.vehicle_company || '').toLowerCase().includes(s) ||
-      (j.vehicle_model   || '').toLowerCase().includes(s)
+      (j.vehicle_model || '').toLowerCase().includes(s)
     );
   }, [jobs, search, usageFilter, paymentFilter]);
 
@@ -236,16 +236,16 @@ export default function JobCardsList() {
       key: 'total_price',
       header: 'Total / Due',
       render: (r) => {
-        const total = jobCardTotal(r);
-        const due   = Number(r.outstanding || 0);
+        const total = r.total_amount
+        //const due = Number(r.outstanding || 0);
         return (
           <div className="leading-tight">
             <div className="text-gray-100 font-medium">₹{total.toLocaleString('en-IN')}</div>
-            {due > 0 && (
+            {/* {due > 0 && (
               <div className="text-[11px] text-yellow-400 mt-0.5">
                 ₹{due.toLocaleString('en-IN', { minimumFractionDigits: 2 })} due
               </div>
-            )}
+            )} */}
           </div>
         );
       },
@@ -360,19 +360,18 @@ export default function JobCardsList() {
       <div className="flex items-center gap-1 mb-3 bg-bg-card border border-border rounded-xl px-4 py-3">
         <span className="text-xs text-gray-500 mr-2 font-medium">Show:</span>
         {[
-          { v: '',         label: 'All' },
+          { v: '', label: 'All' },
           { v: 'customer', label: 'Customers' },
-          { v: 'garage',   label: 'Garage' },
+          { v: 'garage', label: 'Garage' },
         ].map(({ v, label }) => (
           <button
             key={v}
             type="button"
             onClick={() => setOwnerTypeFilter(v)}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-              ownerTypeFilter === v
-                ? 'bg-accent text-white'
-                : 'text-gray-400 hover:text-gray-200 hover:bg-bg-hover'
-            }`}
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${ownerTypeFilter === v
+              ? 'bg-accent text-white'
+              : 'text-gray-400 hover:text-gray-200 hover:bg-bg-hover'
+              }`}
           >
             {label}
           </button>
@@ -511,17 +510,17 @@ export default function JobCardsList() {
    Each row is a clickable card that navigates to the garage detail page.
 ────────────────────────────────────────────────────────────────────────────── */
 function GarageGroupsView({ statusFilter, dateFilter, employeeFilter, refreshTrigger }) {
-  const toast    = useToast();
+  const toast = useToast();
   const navigate = useNavigate();
-  const [groups,  setGroups]  = useState([]);
+  const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search,  setSearch]  = useState('');
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     setLoading(true);
     const params = {};
-    if (statusFilter)   params.status   = statusFilter;
-    if (dateFilter)     params.date     = dateFilter;
+    if (statusFilter) params.status = statusFilter;
+    if (dateFilter) params.date = dateFilter;
     if (employeeFilter) params.employee = employeeFilter;
     listGarageGroups(params)
       .then(d => setGroups(Array.isArray(d) ? d : (d.results || [])))
@@ -533,7 +532,7 @@ function GarageGroupsView({ statusFilter, dateFilter, employeeFilter, refreshTri
     if (!search.trim()) return groups;
     const s = search.toLowerCase();
     return groups.filter(g =>
-      (g.garage_name  || '').toLowerCase().includes(s) ||
+      (g.garage_name || '').toLowerCase().includes(s) ||
       (g.garage_phone || '').toLowerCase().includes(s)
     );
   }, [groups, search]);
@@ -561,7 +560,7 @@ function GarageGroupsView({ statusFilter, dateFilter, employeeFilter, refreshTri
 
       {filtered.map(group => {
         const outstanding = Number(group.outstanding || 0);
-        const payStatus   = PAY_STATUS[group.payment_status] || PAY_STATUS.unpaid;
+        const payStatus = PAY_STATUS[group.payment_status] || PAY_STATUS.unpaid;
 
         return (
           <div

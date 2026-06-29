@@ -518,6 +518,7 @@ export default function JobCardDetail() {
         onAdded={reload}
         outstanding={job.outstanding}
         totalAmount={job.total_amount}
+
         jobCard={job}
       />
 
@@ -588,6 +589,8 @@ export default function JobCardDetail() {
       <AddSalesProductModal
         open={salesProductModal}
         onClose={() => setSalesProductModal(false)}
+        totalAmount={job.total_amount}
+
         jobCardId={id}
         onAdded={reload}
       />
@@ -1396,7 +1399,7 @@ function ProductUsageModal({ product, onClose, onChanged }) {
   );
 }
 
-function AddSalesProductModal({ open, onClose, jobCardId, onAdded }) {
+function AddSalesProductModal({ open, onClose, jobCardId, onAdded, totalAmount }) {
   const toast = useToast();
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1438,6 +1441,8 @@ function AddSalesProductModal({ open, onClose, jobCardId, onAdded }) {
     const price = Number(prices[item.id] || item.selling_price || 0);
     if (!qty || qty <= 0) { toast.error('Enter a valid quantity'); return; }
     if (!price || price <= 0) { toast.error('Enter a valid price'); return; }
+    const total = qty * price;
+
     setSubmitting(item.id);
     try {
       await addJobCardSalesProduct(jobCardId, {
