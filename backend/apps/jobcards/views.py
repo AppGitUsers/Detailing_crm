@@ -1338,4 +1338,17 @@ class JobCardPublicInvoiceView(APIView):
             jobcard = JobCard.objects.get(share_token=share_token)
         except JobCard.DoesNotExist:
             return Response({'error': 'Invoice not found'}, status=status.HTTP_404_NOT_FOUND)
-        return Response(JobCardSerializer(jobcard).data)
+
+        from apps.site_settings.models import Setting
+        biz_keys = ['business_name', 'business_phone', 'business_address', 'business_gst_number']
+        biz_map  = {s.field_name: s.value for s in Setting.objects.filter(field_name__in=biz_keys)}
+
+        return Response({
+            'job_card': JobCardSerializer(jobcard).data,
+            'business': {
+                'name':       biz_map.get('business_name',       ''),
+                'phone':      biz_map.get('business_phone',      ''),
+                'address':    biz_map.get('business_address',    ''),
+                'gst_number': biz_map.get('business_gst_number', ''),
+            },
+        })

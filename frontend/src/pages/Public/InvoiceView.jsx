@@ -11,7 +11,7 @@ export default function PublicInvoiceView() {
 
   useEffect(() => {
     getPublicJobCard(token)
-      .then(data => setHtml(buildInvoiceHTML(data)))
+      .then(({ job_card, business }) => setHtml(buildInvoiceHTML(job_card, business)))
       .catch(() => setError('Invoice not found or the link has expired.'))
       .finally(() => setLoading(false));
   }, [token]);

@@ -20,7 +20,7 @@ const METHOD = {
   netbanking: 'Net Banking', cheque: 'Cheque', other: 'Other',
 };
 
-export function buildInvoiceHTML(jobCard) {
+export function buildInvoiceHTML(jobCard, biz = {}) {
   const services      = jobCard.job_card_services || [];
   const salesProducts = jobCard.sales_products    || [];
   const payments      = jobCard.payments          || [];
@@ -71,6 +71,11 @@ export function buildInvoiceHTML(jobCard) {
       <td style="padding:8px 14px;border-bottom:1px solid #1f2431;color:#6b7280;font-size:11px">${p.notes || '—'}</td>
     </tr>`).join('');
 
+  const bizName    = biz.name    || 'Detailing Workshop';
+  const bizPhone   = biz.phone   || '';
+  const bizAddress = biz.address || '';
+  const bizGst     = biz.gst_number || '';
+
   const makeModel = [jobCard.vehicle_company, jobCard.vehicle_model].filter(Boolean).join(' · ');
   const timeRow = [
     jobCard.vehicle_entry_time ? `<div><div class="lbl">Entry Time</div><div class="val s">${fmtDateTime(jobCard.vehicle_entry_time)}</div></div>` : '',
@@ -106,8 +111,11 @@ th{padding:9px 14px;color:#6b7280;font-weight:500;text-align:left;border-bottom:
 <div class="card" style="background:linear-gradient(135deg,#1a1e27,#0f1117);margin-bottom:20px">
   <div style="display:flex;justify-content:space-between;align-items:flex-start">
     <div>
-      <div style="font-size:22px;font-weight:800;color:#fff;letter-spacing:-.3px">🚗 Detailing Workshop</div>
+      <div style="font-size:22px;font-weight:800;color:#fff;letter-spacing:-.3px">🚗 ${bizName}</div>
       <div style="font-size:12px;color:#6b7280;margin-top:4px">Service Invoice</div>
+      ${bizPhone   ? `<div style="font-size:11px;color:#9ca3af;margin-top:6px">📞 ${bizPhone}</div>`   : ''}
+      ${bizAddress ? `<div style="font-size:11px;color:#9ca3af;margin-top:3px">📍 ${bizAddress}</div>` : ''}
+      ${bizGst     ? `<div style="font-size:11px;color:#9ca3af;margin-top:3px">GST: ${bizGst}</div>`   : ''}
     </div>
     <div style="text-align:right">
       <div style="font-size:16px;color:#a78bfa;font-weight:800">${jobCard.job_card_number || '—'}</div>
@@ -202,8 +210,21 @@ ${payments.length > 0 ? `
 </html>`;
 }
 
-export function downloadJobCardInvoice(jobCard) {
-  const html = buildInvoiceHTML(jobCard);
+export async function downloadJobCardInvoice(jobCard) {
+  let biz = {};
+  try {
+    const { getSettings } = await import('../api/settings.js');
+    const settings = await getSettings();
+    const map = Object.fromEntries(settings.map(s => [s.field_name, s.value]));
+    biz = {
+      name:       map.business_name       || '',
+      phone:      map.business_phone      || '',
+      address:    map.business_address    || '',
+      gst_number: map.business_gst_number || '',
+    };
+  } catch { /* fall back to defaults if settings fetch fails */ }
+
+  const html = buildInvoiceHTML(jobCard, biz);
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
