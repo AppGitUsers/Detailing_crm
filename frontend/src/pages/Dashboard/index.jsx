@@ -107,13 +107,13 @@ export default function Dashboard() {
         title="Dashboard"
         subtitle="Overview of your detailing workshop"
         actions={
-          <div className="flex items-center gap-1.5 bg-bg-elev border border-border rounded-lg p-1">
+          <div className="flex items-center gap-1 bg-bg-elev border border-border rounded-lg p-1 flex-wrap">
             <Calendar size={13} className="text-gray-500 ml-1 shrink-0" />
             {FILTERS.map(f => (
               <button
                 key={f.key}
                 onClick={() => setDateFilter(f.key)}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
                   dateFilter === f.key
                     ? 'bg-accent text-white shadow-sm'
                     : 'text-gray-400 hover:text-gray-100'
