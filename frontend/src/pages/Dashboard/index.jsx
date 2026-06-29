@@ -44,14 +44,13 @@ const FILTERS = [
   { key: 'today', label: 'Today' },
   { key: 'week',  label: 'This Week' },
   { key: 'month', label: 'This Month' },
-  { key: 'all',   label: 'All Time' },
 ];
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
   const toast = useToast();
-  const [dateFilter, setDateFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('month');
   const [loading, setLoading]       = useState(true);
   const [stats, setStats]           = useState({ active: 0, customers: 0, revenue: 0 });
   const [recentJobs, setRecentJobs] = useState([]);
@@ -99,7 +98,7 @@ export default function Dashboard() {
   useEffect(() => { load(dateFilter); }, [dateFilter, load]);
 
   const activeFilter = FILTERS.find(f => f.key === dateFilter);
-  const revenueLabel = dateFilter === 'all' ? 'Revenue (All Time)' : `Revenue (${activeFilter?.label})`;
+  const revenueLabel = `Revenue (${activeFilter?.label})`;
 
   return (
     <div>
@@ -161,7 +160,7 @@ export default function Dashboard() {
             <EmptyState
               icon={ClipboardList}
               title="No job cards"
-              message={dateFilter === 'all' ? 'Create your first job card to get started.' : `No job cards found for ${activeFilter?.label.toLowerCase()}.`}
+              message={`No job cards found for ${activeFilter?.label.toLowerCase()}.`}
             />
           ) : (
             <div className="divide-y divide-border">
