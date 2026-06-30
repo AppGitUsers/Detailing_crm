@@ -17,6 +17,7 @@ import { extractError } from '../../api/axios';
 import { jobCardTotal } from '../../utils/jobcard';
 import { downloadJobCardInvoice } from '../../utils/invoice';
 import { AddPaymentModal } from './Detail';
+import { JobCardGridCard } from './index';
 import { FileText } from 'lucide-react';
 
 const VEHICLE_LABELS = {
@@ -346,7 +347,19 @@ export default function JobCardsByVehicle() {
           action={<Link to="/jobcards/new"><Button><Plus size={16} /> New Job Card</Button></Link>}
         />
       ) : (
-        <Table columns={columns} rows={filtered} onRowClick={(r) => navigate(`/jobcards/${r.id}`)} />
+        <>
+          <div className="hidden xl:block">
+            <Table columns={columns} rows={filtered} onRowClick={(r) => navigate(`/jobcards/${r.id}`)} />
+          </div>
+          <div className="grid grid-cols-1 gap-3 xl:hidden">
+            {filtered.map((r) => (
+              <JobCardGridCard
+                key={r.id} r={r} navigate={navigate} toast={toast}
+                tiers={{ high_value: [], frequent: [] }} setPayJobCard={setPayJobCard}
+              />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

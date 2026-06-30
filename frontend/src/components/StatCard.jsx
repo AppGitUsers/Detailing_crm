@@ -13,7 +13,7 @@ export default function StatCard({ icon: Icon, label, value, accent = 'accent', 
       </div>
       <div className="min-w-0 overflow-hidden">
         <div className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wider truncate">{label}</div>
-        <div className="text-base sm:text-xl font-semibold text-gray-100 mt-0.5 break-all leading-tight">
+        <div className="text-sm font-semibold text-gray-100 mt-0.5 truncate leading-tight">
           {loading ? <span className="inline-block w-16 sm:w-20 h-5 sm:h-6 bg-bg-elev rounded animate-pulse" /> : value}
         </div>
       </div>

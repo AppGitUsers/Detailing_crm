@@ -781,9 +781,10 @@ function Step1({ form, update, errors }) {
       </Field>
       <Field label="Vehicle Number" required error={errors.vehicle_number}>
         <Input
-          placeholder="e.g. KA-01-AB-1234"
+          placeholder="e.g. TN09BR2456"
           value={form.vehicle_number}
-          onChange={(e) => update('vehicle_number', e.target.value)}
+          onChange={(e) => update('vehicle_number', e.target.value.toUpperCase())}
+          style={{ textTransform: 'uppercase' }}
         />
       </Field>
       <div className="md:col-span-2">

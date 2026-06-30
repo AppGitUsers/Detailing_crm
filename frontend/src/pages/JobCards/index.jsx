@@ -162,9 +162,9 @@ export default function JobCardsList() {
         setStats({
           twoWheeler: jobsData.filter(j => j.vehicle_type === "two_wheeler").length,
           fourWheeler: jobsData.filter(j => j.vehicle_type === "four_wheeler").length,
-          other: jobsData.filter(j => j.vehicle_type === "other_wheeler").length,
+          other: jobsData.filter(j => j.vehicle_type === "other").length,
           active: jobsData.filter(j => j.job_card_status === "IN_PROGRESS").length,
-          completed: jobsData.filter(j => j.vehicle_type === "COMPLETED").length,
+          completed: jobsData.filter(j => j.job_card_status === "COMPLETED").length,
         });
       } catch (err) {
         toast.error(extractError(err));
@@ -476,6 +476,13 @@ export default function JobCardsList() {
         )}
       </div>
 
+      {/* Last-7-days notice */}
+      {!dateFilter && (
+        <p className="text-xs text-gray-500 mb-3 px-1">
+          Showing job cards for the last 7 days. Select a date above to view a specific day.
+        </p>
+      )}
+
       {/* Payment modal — outside filter bar so it renders correctly */}
       <AddPaymentModal
         open={!!payJobCard}
@@ -541,7 +548,7 @@ export default function JobCardsList() {
 }
 
 /* ─── Mobile / tablet card for a single job card row ────────────────────────*/
-function JobCardGridCard({ r, navigate, toast, tiers, setPayJobCard }) {
+export function JobCardGridCard({ r, navigate, toast, tiers, setPayJobCard }) {
   const payCfg = PAY_STATUS[r.payment_status] || PAY_STATUS.unpaid;
   const isHV = tiers.high_value.some(t => t.id === r.customer_id);
   const isFQ = !isHV && tiers.frequent.some(t => t.id === r.customer_id);
