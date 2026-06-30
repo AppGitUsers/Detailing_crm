@@ -22,19 +22,19 @@ const fmt = (n) =>
   `${INR}${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const PAY_STATUS = {
-  paid:    { label: 'Paid',    cls: 'bg-emerald-900/40 text-emerald-300 border-emerald-700/50' },
+  paid: { label: 'Paid', cls: 'bg-emerald-900/40 text-emerald-300 border-emerald-700/50' },
   partial: { label: 'Partial', cls: 'bg-yellow-900/30 text-yellow-300 border-yellow-700/50' },
-  unpaid:  { label: 'Unpaid',  cls: 'bg-red-900/30 text-red-300 border-red-700/50' },
+  unpaid: { label: 'Unpaid', cls: 'bg-red-900/30 text-red-300 border-red-700/50' },
 };
 
 export default function GarageDetail() {
   const { garageId } = useParams();
-  const navigate     = useNavigate();
-  const location     = useLocation();
-  const toast        = useToast();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const toast = useToast();
 
-  const [group, setGroup]       = useState(location.state?.group || null);
-  const [loading, setLoading]   = useState(!location.state?.group);
+  const [group, setGroup] = useState(location.state?.group || null);
+  const [loading, setLoading] = useState(!location.state?.group);
   const [payModal, setPayModal] = useState(false);
 
   const load = () => {
@@ -52,7 +52,7 @@ export default function GarageDetail() {
     const cards = group.job_cards || [];
     return {
       pending: cards.filter(jc => jc.payment_status !== 'paid'),
-      paid:    cards.filter(jc => jc.payment_status === 'paid'),
+      paid: cards.filter(jc => jc.payment_status === 'paid'),
     };
   }, [group]);
 
@@ -87,9 +87,9 @@ export default function GarageDetail() {
 
       {/* Summary strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <SummaryChip label="Total Job Cards" value={group.job_card_count}    color="violet" />
-        <SummaryChip label="Total Amount"    value={fmt(group.total_amount)} color="sky" />
-        <SummaryChip label="Paid"            value={fmt(group.paid_amount)}  color="emerald" />
+        <SummaryChip label="Total Job Cards" value={group.job_card_count} color="violet" />
+        <SummaryChip label="Total Amount" value={fmt(group.total_amount)} color="sky" />
+        <SummaryChip label="Paid" value={fmt(group.paid_amount)} color="emerald" />
         <SummaryChip
           label="Outstanding"
           value={fmt(group.outstanding)}
@@ -145,10 +145,10 @@ export default function GarageDetail() {
 /* --- Summary chip --- */
 function SummaryChip({ label, value, color }) {
   const colors = {
-    violet:  'border-violet-700/40 bg-violet-950/30 text-violet-300',
-    sky:     'border-sky-700/40 bg-sky-950/30 text-sky-300',
+    violet: 'border-violet-700/40 bg-violet-950/30 text-violet-300',
+    sky: 'border-sky-700/40 bg-sky-950/30 text-sky-300',
     emerald: 'border-emerald-700/40 bg-emerald-950/30 text-emerald-300',
-    red:     'border-red-700/40 bg-red-950/30 text-red-300',
+    red: 'border-red-700/40 bg-red-950/30 text-red-300',
   };
   return (
     <div className={`rounded-xl border p-4 ${colors[color] || colors.sky}`}>
@@ -161,7 +161,7 @@ function SummaryChip({ label, value, color }) {
 /* --- Section heading --- */
 function SectionHeading({ icon, label, count, accent }) {
   const accents = {
-    yellow:  'border-yellow-800/40 bg-yellow-950/20',
+    yellow: 'border-yellow-800/40 bg-yellow-950/20',
     emerald: 'border-emerald-800/40 bg-emerald-950/20',
   };
   return (
@@ -175,10 +175,10 @@ function SectionHeading({ icon, label, count, accent }) {
 
 /* --- Individual job card row --- */
 function JobCardRow({ jc, navigate }) {
-  const payStatus   = PAY_STATUS[jc.payment_status] || PAY_STATUS.unpaid;
+  const payStatus = PAY_STATUS[jc.payment_status] || PAY_STATUS.unpaid;
   const outstanding = Number(jc.outstanding || 0);
-  const services    = jc.job_card_services || [];
-  const payments    = jc.payments || [];
+  const services = jc.job_card_services || [];
+  const payments = jc.payments || [];
 
   return (
     <div className="bg-bg-card border border-border rounded-xl overflow-hidden hover:border-accent/30 transition-colors">
@@ -243,9 +243,8 @@ function JobCardRow({ jc, navigate }) {
               <div key={i} className="flex items-center justify-between bg-bg-hover/50 rounded-lg px-3 py-1.5">
                 <div>
                   <span className="text-sm text-gray-200">{s.service_name}</span>
-                  <span className={`ml-2 text-[10px] font-medium ${
-                    s.service_status === 'completed' ? 'text-emerald-400' : 'text-yellow-500'
-                  }`}>
+                  <span className={`ml-2 text-[10px] font-medium ${s.service_status === 'completed' ? 'text-emerald-400' : 'text-yellow-500'
+                    }`}>
                     {s.service_status === 'completed' ? '✓' : '⏳'}
                   </span>
                 </div>
@@ -280,10 +279,10 @@ function JobCardRow({ jc, navigate }) {
 /* --- Group Payment Modal --- */
 function GaragePaymentModal({ group, onClose, onPaid }) {
   const toast = useToast();
-  const [amount,     setAmount]     = useState('');
-  const [method,     setMethod]     = useState('cash');
-  const [payDate,    setPayDate]    = useState(new Date().toISOString().split('T')[0]);
-  const [notes,      setNotes]      = useState('');
+  const [amount, setAmount] = useState('');
+  const [method, setMethod] = useState('cash');
+  const [payDate, setPayDate] = useState(new Date().toISOString().split('T')[0]);
+  const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const outstanding = Number(group.outstanding || 0);
@@ -301,23 +300,23 @@ function GaragePaymentModal({ group, onClose, onPaid }) {
     let remaining = amt;
     return outstandingCards.reduce((acc, jc) => {
       if (remaining <= 0) return acc;
-      const due   = Number(jc.outstanding || 0);
+      const due = Number(jc.outstanding || 0);
       const apply = Math.min(remaining, due);
-      remaining  -= apply;
+      remaining -= apply;
       return [...acc, { ...jc, apply }];
     }, []);
   }, [amount, outstandingCards]);
 
   const handleSubmit = async () => {
     const amt = Number(amount);
-    if (!amt || amt <= 0) { toast.error('Enter a valid amount'); return; }
+    if (!amt || amt <= 0 || amt > outstanding) { toast.error('Enter a valid amount'); return; }
     setSubmitting(true);
     try {
       await createGaragePayment({
-        garage_id:      group.garage_id,
-        amount:         amt,
+        garage_id: group.garage_id,
+        amount: amt,
         payment_method: method,
-        payment_date:   payDate,
+        payment_date: payDate,
         notes,
       });
       toast.success('Payment recorded');
