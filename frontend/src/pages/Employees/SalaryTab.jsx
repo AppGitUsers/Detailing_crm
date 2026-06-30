@@ -26,10 +26,8 @@ const MONTHS = ['January','February','March','April','May','June',
                 'July','August','September','October','November','December'];
 
 const ADVANCE_STATUS = {
-  pending:  { label: 'Pending',  variant: 'blue'   },
   approved: { label: 'Approved', variant: 'green'  },
   deducted: { label: 'Deducted', variant: 'purple' },
-  rejected: { label: 'Rejected', variant: 'red'    },
 };
 
 const PAY_STATUS = {
@@ -70,8 +68,8 @@ function todayStr() {
 export default function SalaryTab() {
   const now = new Date();
   const [tab, setTab]       = useState('transactions');
-  const [month, setMonth]   = useState(now.getMonth() + 1);
-  const [year, setYear]     = useState(now.getFullYear());
+  const [month, setMonth]   = useState(now.getMonth() === 0 ? 12 : now.getMonth());
+  const [year, setYear]     = useState(now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear());
   const [summary, setSummary]               = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [pendingAdvCount, setPendingAdvCount] = useState(0);
@@ -88,30 +86,46 @@ export default function SalaryTab() {
 
   const loadSummary = useCallback(async () => {
     setSummaryLoading(true);
-    try {
-      const [txns, approved] = await Promise.all([
-        listTransactions({ month, year }),
-        listAdvances({ status: 'approved' }),
-      ]);
-      const records  = Array.isArray(txns)     ? txns     : (txns.results     || []);
-      const advApprv = Array.isArray(approved) ? approved : (approved.results || []);
-
-      setPendingAdvCount(advApprv.length);
-      setSummary({
-        totalSalary:      records.reduce((s, r) => s + Number(r.base_salary || 0), 0),
-        totalDeductions:  records.reduce((s, r) => s + Number(r.advance_deduction || 0), 0),
-        netPayable:       records.reduce((s, r) => s + Number(r.net_paid || 0), 0),
-        paidCount:        records.filter((r) => r.status === 'paid').length,
-        totalCount:       records.length,
-        approvedAdvTotal: advApprv.reduce((s, a) => s + Number(a.amount || 0), 0),
-        approvedAdvCount: advApprv.length,
-      });
-    } catch {
-      // non-critical
-    } finally {
-      setSummaryLoading(false);
-    }
-  }, [month, year]);
+    const [txnRes, advRes] = await Promise.allSettled([
+      listTransactions({ month, year }),
+      listAdvances({ status: 'approved', salary_month: `${year}-${String(month).padStart(2, '0')}-01` }),
+    ]);
+    const txnData  = txnRes.status === 'fulfilled' ? txnRes.value : null;
+    const advData  = advRes.status === 'fulfilled' ? advRes.value : null;
+    const records  = Array.isArray(txnData) ? txnData : (txnData?.results || []);
+    const advApprv = Array.isArray(advData) ? advData : (advData?.results || []);
+    const approvedAdvTotal = advApprv.reduce((s, a) => s + Number(a.amount || 0), 0);
+    // Per-employee advance map for this month
+    const advByEmpMap = {};
+    advApprv.forEach((a) => {
+      const k = String(a.employee);
+      advByEmpMap[k] = (advByEmpMap[k] || 0) + Number(a.amount || 0);
+    });
+    // For unpaid employees, call computeSalary (attendance-based) in parallel
+    const paidEmpIds  = new Set(records.map((r) => String(r.employee)));
+    const unpaidEmps  = employees.filter((e) => !paidEmpIds.has(String(e.id)));
+    const computedRes = await Promise.allSettled(
+      unpaidEmps.map((e) => computeSalary({ employee: e.id, month, year }))
+    );
+    const unpaidNet = unpaidEmps.reduce((s, e, i) => {
+      const res    = computedRes[i];
+      const base   = res.status === 'fulfilled' ? Number(res.value.computed_salary || e.salary || 0) : Number(e.salary || 0);
+      const empAdv = advByEmpMap[String(e.id)] || 0;
+      return s + Math.max(0, base - empAdv);
+    }, 0);
+    const netPayable = records.reduce((s, r) => s + Number(r.net_paid || 0), 0) + unpaidNet;
+    setPendingAdvCount(advApprv.length);
+    setSummary({
+      totalSalary:      records.reduce((s, r) => s + Number(r.net_paid || 0), 0),
+      totalDeductions:  records.reduce((s, r) => s + Number(r.advance_deduction || 0), 0),
+      netPayable,
+      paidCount:        records.filter((r) => r.status === 'paid').length,
+      totalCount:       employees.length,
+      approvedAdvTotal,
+      approvedAdvCount: advApprv.length,
+    });
+    setSummaryLoading(false);
+  }, [month, year, employees]);
 
   useEffect(() => { loadSummary(); }, [loadSummary]);
 
@@ -137,7 +151,7 @@ export default function SalaryTab() {
       {!summaryLoading && summary && (
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
           {[
-            { icon: IndianRupee, iconCls: 'text-blue-400 bg-blue-900/30',    label: 'Total Salary',       value: fmt(summary.totalSalary),   sub: `${summary.totalCount} payment${summary.totalCount !== 1 ? 's' : ''} recorded`,          highlight: 'text-blue-400' },
+            { icon: IndianRupee, iconCls: 'text-blue-400 bg-blue-900/30',    label: 'Total Paid',         value: fmt(summary.totalSalary),   sub: `${summary.totalCount} payment${summary.totalCount !== 1 ? 's' : ''} recorded`,          highlight: 'text-blue-400' },
             { icon: TrendingDown, iconCls: 'text-red-400 bg-red-900/30',     label: 'Advance Deductions', value: fmt(summary.totalDeductions), sub: summary.approvedAdvCount > 0 ? `${summary.approvedAdvCount} approved — ${fmt(summary.approvedAdvTotal)} to deduct` : 'No approved advances', highlight: summary.totalDeductions > 0 ? 'text-red-400' : 'text-gray-500' },
             { icon: Wallet,       iconCls: 'text-emerald-400 bg-emerald-900/30', label: 'Net to Pay',     value: fmt(summary.netPayable),    sub: 'salary − advances = net',                                                              highlight: 'text-emerald-400' },
             { icon: CheckCircle,  iconCls: 'text-purple-400 bg-purple-900/30',  label: 'Paid',           value: `${summary.paidCount} / ${summary.totalCount}`, sub: summary.paidCount === summary.totalCount && summary.totalCount > 0 ? 'All paid for this month' : `${summary.totalCount - summary.paidCount} pending`, highlight: summary.paidCount === summary.totalCount && summary.totalCount > 0 ? 'text-emerald-400' : 'text-purple-400' },
@@ -198,7 +212,7 @@ export default function SalaryTab() {
       {tab === 'transactions'
         ? <TransactionsTab month={month} year={year} onDataChange={loadSummary} employees={employees} />
         : tab === 'advances'
-          ? <AdvancesTab onDataChange={loadSummary} employees={employees} />
+          ? <AdvancesTab onDataChange={loadSummary} employees={employees} month={month} year={year} />
           : <AllTransactionsTab employees={employees} />}
     </div>
   );
@@ -222,7 +236,7 @@ function TransactionsTab({ month, year, onDataChange, employees }) {
       const [txns, att, advs] = await Promise.all([
         listTransactions({ month, year }),
         listAttendance({ month, year }),
-        listAdvances({ status: 'approved' }),
+        listAdvances({ status: 'approved', salary_month: `${year}-${String(month).padStart(2, '0')}-01` }),
       ]);
       setRecords(Array.isArray(txns) ? txns : (txns.results || []));
       setAttendance(Array.isArray(att) ? att : (att.results || []));
@@ -310,6 +324,8 @@ function TransactionsTab({ month, year, onDataChange, employees }) {
             payment={paymentByEmp[empId]}
             workedMins={workedByEmp[empId] || 0}
             advanceTotal={advByEmp[empId] || 0}
+            month={month}
+            year={year}
             onPay={() => setModal({ mode: 'create', defaultEmployee: empId })}
             onEdit={() => setModal({ mode: 'edit', data: paymentByEmp[empId] })}
             onDelete={() => setConfirmDel(paymentByEmp[empId])}
@@ -338,11 +354,13 @@ function TransactionsTab({ month, year, onDataChange, employees }) {
   );
 }
 
-function EmployeePaymentCard({ emp, payment, workedMins, advanceTotal, onPay, onEdit, onDelete }) {
+function EmployeePaymentCard({ emp, payment, workedMins, advanceTotal, month, year, onPay, onEdit, onDelete }) {
   const isPaid    = payment?.status === 'paid';
   const isPending = payment?.status === 'pending';
   const salary    = payment ? Number(payment.base_salary) : Number(emp.salary || 0);
   const net       = payment ? Number(payment.net_paid) : null;
+  const now       = new Date();
+  const isCurrentOrFuture = year > now.getFullYear() || (year === now.getFullYear() && month >= now.getMonth() + 1);
 
   return (
     <div className={`bg-bg-card border rounded-xl px-5 py-4 flex items-center gap-4 transition-colors ${
@@ -409,7 +427,7 @@ function EmployeePaymentCard({ emp, payment, workedMins, advanceTotal, onPay, on
             </button>
           </>
         ) : (
-          <Button onClick={onPay}><Plus size={14} /> Pay Now</Button>
+          <Button onClick={onPay} disabled={isCurrentOrFuture}><Plus size={14} /> Pay Now</Button>
         )}
       </div>
     </div>
@@ -745,8 +763,7 @@ function TransactionFormModal({ modal, onClose, onSaved, employees, currentMonth
               <Input
                 type="number" step="0.01" min="0" placeholder="0"
                 value={form.advance_deduction}
-                onChange={set('advance_deduction')}
-                disabled={loadingAdvances}
+                disabled
               />
             </Field>
           </div>
@@ -825,7 +842,7 @@ function TransactionFormModal({ modal, onClose, onSaved, employees, currentMonth
 
 // ── Advances Tab ──────────────────────────────────────────────────────────────
 
-function AdvancesTab({ onDataChange, employees }) {
+function AdvancesTab({ onDataChange, employees, month, year }) {
   const toast = useToast();
   const [loading, setLoading]               = useState(true);
   const [records, setRecords]               = useState([]);
@@ -838,7 +855,8 @@ function AdvancesTab({ onDataChange, employees }) {
   const load = async () => {
     setLoading(true);
     try {
-      const advs = await listAdvances({ limit: 500 });
+      const salaryMonth = `${year}-${String(month).padStart(2, '0')}-01`;
+      const advs = await listAdvances({ limit: 500, salary_month: salaryMonth });
       setRecords(Array.isArray(advs) ? advs : (advs.results || []));
     } catch (err) {
       toast.error(extractError(err));
@@ -847,7 +865,7 @@ function AdvancesTab({ onDataChange, employees }) {
     }
   };
 
-  useEffect(() => { load(); }, []); // eslint-disable-line
+  useEffect(() => { load(); }, [month, year]); // eslint-disable-line
 
   const onDelete = async () => {
     setDelLoading(true);
@@ -864,39 +882,24 @@ function AdvancesTab({ onDataChange, employees }) {
     }
   };
 
-  const quickUpdate = async (adv, newStatus) => {
-    try {
-      await updateAdvance(adv.id, {
-        employee: adv.employee, date: adv.date,
-        amount: Number(adv.amount), reason: adv.reason || null, status: newStatus,
-      });
-      toast.success({ rejected: 'Advance voided' }[newStatus] || 'Advance updated');
-      load();
-      onDataChange();
-    } catch (err) {
-      toast.error(extractError(err));
-    }
-  };
-
-  // Per-employee advance summary (from all records)
+  // Per-employee advance summary (approved only)
   const empSummary = {};
   records.forEach((r) => {
+    if (r.status !== 'approved' && r.status !== 'deducted') return;
     const k = String(r.employee);
-    if (!empSummary[k]) empSummary[k] = { approved: 0, pending: 0 };
+    if (!empSummary[k]) empSummary[k] = { approved: 0 };
     if (r.status === 'approved') empSummary[k].approved += Number(r.amount);
-    if (r.status === 'pending')  empSummary[k].pending  += Number(r.amount);
   });
 
-  // Client-side filtered records
+  // Client-side filtered records — only approved and deducted
   const displayedRecords = records.filter((r) => {
+    if (r.status !== 'approved' && r.status !== 'deducted') return false;
     if (filterStatus && r.status !== filterStatus) return false;
     if (selectedEmp && String(r.employee) !== selectedEmp) return false;
     return true;
   });
 
-  const pendingCount    = records.filter((r) => r.status === 'pending').length;
   const approvedBalance = records.filter((r) => r.status === 'approved').reduce((s, r) => s + Number(r.amount), 0);
-  const pendingBalance  = records.filter((r) => r.status === 'pending').reduce((s, r) => s + Number(r.amount), 0);
   const totalDeducted   = records.filter((r) => r.status === 'deducted').reduce((s, r) => s + Number(r.amount), 0);
 
   const columns = [
@@ -932,17 +935,14 @@ function AdvancesTab({ onDataChange, employees }) {
       key: 'actions', header: '',
       render: (r) => (
         <div className="flex items-center justify-end gap-1">
-          {r.status === 'approved' && (
-            <button onClick={() => quickUpdate(r, 'rejected')} className="px-2 py-1 rounded text-xs bg-red-900/30 text-red-400 border border-red-700/40 hover:bg-red-900/50 transition-colors">
-              ✗ Void
-            </button>
-          )}
           <button onClick={() => setModal({ mode: 'edit', data: r })} className="p-1.5 text-gray-400 hover:text-accent transition-colors">
             <Pencil size={14} />
           </button>
-          <button onClick={() => setConfirmDel(r)} className="p-1.5 text-gray-400 hover:text-red-400 transition-colors">
-            <Trash2 size={14} />
-          </button>
+          {r.status !== 'deducted' && (
+            <button onClick={() => setConfirmDel(r)} className="p-1.5 text-gray-400 hover:text-red-400 transition-colors">
+              <Trash2 size={14} />
+            </button>
+          )}
         </div>
       ),
     },
@@ -985,8 +985,7 @@ function AdvancesTab({ onDataChange, employees }) {
                 <div className="flex items-end justify-between">
                   <div className="text-xs space-y-0.5">
                     {summary.approved > 0 && <div className="text-amber-400">₹{summary.approved.toLocaleString('en-IN')} approved</div>}
-                    {summary.pending  > 0 && <div className="text-blue-400">₹{summary.pending.toLocaleString('en-IN')} pending</div>}
-                    {!summary.approved && !summary.pending && <div className="text-gray-600">No active advances</div>}
+                    {!summary.approved && <div className="text-gray-600">No active advances</div>}
                   </div>
                   <button
                     onClick={(e) => { e.stopPropagation(); setModal({ mode: 'create', defaultEmployee: String(emp.id) }); }}
@@ -1004,20 +1003,15 @@ function AdvancesTab({ onDataChange, employees }) {
       {/* Status filter + selected employee indicator */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex gap-2 flex-wrap items-center">
-          {['', 'pending', 'approved', 'deducted', 'rejected'].map((s) => (
+          {['', 'approved', 'deducted'].map((s) => (
             <button
               key={s}
               onClick={() => setFilterStatus(s)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
                 filterStatus === s ? 'bg-accent text-white border-accent' : 'bg-bg-elev text-gray-400 border-border hover:text-gray-100'
               }`}
             >
               {s === '' ? 'All' : ADVANCE_STATUS[s]?.label || s}
-              {s === 'pending' && pendingCount > 0 && (
-                <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${filterStatus === 'pending' ? 'bg-white/20' : 'bg-yellow-500/30 text-yellow-300'}`}>
-                  {pendingCount}
-                </span>
-              )}
             </button>
           ))}
         </div>
@@ -1039,11 +1033,7 @@ function AdvancesTab({ onDataChange, employees }) {
       )}
 
       {!loading && records.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-bg-card border border-border rounded-xl p-3 flex items-center gap-3">
-            <Clock size={16} className="text-blue-400 shrink-0" />
-            <div><div className="text-xs text-gray-500">Pending</div><div className="text-sm font-semibold text-blue-400">₹{pendingBalance.toLocaleString('en-IN')}</div></div>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="bg-bg-card border border-amber-700/30 rounded-xl p-3 flex items-center gap-3">
             <AlertCircle size={16} className="text-amber-400 shrink-0" />
             <div><div className="text-xs text-gray-500">Approved — to deduct</div><div className="text-sm font-semibold text-amber-400">₹{approvedBalance.toLocaleString('en-IN')}</div></div>
@@ -1312,7 +1302,7 @@ function AdvanceFormModal({ modal, onClose, onSaved, employees }) {
         </div>
 
         <Field label="Apply to Salary Month" hint="Which month's salary this advance will be deducted from">
-          <Input type="month" value={form.salary_month} onChange={set('salary_month')} />
+          <Input type="month" value={form.salary_month} min={today.slice(0, 7)} onChange={set('salary_month')} />
         </Field>
 
         {selectedEmp?.salary && Number(form.amount) > Number(selectedEmp.salary) && (
