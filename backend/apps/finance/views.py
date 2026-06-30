@@ -300,12 +300,30 @@ class FinanceIncomeView(APIView):
                 }
             info = jc_cache[jc.id]
 
+            # Walk payments in chronological order, computing GST-first split.
+            # Prefer stored gst_collected/base_collected when set (new payments);
+            # fall back to on-the-fly calculation for old payments where they are NULL.
             cumulative_gst  = Decimal('0')
             cumulative_base = Decimal('0')
+            this_paid_gst   = Decimal('0')
+            this_paid_base  = Decimal('0')
+            gst_limit = info['gst']
+
             for pp in info['ordered_pays']:
-                cumulative_gst  += pp.gst_collected  or Decimal('0')
-                cumulative_base += pp.base_collected or Decimal('0')
+                if pp.gst_collected is not None:
+                    pp_gst  = pp.gst_collected
+                    pp_base = pp.base_collected or Decimal('0')
+                else:
+                    remaining_gst = max(Decimal('0'), gst_limit - cumulative_gst)
+                    pp_gst  = min(pp.amount, remaining_gst)
+                    pp_base = pp.amount - pp_gst
+
+                cumulative_gst  += pp_gst
+                cumulative_base += pp_base
+
                 if pp.id == p.id:
+                    this_paid_gst  = pp_gst
+                    this_paid_base = pp_base
                     break
 
             gst_to_collect  = max(Decimal('0'), info['gst']  - cumulative_gst)
@@ -325,13 +343,11 @@ class FinanceIncomeView(APIView):
                 'customer_name':     jc.customer_asset.customer.customer_name if jc.customer_asset else '',
                 'vehicle_number':    jc.customer_asset.vehicle_number if jc.customer_asset else '',
                 'services':          service_names,
-                'base_amount':       str(info['base']),
                 'gst_percent':       str(jc.gst_percent),
-                'gst_amount':        str(info['gst']),
                 'total_amount':      str(info['total']),
                 'paid_amount':       str(p.amount),
-                'base_to_collect':   str(base_to_collect),
-                'gst_to_collect':    str(gst_to_collect),
+                'paid_base':         str(this_paid_base.quantize(Decimal('0.01'))),
+                'paid_gst':          str(this_paid_gst.quantize(Decimal('0.01'))),
                 'outstanding':       str(outstanding_after),
                 'payment_status':    pstatus,
                 'payment_method':    p.payment_method,
@@ -349,24 +365,21 @@ class FinanceIncomeView(APIView):
                 Q(items__inventory__product__product_name__icontains=search)
             )
         for so in sales_qs:
-            #amount = sum(item.quantity * item.unit_price for item in so.items.all())
             results.append({
                 'id':              f'sales-{so.id}',
                 'date':            so.sale_date.isoformat(),
-                'job_card_number': so.order_number,          # not tied to a job card
-                'customer_name':   so.customer_name,          # fill in if SalesOrder has a customer link
+                'job_card_number': so.order_number,
+                'customer_name':   so.customer_name,
                 'vehicle_number':  '',
                 'services':        ', '.join(i.inventory.product.product_name for i in so.items.all()),
-                'base_amount':     str(so.total_amount),
                 'gst_percent':     '0',
-                'gst_amount':      '0',
                 'total_amount':    str(so.total_amount),
-                'paid_amount':     str(so.total_amount),  # sales are presumably paid at time of sale
-                'base_to_collect': '0',
-                'gst_to_collect':  '0',
+                'paid_amount':     str(so.total_amount),
+                'paid_base':       str(so.total_amount),
+                'paid_gst':        '0',
                 'outstanding':     '0',
                 'payment_status':  'paid',
-                'payment_method':  '',           # fill in if SalesOrder tracks this
+                'payment_method':  so.payment_method or '',
                 'category':        'Sales Product',
             })
         

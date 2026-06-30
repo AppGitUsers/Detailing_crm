@@ -82,8 +82,9 @@ async function exportExcel(rows, cols, filename, title) {
     const n = Number(v);
     return (v !== '' && v !== null && v !== undefined && !isNaN(n) && typeof v !== 'boolean') ? n : (v ?? '');
   }));
-  const totalsRow = cols.map((_, ci) => {
+  const totalsRow = cols.map((c, ci) => {
     if (ci === 0) return 'TOTAL';
+    if (!c.sumable) return '';
     const nums = dataRows.map(r => r[ci]).filter(v => typeof v === 'number');
     return nums.length > 0 ? nums.reduce((a, b) => a + b, 0) : '';
   });
@@ -339,19 +340,16 @@ export default function FinanceDashboard() {
               </div>
               <button
                 onClick={() => exportExcel(income, [
-                  { key: 'date', label: 'Date' },
-                  { key: 'job_card_number', label: 'Job Card' },
-                  { key: 'customer_name', label: 'Customer' },
+                  { key: 'date',           label: 'Date' },
+                  { key: 'job_card_number',label: 'Job Card / SO' },
+                  { key: 'customer_name',  label: 'Customer' },
                   { key: 'vehicle_number', label: 'Vehicle' },
-                  { key: 'services', label: 'Services' },
-                  { key: 'total_amount', label: 'Total (₹)' },
-                  { key: 'base_amount', label: 'Base (₹)' },
-                  { key: 'gst_percent', label: 'GST %' },
-                  { key: 'gst_amount', label: 'GST Amt (₹)' },
-                  { key: 'paid_amount', label: 'Paid (₹)' },
-                  { key: 'base_to_collect', label: 'Base To Collect (₹)' },
-                  { key: 'gst_to_collect', label: 'GST To Collect (₹)' },
-                  { key: 'outstanding', label: 'Outstanding (₹)' },
+                  { key: 'services',       label: 'Services / Products' },
+                  { key: 'total_amount',   label: 'Total To Pay (₹)' },
+                  { key: 'gst_percent',    label: 'GST %' },
+                  { key: 'paid_amount',    label: 'Paid (₹)',       sumable: true },
+                  { key: 'paid_base',      label: 'Paid Base (₹)', sumable: true },
+                  { key: 'paid_gst',       label: 'Paid GST (₹)',  sumable: true },
                   { key: 'payment_status', label: 'Status' },
                 ], `income-${month}`, `Income Report — ${month}`)}
                 className="flex items-center gap-1 px-2.5 py-1.5 bg-bg-elev border border-border rounded-md text-xs text-gray-300 hover:text-gray-100 hover:bg-bg-hover transition-colors"
@@ -369,7 +367,7 @@ export default function FinanceDashboard() {
                 <table className="w-full text-xs">
                   <thead className="sticky top-0 bg-bg-card border-b border-border">
                     <tr>
-                      {['Date', 'Job Card', 'Customer', 'Total', 'Base', 'GST%', 'GST Amt', 'Paid', 'Base To Collect', 'GST To Collect', 'Status'].map(h => (
+                      {['Date', 'Job Card / SO', 'Customer', 'Vehicle', 'Services / Products', 'Total To Pay', 'GST%', 'Paid', 'Paid Base', 'Paid GST', 'Status'].map(h => (
                         <th key={h} className="px-3 py-2.5 text-left text-gray-400 font-medium whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -379,14 +377,14 @@ export default function FinanceDashboard() {
                       <tr key={r.id} className="hover:bg-bg-hover transition-colors">
                         <td className="px-3 py-2.5 text-gray-400 whitespace-nowrap">{r.date}</td>
                         <td className="px-3 py-2.5 text-gray-200 font-medium whitespace-nowrap">{r.job_card_number}</td>
-                        <td className="px-3 py-2.5 text-gray-300 max-w-[120px] truncate">{r.customer_name}</td>
+                        <td className="px-3 py-2.5 text-gray-300 max-w-[110px] truncate">{r.customer_name}</td>
+                        <td className="px-3 py-2.5 text-sky-400 whitespace-nowrap">{r.vehicle_number || '—'}</td>
+                        <td className="px-3 py-2.5 text-gray-400 max-w-[140px] truncate">{r.services || '—'}</td>
                         <td className="px-3 py-2.5 text-gray-100 font-medium whitespace-nowrap">{fmt(r.total_amount)}</td>
-                        <td className="px-3 py-2.5 text-gray-300 whitespace-nowrap">{fmt(r.base_amount)}</td>
                         <td className="px-3 py-2.5 text-gray-400 whitespace-nowrap">{r.gst_percent}%</td>
-                        <td className="px-3 py-2.5 text-indigo-300 whitespace-nowrap">{fmt(r.gst_amount)}</td>
-                        <td className="px-3 py-2.5 text-emerald-400 whitespace-nowrap">{fmt(r.paid_amount)}</td>
-                        <td className="px-3 py-2.5 text-yellow-300 whitespace-nowrap">{fmt(r.base_to_collect)}</td>
-                        <td className="px-3 py-2.5 text-yellow-300 whitespace-nowrap">{fmt(r.gst_to_collect)}</td>
+                        <td className="px-3 py-2.5 text-emerald-400 font-semibold whitespace-nowrap">{fmt(r.paid_amount)}</td>
+                        <td className="px-3 py-2.5 text-emerald-300 whitespace-nowrap">{fmt(r.paid_base)}</td>
+                        <td className="px-3 py-2.5 text-indigo-300 whitespace-nowrap">{fmt(r.paid_gst)}</td>
                         <td className="px-3 py-2.5">
                           <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] border capitalize ${STATUS_CLS[r.payment_status] || ''}`}>
                             {r.payment_status}
@@ -413,8 +411,9 @@ export default function FinanceDashboard() {
                         <span className="text-[10px] text-gray-500">{r.date}</span>
                       </div>
                     </div>
-                    <div className="text-xs text-gray-300 truncate mb-2">{r.customer_name}</div>
-                    <div className="grid grid-cols-3 gap-2 text-[11px]">
+                    <div className="text-xs text-gray-300 truncate mb-1">{r.customer_name}</div>
+                    {r.services && <div className="text-[10px] text-gray-500 truncate mb-2">{r.services}</div>}
+                    <div className="grid grid-cols-4 gap-2 text-[11px]">
                       <div>
                         <div className="text-[10px] text-gray-500 mb-0.5">Total</div>
                         <div className="font-semibold text-gray-100">{fmt(r.total_amount)}</div>
@@ -424,8 +423,12 @@ export default function FinanceDashboard() {
                         <div className="font-semibold text-emerald-400">{fmt(r.paid_amount)}</div>
                       </div>
                       <div>
-                        <div className="text-[10px] text-gray-500 mb-0.5">Outstanding</div>
-                        <div className="font-semibold text-yellow-300">{fmt(r.outstanding)}</div>
+                        <div className="text-[10px] text-gray-500 mb-0.5">Paid Base</div>
+                        <div className="font-semibold text-emerald-300">{fmt(r.paid_base)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-gray-500 mb-0.5">Paid GST</div>
+                        <div className="font-semibold text-indigo-300">{fmt(r.paid_gst)}</div>
                       </div>
                     </div>
                   </div>
