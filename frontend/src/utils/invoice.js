@@ -27,6 +27,9 @@ export function buildInvoiceHTML(jobCard, biz = {}) {
   const total         = Number(jobCard.total_amount         || 0);
   const servicesTotal = Number(jobCard.services_total       || jobCard.total_amount || 0);
   const salesTotal    = Number(jobCard.sales_products_total || 0);
+  const gstPercent    = Number(jobCard.gst_percent || 0);
+  const baseAmount    = Number(jobCard.base_amount  || 0);
+  const gstAmount     = Number(jobCard.gst_amount   || 0);
   const paid          = Number(jobCard.paid_amount  || 0);
   const outstanding   = Number(jobCard.outstanding  || 0);
   const payStatus     = jobCard.payment_status || 'unpaid';
@@ -170,10 +173,25 @@ th{padding:8px 10px;color:#6b7280;font-weight:500;text-align:left;border-bottom:
     : `<div class="tbl-wrap"><table>
         <thead><tr><th>Service Name</th><th style="text-align:center;white-space:nowrap">Status</th><th style="text-align:right;white-space:nowrap">Price</th></tr></thead>
         <tbody>${serviceRows}</tbody>
-        <tfoot><tr style="background:#1a1e27">
-          <td colspan="2" style="padding:9px 10px;font-weight:700;color:#9ca3af;font-size:12px">Services Total</td>
-          <td style="padding:9px 10px;text-align:right;font-weight:800;color:#c4b5fd;font-size:14px;white-space:nowrap">${fmt(servicesTotal)}</td>
-        </tr></tfoot>
+        <tfoot>
+          ${gstPercent > 0 ? `
+          <tr style="background:#1a1e27">
+            <td colspan="2" style="padding:8px 10px;color:#9ca3af;font-size:11px">Subtotal (before GST)</td>
+            <td style="padding:8px 10px;text-align:right;color:#9ca3af;font-size:13px;white-space:nowrap">${fmt(baseAmount)}</td>
+          </tr>
+          <tr style="background:#1a1e27">
+            <td colspan="2" style="padding:8px 10px;color:#f59e0b;font-size:11px">GST (${gstPercent}%)</td>
+            <td style="padding:8px 10px;text-align:right;color:#f59e0b;font-size:13px;white-space:nowrap">+ ${fmt(gstAmount)}</td>
+          </tr>
+          <tr style="background:#1a1e27;border-top:1px solid #252a36">
+            <td colspan="2" style="padding:9px 10px;font-weight:700;color:#9ca3af;font-size:12px">Services Total (incl. ${gstPercent}% GST)</td>
+            <td style="padding:9px 10px;text-align:right;font-weight:800;color:#c4b5fd;font-size:14px;white-space:nowrap">${fmt(servicesTotal)}</td>
+          </tr>` : `
+          <tr style="background:#1a1e27">
+            <td colspan="2" style="padding:9px 10px;font-weight:700;color:#9ca3af;font-size:12px">Services Total</td>
+            <td style="padding:9px 10px;text-align:right;font-weight:800;color:#c4b5fd;font-size:14px;white-space:nowrap">${fmt(servicesTotal)}</td>
+          </tr>`}
+        </tfoot>
       </table></div>`}
 </div>
 
@@ -193,9 +211,13 @@ ${salesProducts.length > 0 ? `
 <div class="card">
   <div class="sec">Billing Summary</div>
   <div class="bill-wrap">
-    <div class="row"><span style="color:#9ca3af">Base Amount</span><span>${fmt(jobCard.base_amount)}</span></div>
-    <div class="row"><span style="color:#9ca3af">GST (${jobCard.gst_percent || 0}%)</span><span>${fmt(jobCard.gst_amount)}</span></div>
+    ${gstPercent > 0 ? `
+    <div class="row"><span style="color:#9ca3af">Subtotal (before GST)</span><span>${fmt(baseAmount)}</span></div>
+    <div class="row"><span style="color:#f59e0b">GST (${gstPercent}%)</span><span style="color:#f59e0b">+ ${fmt(gstAmount)}</span></div>
+    <div class="row"><span style="color:#9ca3af">Services Total (incl. GST)</span><span>${fmt(servicesTotal)}</span></div>
+    ` : `
     <div class="row"><span style="color:#9ca3af">Services Total</span><span>${fmt(servicesTotal)}</span></div>
+    `}
     ${salesTotal > 0 ? `<div class="row"><span style="color:#9ca3af">Sales Products</span><span style="color:#38bdf8">${fmt(salesTotal)}</span></div>` : ''}
     <div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:2px solid #252a36;font-weight:800;font-size:15px">
       <span style="color:#fff">Grand Total</span><span style="color:#c4b5fd">${fmt(total)}</span>
