@@ -2,7 +2,8 @@ import logging
 from datetime import timedelta, date as _date
 from decimal import Decimal
 from django.db import transaction
-from django.db.models import Count
+from django.db.models import Count, Sum, Q, F
+from django.db.models.functions import Coalesce
 from apps.jobcards.utils import recalculate_total, compute_gst_split, recompute_payment_gst
 from rest_framework import status
 from rest_framework.views import APIView
@@ -1164,6 +1165,22 @@ class GarageJobCardGroupView(APIView):
         if date_str:   qs = qs.filter(job_card_date=date_str)
         if employee:   qs = qs.filter(employee_id=employee)
         if garage_id:  qs = qs.filter(garage_owner_id=garage_id)
+
+        # Payment status isn't a DB column (it's a SerializerMethodField), so we
+        # derive it here from the stored total_amount and the sum of payments —
+        # mirroring JobCardSerializer.get_payment_status: a card is fully 'paid'
+        # only when total_amount > 0 and payments cover it; otherwise it is
+        # 'unpaid'/'partial'.
+        cutoff = _date.today() - timedelta(days=7)
+        qs = qs.annotate(_paid_sum=Coalesce(Sum('payments__amount'), Decimal('0')))
+        fully_paid = Q(total_amount__gt=0) & Q(_paid_sum__gte=F('total_amount'))
+
+        # Branch 1 — always include: unpaid/partial OR currently in progress.
+        always_include = ~fully_paid | Q(job_card_status='IN_PROGRESS')
+        # Branch 2 — include only within the last 7 days (by job_card_date):
+        # fully paid AND completed.
+        recent_paid = fully_paid & Q(job_card_status='COMPLETED') & Q(job_card_date__gte=cutoff)
+        qs = qs.filter(always_include | recent_paid)
 
         qs = qs.select_related(
             'garage_owner', 'customer_asset', 'employee'
