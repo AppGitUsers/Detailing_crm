@@ -1,5 +1,4 @@
 import logging
-from collections import defaultdict
 from datetime import timedelta, date as _date
 from decimal import Decimal
 from django.db import transaction
@@ -568,58 +567,81 @@ class JobCardProductUsageDeleteView(APIView):
 
 class CustomerAnalyticsView(APIView):
     """
-    Returns aggregated analytics for the Customers / Vehicles dashboard:
-      - top_by_revenue   : top 10 customers by total billed
-      - top_by_visits    : top 10 customers by job card count
-      - vehicle_type_dist: job card count per vehicle type
-      - payment_dist     : count of paid / partial / unpaid job cards
-      - monthly_trend    : last 6 months – job card count + revenue
+    Returns aggregated analytics for the Customers / Vehicles dashboard.
+    Uses DB-level GROUP BY queries — no Python loops over job cards.
     """
     def get(self, request):
-        from decimal import Decimal
-
-        # Fetch all job cards with their services and payments in one pass
-        all_jcs = JobCard.objects.prefetch_related(
-            'job_card_services', 'payments', 'customer_asset__customer', 'sales_products'
-        ).all()
-
-        customer_revenue = defaultdict(lambda: {'name': '', 'revenue': Decimal('0'), 'visits': 0})
-        vehicle_type_counts = defaultdict(int)
-        pay_dist = {'paid': 0, 'partial': 0, 'unpaid': 0}
-        monthly = defaultdict(lambda: {'count': 0, 'revenue': Decimal('0')})
+        from django.db.models import Sum, Count
+        from django.db.models.functions import TruncMonth
+        from datetime import date as ddate
 
         today = timezone.now().date()
         six_months_ago = today.replace(day=1)
-        # Go back 6 months
         m, y = six_months_ago.month, six_months_ago.year
         for _ in range(5):
             m -= 1
             if m == 0:
                 m = 12
                 y -= 1
-        from datetime import date as ddate
         cutoff = ddate(y, m, 1)
 
-        for jc in all_jcs:
-            # Financials
-            base_total = sum(s.price_at_time for s in jc.job_card_services.all())
-            paid  = sum(p.amount for p in jc.payments.all())
-            total = Decimal('0')
-            if jc.gst_percent>0:
-                total = base_total + (jc.gst_percent/100)*base_total
-            else:
-                total = base_total            
-            # Customer aggregation
-            cust = jc.customer_asset.customer
-            key  = cust.id
-            customer_revenue[key]['name']    = cust.customer_name
-            customer_revenue[key]['revenue'] += total
-            customer_revenue[key]['visits']  += 1
+        # Query 1: revenue + visits per customer (one GROUP BY)
+        cust_agg = list(
+            JobCard.objects
+            .values('customer_asset__customer_id', 'customer_asset__customer__customer_name')
+            .annotate(revenue=Sum('total_amount'), visits=Count('id'))
+            .order_by()
+        )
 
-            # Vehicle type distribution
-            vehicle_type_counts[jc.customer_asset.vehicle_type] += 1
+        by_rev = sorted(cust_agg, key=lambda x: float(x['revenue'] or 0), reverse=True)
+        by_vis = sorted(cust_agg, key=lambda x: x['visits'], reverse=True)
 
-            # Payment status
+        def _enrich(rows, limit=5):
+            return [
+                {
+                    'customer_id': r['customer_asset__customer_id'],
+                    'name': r['customer_asset__customer__customer_name'],
+                    'revenue': float(r['revenue'] or 0),
+                    'visits': r['visits'],
+                }
+                for r in rows[:limit]
+            ]
+
+        top_by_revenue = _enrich(by_rev)
+        top_by_visits  = _enrich(by_vis)
+
+        # Query 2: vehicle type distribution
+        TYPE_LABEL = {
+            'two_wheeler':   'Two Wheeler',
+            'three_wheeler': 'Three Wheeler',
+            'four_wheeler':  'Four Wheeler',
+            'other':         'Other',
+        }
+        vtype_agg = (
+            JobCard.objects
+            .values('customer_asset__vehicle_type')
+            .annotate(count=Count('id'))
+            .order_by('-count')
+        )
+        vehicle_type_dist = [
+            {
+                'type':  r['customer_asset__vehicle_type'],
+                'label': TYPE_LABEL.get(r['customer_asset__vehicle_type'], r['customer_asset__vehicle_type']),
+                'count': r['count'],
+            }
+            for r in vtype_agg
+        ]
+
+        # Query 3: payment status distribution (paid / partial / unpaid)
+        pay_rows = (
+            JobCard.objects
+            .annotate(paid_sum=Sum('payments__amount'))
+            .values('total_amount', 'paid_sum')
+        )
+        pay_dist = {'paid': 0, 'partial': 0, 'unpaid': 0}
+        for row in pay_rows:
+            total = float(row['total_amount'] or 0)
+            paid  = float(row['paid_sum'] or 0)
             if total <= 0 or paid == 0:
                 pay_dist['unpaid'] += 1
             elif paid >= total:
@@ -627,46 +649,25 @@ class CustomerAnalyticsView(APIView):
             else:
                 pay_dist['partial'] += 1
 
-            # Monthly trend (last 6 months)
-            if jc.job_card_date >= cutoff:
-                key_m = jc.job_card_date.strftime('%Y-%m')
-                monthly[key_m]['count']   += 1
-                monthly[key_m]['revenue'] += total
-
-        # Sort and slice — top 5 with customer_id for clickable links
-        def _enrich(items, limit=5):
-            return [
-                {'customer_id': cid, 'name': c['name'],
-                 'revenue': float(c['revenue']), 'visits': c['visits']}
-                for cid, c in items[:limit]
-            ]
-
-        by_rev   = sorted(customer_revenue.items(), key=lambda x: x[1]['revenue'], reverse=True)
-        by_visit = sorted(customer_revenue.items(), key=lambda x: x[1]['visits'],  reverse=True)
-        top_by_revenue = _enrich(by_rev)
-        top_by_visits  = _enrich(by_visit)
-
-        TYPE_LABEL = {
-            'two_wheeler': 'Two Wheeler',
-            'three_wheeler': 'Three Wheeler',
-            'four_wheeler': 'Four Wheeler',
-            'other': 'Other',
+        # Query 4: monthly trend (last 6 months)
+        monthly_agg = (
+            JobCard.objects
+            .filter(job_card_date__gte=cutoff)
+            .annotate(month=TruncMonth('job_card_date'))
+            .values('month')
+            .annotate(count=Count('id'), revenue=Sum('total_amount'))
+            .order_by('month')
+        )
+        monthly_map = {
+            r['month'].strftime('%Y-%m'): {'count': r['count'], 'revenue': float(r['revenue'] or 0)}
+            for r in monthly_agg
         }
-        vehicle_type_dist = [
-            {'type': k, 'label': TYPE_LABEL.get(k, k), 'count': v}
-            for k, v in sorted(vehicle_type_counts.items(), key=lambda x: -x[1])
-        ]
-
-        # Fill all 6 months even if no data
         monthly_trend = []
         yr, mo = cutoff.year, cutoff.month
         for _ in range(6):
             key_m = f'{yr}-{mo:02d}'
-            monthly_trend.append({
-                'month': key_m,
-                'count': monthly[key_m]['count'],
-                'revenue': float(monthly[key_m]['revenue']),
-            })
+            d = monthly_map.get(key_m, {})
+            monthly_trend.append({'month': key_m, 'count': d.get('count', 0), 'revenue': d.get('revenue', 0.0)})
             mo += 1
             if mo > 12:
                 mo = 1
@@ -681,8 +682,7 @@ class CustomerAnalyticsView(APIView):
                 {'status': 'Partial', 'count': pay_dist['partial']},
                 {'status': 'Unpaid',  'count': pay_dist['unpaid']},
             ],
-            'monthly_trend': monthly_trend,
-            # Lightweight tier lookup used by job card list and create form
+            'monthly_trend':     monthly_trend,
             'tiers': {
                 'high_value': [r['customer_id'] for r in top_by_revenue],
                 'frequent':   [r['customer_id'] for r in top_by_visits],
@@ -702,7 +702,8 @@ class CustomerReportView(APIView):
     Response: { customers: [...], total: N, available_years: [...] }
     """
     def get(self, request):
-        from decimal import Decimal
+        from django.db.models import Sum, Count, Max
+        from django.db.models.functions import ExtractYear
         from datetime import date as ddate, timedelta
         from calendar import monthrange
         from apps.customers.models import Customer
@@ -715,7 +716,6 @@ class CustomerReportView(APIView):
         today     = ddate.today()
         threshold = today - timedelta(days=45)
 
-        # ── Determine date range for visit/revenue stats ─────────────────
         date_from = None
         date_to   = None
         if last_days_raw:
@@ -737,72 +737,48 @@ class CustomerReportView(APIView):
             except ValueError:
                 pass
 
-        has_date_filter = date_from is not None
+        # Query 1: all-time last visit per customer (for is_active check)
+        last_visit_map = {
+            r['customer_asset__customer_id']: r['last_visit']
+            for r in JobCard.objects
+                .values('customer_asset__customer_id')
+                .annotate(last_visit=Max('job_card_date'))
+        }
 
-        # ── Step 1: aggregate job-card stats per customer (bulk fetch) ─────
-        all_jcs = JobCard.objects.select_related(
-            'customer_asset__customer'
-        ).prefetch_related('job_card_services').order_by()
+        # Query 2: filtered visits + revenue per customer
+        filtered_qs = JobCard.objects.values('customer_asset__customer_id')
+        if date_from:
+            filtered_qs = filtered_qs.filter(job_card_date__gte=date_from)
+        if date_to:
+            filtered_qs = filtered_qs.filter(job_card_date__lte=date_to)
+        filtered_map = {
+            r['customer_asset__customer_id']: r
+            for r in filtered_qs.annotate(visits=Count('id'), revenue=Sum('total_amount'))
+        }
 
-        cust_map  = {}
-        all_years = set()
+        # Query 3: distinct years present in job cards
+        available_years = [
+            str(y) for y in
+            JobCard.objects
+            .annotate(yr=ExtractYear('job_card_date'))
+            .values_list('yr', flat=True)
+            .distinct()
+            .order_by('-yr')
+            if y is not None
+        ]
 
-        for jc in all_jcs:
-            cust   = jc.customer_asset.customer
-            cid    = cust.id
-            jc_date = jc.job_card_date
-            yr     = str(jc_date.year) if jc_date else 'unknown'
-            all_years.add(yr)
-
-            if cid not in cust_map:
-                cust_map[cid] = {
-                    'id':               cid,
-                    'name':             cust.customer_name,
-                    'all_dates':        [],
-                    'filtered_visits':  0,
-                    'filtered_revenue': Decimal('0'),
-                }
-            row = cust_map[cid]
-            if jc_date:
-                row['all_dates'].append(jc_date)
-
-            # Check whether this job card falls inside the selected date range
-            in_range = True
-            if date_from and jc_date and jc_date < date_from:
-                in_range = False
-            if date_to   and jc_date and jc_date > date_to:
-                in_range = False
-            base_amount = sum(s.price_at_time for s in jc.job_card_services.all())
-            total = Decimal('0')
-            if jc.gst_percent>0:
-                total = base_amount + (jc.gst_percent/100)* base_amount
-            else:
-                total = base_amount
-            if in_range:
-                row['filtered_visits']  += 1
-                row['filtered_revenue'] += total
-
-        # ── Step 2: build report (include customers with 0 visits) ─────────
         all_customers = Customer.objects.all().order_by('customer_name')
         report = []
 
         for cust in all_customers:
-            cid  = cust.id
-            data = cust_map.get(cid)
+            cid = cust.id
+            agg = filtered_map.get(cid, {})
+            visits     = agg.get('visits', 0) or 0
+            revenue    = float(agg.get('revenue') or 0)
+            last_visit = last_visit_map.get(cid)
 
-            if data:
-                last_visit = max(data['all_dates']) if data['all_dates'] else None
-                visits     = data['filtered_visits']
-                revenue    = float(data['filtered_revenue'])
-            else:
-                last_visit = None
-                visits     = 0
-                revenue    = 0.0
-
-            # last_days / month filter: always hide customers with 0 visits in that range
             if (last_days_raw or month_raw) and visits == 0:
                 continue
-            # year filter: hide zero-visit customers only when status='active'
             elif year_filter and visits == 0 and status_filter == 'active':
                 continue
 
@@ -824,11 +800,6 @@ class CustomerReportView(APIView):
 
         report.sort(key=lambda x: x['last_visit_date'] or '', reverse=True)
 
-        available_years = sorted(
-            [y for y in all_years if y.isdigit()],
-            reverse=True,
-        )
-
         return Response({
             'customers':       report,
             'total':           len(report),
@@ -839,27 +810,25 @@ class CustomerReportView(APIView):
 class CustomerTiersView(APIView):
     """Lightweight endpoint — returns only the top-5 customer IDs for each tier."""
     def get(self, _request):
-        from decimal import Decimal
-        all_jcs = JobCard.objects.prefetch_related(
-            'job_card_services', 'payments', 'customer_asset__customer'
-        ).all()
-        revenue_map = defaultdict(lambda: {'revenue': Decimal('0'), 'visits': 0})
-        for jc in all_jcs:
-            cid   = jc.customer_asset.customer_id
-            base_total = sum(s.price_at_time for s in jc.job_card_services.all())
-            total = Decimal('0')
-            if jc.gst_percent >0:
-                total = base_total + (jc.gst_percent/100)*base_total
-            else:
-                total = base_total
-            revenue_map[cid]['revenue'] += total
-            revenue_map[cid]['visits']  += 1
-        by_rev   = sorted(revenue_map.items(), key=lambda x: x[1]['revenue'], reverse=True)[:5]
-        by_visit = sorted(revenue_map.items(), key=lambda x: x[1]['visits'],  reverse=True)[:5]
-        return Response({
-            'high_value': [{'id': cid, 'revenue': float(v['revenue']), 'visits': v['visits']} for cid, v in by_rev],
-            'frequent':   [{'id': cid, 'revenue': float(v['revenue']), 'visits': v['visits']} for cid, v in by_visit],
-        })
+        from django.db.models import Sum, Count
+
+        cust_agg = list(
+            JobCard.objects
+            .values('customer_asset__customer_id')
+            .annotate(revenue=Sum('total_amount'), visits=Count('id'))
+            .order_by()
+        )
+
+        by_rev   = sorted(cust_agg, key=lambda x: float(x['revenue'] or 0), reverse=True)[:5]
+        by_visit = sorted(cust_agg, key=lambda x: x['visits'], reverse=True)[:5]
+
+        def _fmt(rows):
+            return [
+                {'id': r['customer_asset__customer_id'], 'revenue': float(r['revenue'] or 0), 'visits': r['visits']}
+                for r in rows
+            ]
+
+        return Response({'high_value': _fmt(by_rev), 'frequent': _fmt(by_visit)})
 
 
 # ─── Sales Products ───────────────────────────────────────────────────────────
