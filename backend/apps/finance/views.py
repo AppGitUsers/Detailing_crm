@@ -100,6 +100,41 @@ def _expense_for_period(year, month):
     ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
 
 
+class DashboardStatsView(APIView):
+    """Lightweight stats for the main dashboard — revenue collected + customers served in a date range."""
+    def get(self, request):
+        date_from = request.query_params.get('date_from')
+        date_to   = request.query_params.get('date_to')
+        today     = date.today()
+        if not date_from:
+            date_from = today.isoformat()
+        if not date_to:
+            date_to = today.isoformat()
+
+        jc_pay = (
+            JobCardPayment.objects
+            .filter(payment_date__gte=date_from, payment_date__lte=date_to)
+            .aggregate(t=Sum('amount'))['t'] or Decimal('0')
+        )
+        so_rev = (
+            SalesOrder.objects
+            .filter(sale_date__gte=date_from, sale_date__lte=date_to)
+            .aggregate(t=Sum('total_amount'))['t'] or Decimal('0')
+        )
+        customers_served = (
+            JobCard.objects
+            .filter(job_card_date__gte=date_from, job_card_date__lte=date_to)
+            .values('customer_asset__customer')
+            .distinct()
+            .count()
+        )
+
+        return Response({
+            'revenue_collected': str((jc_pay + so_rev).quantize(Decimal('0.01'))),
+            'customers_served':  customers_served,
+        })
+
+
 class FinanceDashboardView(APIView):
     def get(self, request):
         year, month = _parse_month(request.query_params.get('month'))

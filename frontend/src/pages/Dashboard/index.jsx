@@ -10,10 +10,9 @@ import EmptyState from '../../components/EmptyState';
 import Badge from '../../components/Badge';
 import { useToast } from '../../components/Toast';
 import { listJobCards } from '../../api/jobcards';
-import { listCustomers } from '../../api/customers';
 import { listInventory } from '../../api/inventory';
+import { getDashboardStats } from '../../api/finance';
 import { extractError } from '../../api/axios';
-import { jobCardTotal } from '../../utils/jobcard';
 
 const fmt = (n) =>
   `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -63,30 +62,26 @@ export default function Dashboard() {
     try {
       const range = getDateRange(filter);
 
-      const [active, completed, customers, lowStockItems] = await Promise.all([
-        listJobCards({ status: 'IN_PROGRESS' }),                        // active always unfiltered
+      const [active, completed, statsData, lowStockItems] = await Promise.all([
+        listJobCards({ status: 'IN_PROGRESS' }),
         listJobCards({ status: 'COMPLETED', ...range }),
-        listCustomers(),
+        getDashboardStats(range),
         listInventory({ low_stock: 'true' }),
       ]);
 
-      const activeArr    = Array.isArray(active)       ? active       : (active.results       || []);
-      const completedArr = Array.isArray(completed)    ? completed    : (completed.results    || []);
-      const customersArr = Array.isArray(customers)    ? customers    : (customers.results    || []);
-      const lowArr       = Array.isArray(lowStockItems)? lowStockItems: (lowStockItems.results|| []);
+      const activeArr    = Array.isArray(active)        ? active        : (active.results        || []);
+      const completedArr = Array.isArray(completed)     ? completed     : (completed.results     || []);
+      const lowArr       = Array.isArray(lowStockItems) ? lowStockItems : (lowStockItems.results || []);
 
-      const revenue = completedArr.reduce((sum, j) => sum + jobCardTotal(j), 0);
-
-      // Recent = latest jobs within the selected range (active always shown)
-      const allForRecent = range.date_from
-        ? [...activeArr, ...completedArr]
-        : [...activeArr, ...completedArr];
-
-      const recent = allForRecent
+      const recent = [...activeArr, ...completedArr]
         .sort((a, b) => new Date(b.job_card_date || 0) - new Date(a.job_card_date || 0))
         .slice(0, 6);
 
-      setStats({ active: activeArr.length, customers: customersArr.length, revenue });
+      setStats({
+        active:    activeArr.length,
+        customers: statsData?.customers_served ?? 0,
+        revenue:   Number(statsData?.revenue_collected ?? 0),
+      });
       setRecentJobs(recent);
       setLowStock(lowArr);
     } catch (err) {
@@ -100,7 +95,7 @@ export default function Dashboard() {
   useEffect(() => { load(dateFilter); }, [dateFilter, load]);
 
   const activeFilter = FILTERS.find(f => f.key === dateFilter);
-  const revenueLabel = `Revenue (${activeFilter?.label})`;
+  const revenueLabel = `Revenue Collected (${activeFilter?.label})`;
 
   return (
     <div>
@@ -129,10 +124,10 @@ export default function Dashboard() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard icon={ClipboardList} label="Active Job Cards"   value={stats.active}               accent="yellow" loading={loading} />
-        <StatCard icon={Users}         label="Total Customers"    value={stats.customers}             accent="blue"   loading={loading} />
-        <StatCard icon={IndianRupee}   label={revenueLabel}       value={fmt(stats.revenue)}          accent="green"  loading={loading} />
-        <StatCard icon={AlertTriangle} label="Low Stock Alerts"   value={lowStock.length}             accent="red"    loading={loading} />
+        <StatCard icon={ClipboardList} label="Active Job Cards"          value={stats.active}     accent="yellow" loading={loading} />
+        <StatCard icon={Users}         label={`Customers Served (${activeFilter?.label})`} value={stats.customers} accent="blue" loading={loading} />
+        <StatCard icon={IndianRupee}   label={revenueLabel}               value={fmt(stats.revenue)} accent="green"  loading={loading} />
+        <StatCard icon={AlertTriangle} label="Low Stock Alerts"           value={lowStock.length}    accent="red"    loading={loading} />
       </div>
 
       {/* Daily Closing Report — lazy-mounted on demand */}
