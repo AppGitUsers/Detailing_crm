@@ -15,7 +15,7 @@ const PAY_CFG = {
   partial: { label: 'Partial', cls: 'bg-yellow-900/30 text-yellow-300 border-yellow-700/50' },
   unpaid: { label: 'Unpaid', cls: 'bg-red-900/30 text-red-300 border-red-700/50' },
 };
-import { listJobCards } from '../../api/jobcards';
+import { listJobCardsVehicleNumber } from '../../api/jobcards';
 import { extractError } from '../../api/axios';
 
 const fmtDate = (s) => {
@@ -62,7 +62,7 @@ export default function VehicleDetail() {
       try {
         const [v, j] = await Promise.all([
           getAsset(vehicleId),
-          listJobCards({ vehicle_id: vehicleId }),
+          listJobCardsVehicleNumber(vehicleId),
         ]);
         setVehicle(v);
         setJobs(Array.isArray(j) ? j : (j.results || []));

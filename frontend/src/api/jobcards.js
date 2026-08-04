@@ -4,9 +4,10 @@ import api from './axios';
 const publicHttp = axios.create({ baseURL: import.meta.env.VITE_API_URL });
 export const getPublicJobCard    = (token) => publicHttp.get(`jobcards/public/${token}/`).then(r => r.data);
 export const getPublicSalesOrder = (token) => publicHttp.get(`jobcards/sales-public/${token}/`).then(r => r.data);
-
 export const listJobCards = (params) => api.get('jobcards/', { params }).then(r => r.data);
 export const createJobCard = (data) => api.post('jobcards/', data).then(r => r.data);
+export const listJobCardsCustomer = (id) => api.get(`jobcards/customerHistory/${id}/`).then(r=>r.data);
+export const listJobCardsVehicleNumber = (vehicleId) => api.get(`jobcards/VehicleNumber/${vehicleId}/`).then(r => r.data);
 export const createFullJobCard = (data) => api.post('jobcards/create-full/', data).then(r => r.data);
 export const getJobCard = (id) => api.get(`jobcards/${id}/`).then(r => r.data);
 export const updateJobCard = (id, data) => api.put(`jobcards/${id}/`, data).then(r => r.data);

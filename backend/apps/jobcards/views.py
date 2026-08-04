@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 from .models import JobCard, JobCardService, JobCardEmployee, JobCardPayment, JobCardProduct, JobCardProductUsage, JobCardSalesProduct, SalesOrder
 from apps.customers.models import Customer, CustomerAsset
 from .serializers import (
+    JobCardCustomerSerializer,
     JobCardSerializer,
     JobCardServiceSerializer,
     JobCardEmployeeSerializer,
@@ -1530,3 +1531,16 @@ class SalesOrderPublicView(APIView):
                 'gst_number': biz_map.get('business_gst_number', ''),
             },
         })
+
+class JobCardCustomerView(APIView):
+    def get(self,request,customer_id):
+        print(customer_id)
+        qs = JobCard.objects.filter(customer_id = customer_id)
+        response = JobCardCustomerSerializer(qs, many = True)
+        return Response(response.data)
+
+class JobCardVehicleNumberView(APIView):
+    def get(self, request, vehicle_id):
+        qs= JobCard.objects.filter(customer_asset_id = vehicle_id)
+        response = JobCardCustomerSerializer(qs , many =True)
+        return Response(response.data)

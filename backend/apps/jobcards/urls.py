@@ -21,6 +21,8 @@ from .views import (
     GaragePaymentView,
     JobCardPublicInvoiceView,
     SalesOrderPublicView,
+    JobCardCustomerView,
+    JobCardVehicleNumberView,
 )
 
 urlpatterns = [
@@ -28,6 +30,8 @@ urlpatterns = [
     path('', JobCardListCreateView.as_view(), name='jobcard-list'),
     path('create-full/', FullJobCardCreateView.as_view(), name='jobcard-create-full'),
     path('<int:pk>/', JobCardDetailView.as_view(), name='jobcard-detail'),
+    path('customerHistory/<int:customer_id>/',JobCardCustomerView.as_view(),name='jobcard-customer-history' ),
+    path('VehicleNumber/<int:vehicle_id>/',JobCardVehicleNumberView.as_view(), name='jobcard-vehicle-number'),
 
     # JobCard Services
     path('<int:jobcard_pk>/services/', JobCardServiceListCreateView.as_view(), name='jobcard-service-list'),

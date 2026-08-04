@@ -11,7 +11,7 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 import { Field, Input } from '../../components/Field';
 import { useToast } from '../../components/Toast';
 import { getCustomer, addCustomerAsset, updateAsset, deleteAsset } from '../../api/customers';
-import { listJobCards } from '../../api/jobcards';
+import { listJobCardsCustomer } from '../../api/jobcards';
 const fmtAmt = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
 const PAY_CFG = {
   paid: { label: 'Paid', cls: 'bg-emerald-900/40 text-emerald-300 border-emerald-700/50' },
@@ -33,12 +33,13 @@ export default function CustomerDetail() {
   const load = async () => {
     setLoading(true);
     try {
-      const [c, j] = await Promise.all([getCustomer(id), listJobCards()]);
+      const [c, j] = await Promise.all([getCustomer(id), listJobCardsCustomer(id)]);
       setCustomer(c);
+      console.log(j);
       const arr = Array.isArray(j) ? j : (j.results || []);
       const customerVehicleIds = (c.vehicles || []).map((v) => v.id);
       // setJobs(arr.filter((job) => customerVehicleIds.includes(job.customer_asset)));
-      setJobs(arr.filter((job) => job.customer_id === c.id));
+      setJobs(j);
     } catch (err) {
       toast.error(extractError(err));
     } finally {

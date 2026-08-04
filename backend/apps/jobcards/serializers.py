@@ -693,3 +693,17 @@ class SalesOrderCreateSerializer(serializers.Serializer):
 
     def to_representation(self, instance):
         return SalesOrderSerializer(instance).data
+
+
+class JobCardCustomerSerializer(serializers.ModelSerializer):
+    customer_id = serializers.IntegerField(read_only = True)
+    id = serializers.IntegerField()
+    job_card_number = serializers.CharField( read_only = True)
+    job_card_date = serializers.DateField( read_only = True)
+    job_card_status = serializers.CharField(read_only = True)
+    total_amount = serializers.DecimalField(max_digits=10, decimal_places=2, read_only = True)
+    vehicle_number = serializers.CharField(source= "customer_asset.vehicle_number", read_only = True)
+    class Meta:
+        model = JobCard
+        fields = ['customer_id', 'job_card_number', 'job_card_date', 'total_amount', 'job_card_status', 'vehicle_number', 'id']
+        order_by = ['job_card_date']
