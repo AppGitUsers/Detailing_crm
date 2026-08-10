@@ -119,7 +119,7 @@ function CatBar({ title, data }) {
         <BarChart data={chart} layout="vertical" margin={{ left: 8, right: 40 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3a" horizontal={false} />
           <XAxis type="number" hide />
-          <YAxis type="category" dataKey="category" tick={{ fill: '#9ca3af', fontSize: 11 }} width={100} />
+          <YAxis type="category" dataKey="category" tick={{ fill: 'rgb(var(--gray-400))', fontSize: 11 }} width={100} />
           <Tooltip
             contentStyle={{ background: '#1a1a2e', border: '1px solid #2a2a3a', borderRadius: 8 }}
             formatter={(v, n, p) => [fmt(p.payload.amount), p.payload.category]}
@@ -338,13 +338,13 @@ export default function FinanceDashboard() {
           <ResponsiveContainer width="100%" height={280}>
             <ComposedChart data={dash?.monthly_chart || []} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3a" />
-              <XAxis dataKey="month" tick={{ fill: '#9ca3af', fontSize: 11 }} />
+              <XAxis dataKey="month" tick={{ fill: 'rgb(var(--gray-400))', fontSize: 11 }} />
               <YAxis
-                tick={{ fill: '#9ca3af', fontSize: 11 }}
+                tick={{ fill: 'rgb(var(--gray-400))', fontSize: 11 }}
                 tickFormatter={v => `₹${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`}
               />
               <Tooltip content={<ChartTip />} />
-              <Legend wrapperStyle={{ fontSize: 12, color: '#9ca3af' }} formatter={v => v.charAt(0).toUpperCase() + v.slice(1)} />
+              <Legend wrapperStyle={{ fontSize: 12, color: 'rgb(var(--gray-400))' }} formatter={v => v.charAt(0).toUpperCase() + v.slice(1)} />
               <Bar dataKey="income" fill={CHART_COLORS.income} radius={[3, 3, 0, 0]} maxBarSize={28} />
               <Bar dataKey="expense" fill={CHART_COLORS.expense} radius={[3, 3, 0, 0]} maxBarSize={28} />
               <Line type="monotone" dataKey="savings" stroke={CHART_COLORS.savings} strokeWidth={2} dot={{ r: 3, fill: CHART_COLORS.savings }} />
@@ -651,7 +651,7 @@ export function AddExpenseModal({ onClose, Amount, Customer, Date, Category, Ref
           </div>
         </div>
         <div className="flex gap-2 mt-5">
-          <button className="flex-1 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors" onClick={onSubmit}>
+          <button className="flex-1 py-2.5 bg-[#059669] text-white text-sm font-medium rounded-lg hover:bg-[#047857] transition-colors" onClick={onSubmit}>
             Record Expense
           </button>
           <button onClick={onClose} className="flex-1 py-2.5 bg-bg-elev border border-border text-gray-300 text-sm font-medium rounded-lg hover:bg-bg-hover transition-colors">

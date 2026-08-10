@@ -747,7 +747,7 @@ function Stepper({ step, skippedCustomer }) {
               className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium border ${isActive
                 ? 'bg-accent border-accent text-white'
                 : isDone
-                  ? 'bg-emerald-600 border-emerald-600 text-white'
+                  ? 'bg-[#059669] border-[#059669] text-white'
                   : 'bg-bg-elev border-border text-gray-400'
                 }`}
             >

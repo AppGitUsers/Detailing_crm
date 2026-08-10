@@ -82,7 +82,7 @@ function generateHTML(r) {
       <td style="text-align:right">${fmtN(s.billed)}</td>
       <td style="text-align:right;color:#10b981">${fmtN(s.collected)}</td>
       <td style="text-align:right;color:#f43f5e">${fmtN(s.outstanding)}</td>
-      <td style="min-width:120px">${bar} <small style="color:#9ca3af">${pct}%</small></td>
+      <td style="min-width:120px">${bar} <small style="color:rgb(var(--gray-400))">${pct}%</small></td>
     </tr>`;
   }).join('');
 
@@ -121,11 +121,11 @@ function generateHTML(r) {
     const color = PIE_COLORS[i % PIE_COLORS.length];
     if (pct === 0) return '';
     return `<path d="M80,80 L${x1.toFixed(1)},${y1.toFixed(1)} A${r2},${r2} 0 ${large},1 ${x2.toFixed(1)},${y2.toFixed(1)} Z"
-      fill="${color}" stroke="#13161d" stroke-width="2"/>`;
+      fill="${color}" stroke="rgb(var(--color-bg-card))" stroke-width="2"/>`;
   }).join('');
 
   const pieLabels = r.payment_breakdown.map((p, i) => `
-    <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#9ca3af">
+    <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:rgb(var(--gray-400))">
       <span style="width:10px;height:10px;border-radius:2px;background:${PIE_COLORS[i % PIE_COLORS.length]};flex-shrink:0"></span>
       ${PAYMENT_LABEL[p.method] || p.method}: ${fmtN(p.amount)}
     </div>`).join('');
@@ -137,34 +137,34 @@ function generateHTML(r) {
 <title>Daily Closing Report – ${r.date}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; background: #0b0d12; color: #e5e7eb; padding: 32px; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: rgb(var(--color-bg)); color: rgb(var(--gray-200)); padding: 32px; }
   .page { max-width: 1000px; margin: 0 auto; }
   h1 { font-size: 22px; font-weight: 700; color: #fff; }
   h2 { font-size: 13px; font-weight: 600; color: #c4b5fd; text-transform: uppercase; letter-spacing: .06em; margin: 0 0 12px; }
-  .header { background: linear-gradient(135deg, #1a1e27, #13161d); border: 1px solid #252a36; border-radius: 12px; padding: 24px 28px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-start; }
-  .header .meta { font-size: 12px; color: #9ca3af; margin-top: 4px; }
-  .stamp { text-align: right; font-size: 11px; color: #6b7280; }
+  .header { background: linear-gradient(135deg, rgb(var(--color-bg-elev)), rgb(var(--color-bg-card))); border: 1px solid rgb(var(--color-border)); border-radius: 12px; padding: 24px 28px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-start; }
+  .header .meta { font-size: 12px; color: rgb(var(--gray-400)); margin-top: 4px; }
+  .stamp { text-align: right; font-size: 11px; color: rgb(var(--gray-500)); }
   .stamp .date { font-size: 20px; font-weight: 700; color: #7c5cff; }
-  .section { background: #13161d; border: 1px solid #252a36; border-radius: 12px; padding: 20px 24px; margin-bottom: 20px; }
+  .section { background: rgb(var(--color-bg-card)); border: 1px solid rgb(var(--color-border)); border-radius: 12px; padding: 20px 24px; margin-bottom: 20px; }
   .grid4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 20px; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
-  .kpi { background: #1a1e27; border: 1px solid #252a36; border-radius: 10px; padding: 16px; }
-  .kpi .lbl { font-size: 11px; color: #9ca3af; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .05em; }
+  .kpi { background: rgb(var(--color-bg-elev)); border: 1px solid rgb(var(--color-border)); border-radius: 10px; padding: 16px; }
+  .kpi .lbl { font-size: 11px; color: rgb(var(--gray-400)); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .05em; }
   .kpi .val { font-size: 20px; font-weight: 700; color: #fff; }
   .kpi.green .val { color: #10b981; }
   .kpi.red .val   { color: #f43f5e; }
   .kpi.amber .val { color: #f59e0b; }
   .kpi.purple .val { color: #c4b5fd; }
   table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  th { text-align: left; padding: 8px 10px; color: #9ca3af; font-weight: 500; border-bottom: 1px solid #252a36; }
-  td { padding: 8px 10px; border-bottom: 1px solid #1a1e27; }
-  tr:hover td { background: #1a1e27; }
+  th { text-align: left; padding: 8px 10px; color: rgb(var(--gray-400)); font-weight: 500; border-bottom: 1px solid rgb(var(--color-border)); }
+  td { padding: 8px 10px; border-bottom: 1px solid rgb(var(--color-bg-elev)); }
+  tr:hover td { background: rgb(var(--color-bg-elev)); }
   .badge { display: inline-block; padding: 2px 8px; background: rgba(99,102,241,0.15); border: 1px solid rgba(99,102,241,0.3); border-radius: 20px; font-size: 10px; color: #818cf8; }
-  .cf-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #252a36; font-size: 13px; }
+  .cf-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid rgb(var(--color-border)); font-size: 13px; }
   .cf-row:last-child { border-bottom: none; font-size: 16px; font-weight: 700; }
   .cf-total { font-size: 22px; font-weight: 800; color: #10b981; }
-  .no-data { text-align: center; color: #6b7280; padding: 24px; font-size: 13px; }
-  @media print { body { background: #fff; color: #111; } .section,.kpi,.header { background: #fff; border-color: #e5e7eb; } h2 { color: #4f46e5; } }
+  .no-data { text-align: center; color: rgb(var(--gray-500)); padding: 24px; font-size: 13px; }
+  @media print { body { background: #fff; color: #111; } .section,.kpi,.header { background: #fff; border-color: rgb(var(--gray-200)); } h2 { color: #4f46e5; } }
 </style>
 </head>
 <body>
@@ -178,7 +178,7 @@ function generateHTML(r) {
     </div>
     <div class="stamp">
       <div class="date">${r.date}</div>
-      <div style="color:#9ca3af;font-size:11px;margin-top:4px">${r.summary.vehicles_serviced} vehicles serviced</div>
+      <div style="color:rgb(var(--gray-400));font-size:11px;margin-top:4px">${r.summary.vehicles_serviced} vehicles serviced</div>
     </div>
   </div>
 
@@ -199,7 +199,7 @@ function generateHTML(r) {
         ? '<p class="no-data">No payments recorded today</p>'
         : `<div style="display:flex;align-items:flex-start;gap:20px">
             <svg width="160" height="160" viewBox="0 0 160 160">
-              <circle cx="80" cy="80" r="42" fill="#1a1e27"/>
+              <circle cx="80" cy="80" r="42" fill="rgb(var(--color-bg-elev))"/>
               ${pieSegments}
             </svg>
             <div style="flex:1;padding-top:8px;display:flex;flex-direction:column;gap:6px">${pieLabels}</div>
@@ -214,7 +214,7 @@ function generateHTML(r) {
     <!-- Flow Statement -->
     <div class="section">
       <h2>Flow Statement</h2>
-      <div class="cf-row"><span style="color:#9ca3af">Opening Balance</span><span>${fmtN(r.cash_flow.opening_balance)}</span></div>
+      <div class="cf-row"><span style="color:rgb(var(--gray-400))">Opening Balance</span><span>${fmtN(r.cash_flow.opening_balance)}</span></div>
       <div class="cf-row"><span style="color:#10b981">＋ Collected Today (All Modes)</span><span style="color:#10b981">${fmtN(r.cash_flow.cash_collected)}</span></div>
       <div class="cf-row"><span style="color:#f43f5e">− Expenses Paid Out</span><span style="color:#f43f5e">${fmtN(r.cash_flow.cash_expenses)}</span></div>
       <div class="cf-row"><span>Closing Balance</span><span class="cf-total">${fmtN(r.cash_flow.closing_balance)}</span></div>
@@ -243,7 +243,7 @@ function generateHTML(r) {
             const oW  = Math.max(1, (Number(s.outstanding) / maxBilled) * barMaxW);
             const name = s.service_name.length > 20 ? s.service_name.slice(0,18) + '…' : s.service_name;
             return `
-              <text x="${labelW - 8}" y="${y0 + barH / 2 + 4}" text-anchor="end" fill="#9ca3af" font-size="11">${name}</text>
+              <text x="${labelW - 8}" y="${y0 + barH / 2 + 4}" text-anchor="end" fill="rgb(var(--gray-400))" font-size="11">${name}</text>
               <rect x="${labelW}" y="${y0}"               width="${bW.toFixed(1)}" height="${barH}" rx="3" fill="#6366f1"/>
               <rect x="${labelW}" y="${y0 + barH + gap}"  width="${cW.toFixed(1)}" height="${barH}" rx="3" fill="#10b981"/>
               <rect x="${labelW}" y="${y0 + (barH+gap)*2}" width="${oW.toFixed(1)}" height="${barH}" rx="3" fill="#f43f5e"/>
@@ -255,11 +255,11 @@ function generateHTML(r) {
             <svg width="${chartW}" height="${chartH}" style="display:block;overflow:visible;margin-bottom:16px">
               <!-- Legend -->
               <rect x="${labelW}" y="2" width="10" height="10" rx="2" fill="#6366f1"/>
-              <text x="${labelW + 14}" y="11" fill="#9ca3af" font-size="10">Billed</text>
+              <text x="${labelW + 14}" y="11" fill="rgb(var(--gray-400))" font-size="10">Billed</text>
               <rect x="${labelW + 70}" y="2" width="10" height="10" rx="2" fill="#10b981"/>
-              <text x="${labelW + 84}" y="11" fill="#9ca3af" font-size="10">Collected</text>
+              <text x="${labelW + 84}" y="11" fill="rgb(var(--gray-400))" font-size="10">Collected</text>
               <rect x="${labelW + 160}" y="2" width="10" height="10" rx="2" fill="#f43f5e"/>
-              <text x="${labelW + 174}" y="11" fill="#9ca3af" font-size="10">Outstanding</text>
+              <text x="${labelW + 174}" y="11" fill="rgb(var(--gray-400))" font-size="10">Outstanding</text>
               ${rows}
             </svg>
             <table>
@@ -289,13 +289,13 @@ function generateHTML(r) {
       const uLabel = UNIT[p.unit] || p.unit;
       const medals = ['🥇', '🥈', '🥉'];
       return `<tr>
-        <td style="width:28px;text-align:center;color:#6b7280;font-family:monospace">${medals[i] || (i + 1)}</td>
+        <td style="width:28px;text-align:center;color:rgb(var(--gray-500));font-family:monospace">${medals[i] || (i + 1)}</td>
         <td>
-          <div style="font-weight:500;color:#e5e7eb">${p.product_name}</div>
-          ${p.brand ? `<div style="font-size:10px;color:#6b7280">${p.brand}</div>` : ''}
+          <div style="font-weight:500;color:rgb(var(--gray-200))">${p.product_name}</div>
+          ${p.brand ? `<div style="font-size:10px;color:rgb(var(--gray-500))">${p.brand}</div>` : ''}
         </td>
         <td style="width:200px">
-          <div style="height:8px;background:#1a1e27;border-radius:4px;overflow:hidden">
+          <div style="height:8px;background:rgb(var(--color-bg-elev));border-radius:4px;overflow:hidden">
             <div style="height:100%;width:${pct}%;background:#06b6d4;border-radius:4px"></div>
           </div>
         </td>
@@ -345,7 +345,7 @@ function generateHTML(r) {
   </div>` : ''}
 
   <!-- Footer -->
-  <div style="text-align:center;color:#374151;font-size:11px;margin-top:24px;padding-top:16px;border-top:1px solid #1a1e27">
+  <div style="text-align:center;color:#374151;font-size:11px;margin-top:24px;padding-top:16px;border-top:1px solid rgb(var(--color-bg-elev))">
     Generated by Detailing CRM · ${r.date} · Confidential
   </div>
 
@@ -587,14 +587,14 @@ export default function DailyReport() {
                         innerRadius={38}
                         outerRadius={58}
                         strokeWidth={2}
-                        stroke="#13161d"
+                        stroke="rgb(var(--color-bg-card))"
                       >
                         {report.payment_breakdown.map((_, i) => (
                           <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                         ))}
                       </Pie>
                       <RechartsTip
-                        contentStyle={{ background: '#1a1e27', border: '1px solid #252a36', borderRadius: 8, fontSize: 11 }}
+                        contentStyle={{ background: 'rgb(var(--color-bg-elev))', border: '1px solid rgb(var(--color-border))', borderRadius: 8, fontSize: 11 }}
                         formatter={(v, n) => [fmt(v), PAYMENT_LABEL[n] || n]}
                       />
                     </PieChart>
@@ -705,10 +705,10 @@ export default function DailyReport() {
                     layout="vertical"
                     margin={{ top: 4, right: 20, left: 8, bottom: 4 }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#252a36" horizontal={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-border))" horizontal={false} />
                     <XAxis
                       type="number"
-                      tick={{ fill: '#6b7280', fontSize: 10 }}
+                      tick={{ fill: 'rgb(var(--gray-500))', fontSize: 10 }}
                       tickFormatter={(v) => `₹${v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v}`}
                       axisLine={false}
                       tickLine={false}
@@ -716,18 +716,18 @@ export default function DailyReport() {
                     <YAxis
                       type="category"
                       dataKey="name"
-                      tick={{ fill: '#9ca3af', fontSize: 11 }}
+                      tick={{ fill: 'rgb(var(--gray-400))', fontSize: 11 }}
                       axisLine={false}
                       tickLine={false}
                       width={110}
                     />
                     <RechartsTip
-                      contentStyle={{ background: '#1a1e27', border: '1px solid #252a36', borderRadius: 8, fontSize: 11 }}
+                      contentStyle={{ background: 'rgb(var(--color-bg-elev))', border: '1px solid rgb(var(--color-border))', borderRadius: 8, fontSize: 11 }}
                       formatter={(value, name, props) => [fmt(value), name]}
                       labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName || ''}
                     />
                     <Legend
-                      wrapperStyle={{ fontSize: 11, color: '#9ca3af', paddingTop: 8 }}
+                      wrapperStyle={{ fontSize: 11, color: 'rgb(var(--gray-400))', paddingTop: 8 }}
                     />
                     <Bar dataKey="Billed"      fill="#6366f1" radius={[0, 3, 3, 0]} maxBarSize={14} />
                     <Bar dataKey="Collected"   fill="#10b981" radius={[0, 3, 3, 0]} maxBarSize={14} />

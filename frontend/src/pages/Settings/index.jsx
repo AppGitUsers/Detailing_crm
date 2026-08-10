@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import {
   Settings2, Building2, TrendingUp, Cog, ShieldCheck,
-  Save, Eye, EyeOff, ChevronDown, UserPlus, Trash2, KeyRound, Users, Bell,
+  Save, Eye, EyeOff, ChevronDown, UserPlus, Trash2, KeyRound, Users, Bell, Sun, Moon,
 } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
+import { useTheme } from '../../components/Theme';
 import Loading from '../../components/Loading';
 import Button from '../../components/Button';
 import { Field, Input, Select, Textarea } from '../../components/Field';
@@ -105,7 +106,7 @@ function SectionCard({ section, settings, values, onChange, onSave, saving }) {
   return (
     <div className={`rounded-xl border ${a.border} ${a.bg} overflow-hidden`}>
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/5">
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
         <div className="flex items-center gap-2.5">
           <Icon size={15} className={a.header} />
           <h2 className={`text-sm font-semibold ${a.header}`}>{section.label}</h2>
@@ -122,7 +123,7 @@ function SectionCard({ section, settings, values, onChange, onSave, saving }) {
 
       {/* Table */}
       <table className="w-full">
-        <tbody className="divide-y divide-white/5">
+        <tbody className="divide-y divide-border">
           {settings.map(s => (
             <tr key={s.field_name} className="group">
               <td className="px-5 py-3 w-[42%] align-top">
@@ -208,7 +209,7 @@ function ChangePasswordCard() {
 
   return (
     <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 overflow-hidden">
-      <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-white/5">
+      <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-border">
         <ShieldCheck size={15} className="text-rose-400" />
         <h2 className="text-sm font-semibold text-rose-400">Security — Change Password</h2>
       </div>
@@ -362,7 +363,7 @@ function StaffAccountsCard() {
   return (
     <>
       <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/5">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
           <div className="flex items-center gap-2.5">
             <Users size={15} className="text-violet-400" />
             <h2 className="text-sm font-semibold text-violet-400">Staff Accounts</h2>
@@ -413,14 +414,14 @@ function StaffAccountsCard() {
           </div>
         ) : (
           <table className="w-full text-sm mt-2">
-            <thead className="border-b border-white/5">
+            <thead className="border-b border-border">
               <tr>
                 <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500">Employee</th>
                 <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500">Username</th>
                 <th className="px-5 py-2.5" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-border">
               {staff.map(u => (
                 <tr key={u.id} className="group">
                   <td className="px-5 py-3">
@@ -464,7 +465,7 @@ function StaffAccountsCard() {
           </table>
         )}
 
-        <div className="px-5 py-2.5 border-t border-white/5 text-[11px] text-gray-600 mt-1">
+        <div className="px-5 py-2.5 border-t border-border text-[11px] text-gray-600 mt-1">
           Staff can access: Dashboard · Job Cards · Customers / Vehicles · Sales · Kiosk
         </div>
       </div>
@@ -628,7 +629,7 @@ function NotificationTogglesCard({ values, onChange }) {
 
   return (
     <div className="rounded-xl border border-green-500/20 bg-green-500/5 overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/5">
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
         <div className="flex items-center gap-2.5">
           <Bell size={15} className="text-green-400" />
           <h2 className="text-sm font-semibold text-green-400">WhatsApp Notifications</h2>
@@ -646,7 +647,7 @@ function NotificationTogglesCard({ values, onChange }) {
               className={`flex items-center justify-between gap-3 rounded-lg px-4 py-3 border text-left transition-colors w-full
                 ${isOn
                   ? 'border-green-500/30 bg-green-500/10 hover:bg-green-500/15'
-                  : 'border-border bg-bg-elev hover:bg-white/5'
+                  : 'border-border bg-bg-elev hover:bg-bg-hover'
                 }`}
             >
               <div className="min-w-0">
@@ -659,6 +660,39 @@ function NotificationTogglesCard({ values, onChange }) {
             </button>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function AppearanceCard() {
+  const { theme, toggleTheme } = useTheme();
+  const isLight = theme === 'light';
+
+  return (
+    <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
+        <div className="flex items-center gap-2.5">
+          {isLight ? <Sun size={15} className="text-violet-400" /> : <Moon size={15} className="text-violet-400" />}
+          <h2 className="text-sm font-semibold text-violet-400">Appearance</h2>
+        </div>
+      </div>
+      <div className="px-5 py-4">
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="flex items-center justify-between gap-3 rounded-lg px-4 py-3 border border-border bg-bg-elev hover:bg-bg-hover text-left transition-colors w-full sm:w-auto sm:min-w-[300px]"
+        >
+          <div className="min-w-0">
+            <div className="text-sm font-medium text-gray-200">{isLight ? 'Light Mode' : 'Dark Mode'}</div>
+            <div className="text-xs text-gray-500 mt-0.5 leading-snug">
+              {isLight ? 'Switch back to the dark theme' : 'Switch to a white, violet-accented theme'}
+            </div>
+          </div>
+          <div className={`relative flex-shrink-0 w-11 h-6 rounded-full transition-colors ${isLight ? 'bg-accent' : 'bg-gray-600'}`}>
+            <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${isLight ? 'left-6' : 'left-1'}`} />
+          </div>
+        </button>
       </div>
     </div>
   );
@@ -747,6 +781,9 @@ export default function SettingsPage() {
         <Loading />
       ) : (
         <div className="space-y-5">
+          {/* Appearance */}
+          <AppearanceCard />
+
           {/* Two-column layout for first two sections */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
             {SECTIONS.filter(s => grouped[s.key]?.length).slice(0, 2).map(section => (

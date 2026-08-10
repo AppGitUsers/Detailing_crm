@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import RequireAuth from './components/RequireAuth';
 import { ToastProvider } from './components/Toast';
+import { ThemeProvider } from './components/Theme';
 import { tokens } from './api/auth';
 
 import Login from './pages/Login';
@@ -41,6 +42,7 @@ function AdminOnly({ children }) {
 
 export default function App() {
   return (
+    <ThemeProvider>
     <ToastProvider>
       <BrowserRouter>
         <Routes>
@@ -91,5 +93,6 @@ export default function App() {
         </Routes>
       </BrowserRouter>
     </ToastProvider>
+    </ThemeProvider>
   );
 }

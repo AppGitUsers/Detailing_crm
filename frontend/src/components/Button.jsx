@@ -11,8 +11,8 @@ export default function Button({
   const variants = {
     primary: 'bg-accent hover:bg-accent-hover text-white border border-accent',
     secondary: 'bg-bg-elev hover:bg-bg-hover text-gray-100 border border-border',
-    danger: 'bg-red-600 hover:bg-red-700 text-white border border-red-600',
-    success: 'bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-600',
+    danger: 'bg-[#dc2626] hover:bg-[#b91c1c] text-white border border-[#dc2626]',
+    success: 'bg-[#059669] hover:bg-[#047857] text-white border border-[#059669]',
     ghost: 'bg-transparent hover:bg-bg-hover text-gray-300 border border-transparent',
   };
   const sizes = {

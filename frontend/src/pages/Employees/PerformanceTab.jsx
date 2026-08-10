@@ -285,8 +285,8 @@ export default function PerformanceTab() {
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={orderChartData} barSize={32} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#ffffff08" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <XAxis dataKey="name" tick={{ fill: 'rgb(var(--gray-400))', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: 'rgb(var(--gray-400))', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
                   <Tooltip content={<ChartTooltip isRevenue={false} />} cursor={{ fill: '#ffffff06' }} />
                   <ReferenceLine
                     y={targets.order_threshold}
@@ -330,8 +330,8 @@ export default function PerformanceTab() {
                   <ResponsiveContainer width="100%" height={220}>
                     <BarChart data={revenueChartData} barSize={32} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#ffffff08" vertical={false} />
-                      <XAxis dataKey="name" tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={fmtK} />
+                      <XAxis dataKey="name" tick={{ fill: 'rgb(var(--gray-400))', fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill: 'rgb(var(--gray-400))', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={fmtK} />
                       <Tooltip content={<ChartTooltip isRevenue />} cursor={{ fill: '#ffffff06' }} />
                       <ReferenceLine
                         y={Number(targets.revenue_target)}

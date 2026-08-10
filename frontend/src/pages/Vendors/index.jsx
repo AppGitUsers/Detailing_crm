@@ -22,14 +22,19 @@ export default function VendorsHub() {
             to={to}
             end={end}
             className={({ isActive }) =>
-              `flex items-center gap-2 px-4 py-3 text-sm border-b-2 -mb-px transition-colors whitespace-nowrap ${
-                isActive
-                  ? 'border-accent text-gray-100'
-                  : 'border-transparent text-gray-400 hover:text-gray-200'
+              `relative flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap ${
+                isActive ? 'text-accent' : 'text-gray-400 hover:text-gray-200'
               }`
             }
           >
-            <Icon size={15} /> {label}
+            {({ isActive }) => (
+              <>
+                <Icon size={15} /> {label}
+                {isActive && (
+                  <span className="absolute left-2 right-2 -bottom-px h-[3px] rounded-full bg-accent" />
+                )}
+              </>
+            )}
           </NavLink>
         ))}
       </div>

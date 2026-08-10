@@ -40,7 +40,17 @@
       "Bash(xargs grep -l \"whatsapp\\\\|WhatsApp\")",
       "Bash(xargs grep -l \"QR\\\\|qr\\\\|payment\\\\|Payment\")",
       "Bash(xargs grep -l \"Sales\\\\|Garage\")",
-      "Bash(.\\\\venv\\\\Scripts\\\\python.exe manage.py migrate site_settings 0008_auto_absent_settings)"
+      "Bash(.\\\\venv\\\\Scripts\\\\python.exe manage.py migrate site_settings 0008_auto_absent_settings)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5183/)",
+      "Bash(node -e \"const c=require\\('tailwindcss/colors'\\); console.log\\(Object.keys\\(c\\).join\\(','\\)\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:5183/)",
+      "Bash(node check.js)",
+      "Bash(curl -s \"http://localhost:5183/src/index.css\")",
+      "Bash(rm -rf d:/Projects/Detailing_crm_source/frontend/node_modules/.vite)",
+      "Bash(curl -sf http://localhost:5183/)",
+      "Bash(node badge_check2.js)",
+      "Bash(node mobile_check.js)"
     ],
     "additionalDirectories": [
       "C:\\Users\\HP-PC\\.claude\\projects\\d--Projects-Detailing-crm"

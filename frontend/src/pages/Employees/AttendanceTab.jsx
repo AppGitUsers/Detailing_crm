@@ -41,15 +41,16 @@ const STATUS_TEXT = {
   auto_absent:   'text-red-400',
 };
 
-const STATUS_BG = {
-  present:       'bg-emerald-900/20',
-  absent:        'bg-red-900/20',
-  half_day:      'bg-blue-900/20',
-  leave:         'bg-purple-900/20',
-  late:          'bg-yellow-900/20',
-  overtime:      'bg-teal-900/20',
-  late_overtime: 'bg-orange-900/20',
-  auto_absent:   'bg-red-900/20',
+// Solid, theme-invariant fills for calendar day cells — always vivid in both modes.
+const STATUS_SOLID_BG = {
+  present:       'bg-emerald-500',
+  absent:        'bg-red-500',
+  half_day:      'bg-blue-500',
+  leave:         'bg-purple-500',
+  late:          'bg-[#ca8a04]',
+  overtime:      'bg-teal-500',
+  late_overtime: 'bg-[#c2410c]',
+  auto_absent:   'bg-red-500',
 };
 
 const MONTHS = [
@@ -255,6 +256,7 @@ export default function AttendanceTab() {
           modal={markModal} empId={selectedEmp.id}
           onClose={() => setMarkModal(null)}
           onSaved={async () => { setMarkModal(null); await loadCalendar(); }}
+          onDelete={(rec) => { setMarkModal(null); setConfirmDel(rec); }}
         />
         <ConfirmDialog
           open={!!confirmDel} onClose={() => setConfirmDel(null)}
@@ -483,21 +485,22 @@ function EmployeeCalendar({ calData, loading, month, year, isCurrentMonth, today
           )}
 
           {/* Calendar grid */}
-          <div className="bg-bg-card border border-border rounded-xl overflow-hidden">
+          <div className="bg-bg-card border border-border rounded-2xl p-2 sm:p-4">
             {/* Day-name header */}
-            <div className="grid grid-cols-7 border-b border-border">
+            <div className="grid grid-cols-7 mb-1">
               {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
-                <div key={d} className="py-2.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  {d}
+                <div key={d} className="pb-1 sm:pb-1.5 text-center text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  <span className="sm:hidden">{d[0]}</span>
+                  <span className="hidden sm:inline">{d}</span>
                 </div>
               ))}
             </div>
 
             {/* Day cells */}
-            <div className="grid grid-cols-7 border-l border-t border-border/30">
+            <div className="grid grid-cols-7 gap-1 sm:gap-2">
               {cells.map((cell, idx) =>
                 !cell ? (
-                  <div key={`pad-${idx}`} className="border-r border-b border-border/30 bg-bg-elev/20 min-h-[90px]" />
+                  <div key={`pad-${idx}`} className="rounded-lg sm:rounded-xl min-h-[52px] sm:min-h-[110px]" />
                 ) : (
                   <DayCell
                     key={cell.date}
@@ -518,12 +521,12 @@ function EmployeeCalendar({ calData, loading, month, year, isCurrentMonth, today
               ['half_day', 'Half Day'], ['leave', 'Leave'], ['overtime', 'Overtime'], ['late_overtime', 'Late+OT'],
             ].map(([k, v]) => (
               <div key={k} className="flex items-center gap-1.5 text-xs text-gray-500">
-                <div className={`w-2.5 h-2.5 rounded-sm ${(STATUS_BG[k] || 'bg-gray-700').replace('/20', '/60')}`} />
-                <span className={STATUS_TEXT[k]}>{v}</span>
+                <div className={`w-2.5 h-2.5 rounded-full ${STATUS_SOLID_BG[k] || 'bg-gray-500'}`} />
+                <span>{v}</span>
               </div>
             ))}
             <div className="flex items-center gap-1.5 text-xs text-gray-500">
-              <div className="w-2.5 h-2.5 rounded-sm bg-bg-elev/50 border border-border/40" />
+              <div className="w-2.5 h-2.5 rounded-full bg-bg-elev border border-border" />
               <span>Off day</span>
             </div>
           </div>
@@ -548,83 +551,90 @@ function CountBox({ label, value, color, small = false }) {
 
 function DayCell({ dayInfo, today, onDayClick, onDeleteRecord }) {
   const { date, day, is_working_day, is_today, is_future, record } = dayInfo;
-  const cellBg = record
-    ? (STATUS_BG[record.status] || '')
-    : !is_working_day ? 'bg-bg-elev/20' : '';
+  const solidBg = record ? (STATUS_SOLID_BG[record.status] || '') : '';
+  const isColored = !!solidBg;
 
-  // Only allow creating new records on working days; editing existing records is always allowed
+  // Only allow creating new records on working days; editing existing records is always allowed.
+  // On mobile there are no hover-reveal buttons, so tapping a recorded day opens it for editing directly.
   const canCreate = !is_future && !record && is_working_day;
+  const canTap = canCreate || !!record;
 
   return (
     <div
-      className={`border-r border-b border-border/30 min-h-[110px] p-1.5 flex flex-col relative group transition-colors
-        ${cellBg}
+      className={`rounded-lg sm:rounded-xl min-h-[52px] sm:min-h-[110px] p-1 sm:p-2 flex flex-col relative group transition-all
+        ${isColored
+          ? `${solidBg} shadow-sm`
+          : !is_working_day ? 'bg-bg-elev/50 border border-border/50' : 'bg-bg-card border border-border'}
         ${is_future ? 'opacity-40' : ''}
-        ${canCreate ? 'cursor-pointer hover:bg-bg-elev/30' : ''}
+        ${canTap ? 'cursor-pointer hover:border-accent sm:hover:shadow-md' : ''}
       `}
-      onClick={() => { if (canCreate) onDayClick(dayInfo); }}
+      onClick={() => { if (canTap) onDayClick(dayInfo); }}
     >
       {/* Day number */}
-      <div className={`text-xs font-bold mb-1 w-5 h-5 flex items-center justify-center rounded-full flex-shrink-0
-        ${is_today ? 'bg-accent text-white' : 'text-gray-500'}`}>
+      <div className={`text-[10px] sm:text-xs font-bold mb-0.5 sm:mb-1 w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center rounded-full flex-shrink-0
+        ${is_today ? 'bg-white text-gray-900 shadow' : isColored ? 'text-white' : 'text-gray-500'}`}>
         {day}
       </div>
 
-      {/* Off-day label for unrecorded non-working days */}
+      {/* Off-day label for unrecorded non-working days — desktop only */}
       {!record && !is_working_day && !is_future && (
-        <span className="text-[9px] text-gray-600 leading-none">Off</span>
+        <span className="hidden sm:inline text-[9px] text-gray-600 leading-none">Off</span>
       )}
 
       {record && (
         <>
-          <span className={`text-[10px] font-semibold leading-tight ${STATUS_TEXT[record.status] || 'text-gray-300'}`}>
+          {/* Status label — abbreviated chip on mobile, full word on desktop */}
+          <span className="sm:hidden text-[8px] font-bold leading-none text-white truncate">
+            {(STATUS_LABEL[record.status] || record.status).slice(0, 3)}
+          </span>
+          <span className="hidden sm:inline text-[10px] font-bold leading-tight text-white">
             {STATUS_LABEL[record.status] || record.status}
           </span>
 
-          {/* Check-in / Check-out — shown for time-tracked statuses */}
+          {/* Check-in / Check-out — shown for time-tracked statuses, desktop only */}
           {SHOW_TIMES_IN_CELL.includes(record.status) && (
-            <div className="mt-1 space-y-0.5">
+            <div className="hidden sm:block mt-1 space-y-0.5">
               <div className="flex items-center gap-1">
-                <span className="text-[8px] font-bold text-gray-600 w-5 shrink-0 uppercase">IN</span>
-                <span className="text-[9px] text-gray-300 leading-none font-medium">
-                  {record.check_in ? fmtTime(record.check_in) : <span className="text-gray-600">—</span>}
+                <span className="text-[8px] font-bold text-white/70 w-5 shrink-0 uppercase">IN</span>
+                <span className="text-[9px] text-white leading-none font-semibold">
+                  {record.check_in ? fmtTime(record.check_in) : <span className="text-white/60">—</span>}
                 </span>
               </div>
               <div className="flex items-center gap-1">
-                <span className="text-[8px] font-bold text-gray-600 w-5 shrink-0 uppercase">OUT</span>
-                <span className="text-[9px] text-gray-300 leading-none font-medium">
-                  {record.check_out ? fmtTime(record.check_out) : <span className="text-gray-600">—</span>}
+                <span className="text-[8px] font-bold text-white/70 w-5 shrink-0 uppercase">OUT</span>
+                <span className="text-[9px] text-white leading-none font-semibold">
+                  {record.check_out ? fmtTime(record.check_out) : <span className="text-white/60">—</span>}
                 </span>
               </div>
             </div>
           )}
 
-          {/* Worked time */}
+          {/* Worked time — desktop only */}
           {record.worked_minutes > 0 && (
-            <span className="text-[9px] text-gray-600 leading-tight mt-0.5">{fmtMins(record.worked_minutes)}</span>
+            <span className="hidden sm:inline text-[9px] text-white/85 leading-tight mt-0.5 font-semibold">{fmtMins(record.worked_minutes)}</span>
           )}
 
-          {/* Late / OT badges */}
-          <div className="flex flex-wrap gap-x-1 mt-auto pt-0.5">
+          {/* Late / OT badges — desktop only */}
+          <div className="hidden sm:flex flex-wrap gap-x-1 mt-auto pt-0.5">
             {record.late_minutes > 0 && (
-              <span className="text-[9px] text-yellow-500 leading-none">+{fmtMins(record.late_minutes)} late</span>
+              <span className="text-[9px] text-white leading-none font-bold">+{fmtMins(record.late_minutes)} late</span>
             )}
             {record.overtime_minutes > 0 && (
-              <span className="text-[9px] text-teal-400 leading-none">+{fmtMins(record.overtime_minutes)} OT</span>
+              <span className="text-[9px] text-white leading-none font-bold">+{fmtMins(record.overtime_minutes)} OT</span>
             )}
           </div>
 
-          {/* Hover actions */}
-          <div className="absolute top-0.5 right-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          {/* Hover actions — desktop only; mobile taps the cell itself to edit */}
+          <div className="hidden sm:flex absolute top-1 right-1 gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
               onClick={(e) => { e.stopPropagation(); onDayClick(dayInfo); }}
-              className="p-0.5 rounded text-gray-500 hover:text-accent bg-bg-card/90"
+              className="p-0.5 rounded bg-black/25 text-white hover:bg-black/45"
             >
               <Pencil size={10} />
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); onDeleteRecord(record); }}
-              className="p-0.5 rounded text-gray-500 hover:text-red-400 bg-bg-card/90"
+              className="p-0.5 rounded bg-black/25 text-white hover:bg-black/45"
             >
               <Trash2 size={10} />
             </button>
@@ -637,7 +647,7 @@ function DayCell({ dayInfo, today, onDayClick, onDeleteRecord }) {
 
 // ── Mark / Edit Day Modal ──────────────────────────────────────────────────────
 
-function MarkDayModal({ modal, empId, onClose, onSaved }) {
+function MarkDayModal({ modal, empId, onClose, onSaved, onDelete }) {
   const toast   = useToast();
   const dayInfo  = modal?.dayInfo;
   const existing = dayInfo?.record;
@@ -727,6 +737,15 @@ function MarkDayModal({ modal, empId, onClose, onSaved }) {
       title={existing ? 'Edit Attendance' : 'Mark Attendance'}
       footer={
         <>
+          {existing && onDelete && (
+            <Button
+              variant="danger"
+              className="mr-auto"
+              onClick={() => onDelete(existing)}
+            >
+              Delete
+            </Button>
+          )}
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button onClick={submit} loading={submitting}>
             {existing ? 'Save Changes' : 'Mark'}

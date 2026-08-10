@@ -39,26 +39,16 @@ const STATUS_ROW_CLASS = {
   auto_absent:   'hover:bg-red-900/10',
 };
 
-const STATUS_CELL_BG = {
-  present:       'bg-emerald-900/20',
-  absent:        'bg-red-900/20',
-  half_day:      'bg-blue-900/20',
-  leave:         'bg-purple-900/20',
-  late:          'bg-yellow-900/20',
-  overtime:      'bg-teal-900/20',
-  late_overtime: 'bg-orange-900/20',
-  auto_absent:   'bg-red-900/20',
-};
-
-const STATUS_TEXT = {
-  present:       'text-emerald-400',
-  absent:        'text-red-400',
-  half_day:      'text-blue-400',
-  leave:         'text-purple-400',
-  late:          'text-yellow-400',
-  overtime:      'text-teal-400',
-  late_overtime: 'text-orange-400',
-  auto_absent:   'text-red-400',
+// Solid, theme-invariant fills for calendar day cells — always vivid in both modes.
+const STATUS_SOLID_BG = {
+  present:       'bg-emerald-500',
+  absent:        'bg-red-500',
+  half_day:      'bg-blue-500',
+  leave:         'bg-purple-500',
+  late:          'bg-[#ca8a04]',
+  overtime:      'bg-teal-500',
+  late_overtime: 'bg-[#c2410c]',
+  auto_absent:   'bg-red-500',
 };
 
 const MONTHS = ['January','February','March','April','May','June',
@@ -292,7 +282,7 @@ export default function Attendance() {
         />
       )}
 
-      <AttendanceFormModal modal={modal} onClose={() => setModal(null)} onSaved={load} employees={employees} records={records} />
+      <AttendanceFormModal modal={modal} onClose={() => setModal(null)} onSaved={load} employees={employees} records={records} onDelete={setConfirmDel} />
       <ConfirmDialog
         open={!!confirmDel}
         onClose={() => setConfirmDel(null)}
@@ -359,23 +349,21 @@ function CalendarView({ records, month, year, today, filterEmp, onEdit, onDelete
         </div>
       )}
 
-      <div className="bg-bg-card border border-border rounded-xl overflow-hidden">
-        <div className="grid grid-cols-7 border-b border-border">
+      <div className="bg-bg-card border border-border rounded-2xl p-2 sm:p-4">
+        <div className="grid grid-cols-7 mb-1">
           {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
-            <div key={d} className="py-2.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">
-              {d}
+            <div key={d} className="pb-1 sm:pb-1.5 text-center text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              <span className="sm:hidden">{d[0]}</span>
+              <span className="hidden sm:inline">{d}</span>
             </div>
           ))}
         </div>
 
-        <div className="grid grid-cols-7 border-l border-t border-border/30">
+        <div className="grid grid-cols-7 gap-1 sm:gap-2">
           {cells.map((day, idx) => {
             if (!day) {
               return (
-                <div
-                  key={`e-${idx}`}
-                  className="border-r border-b border-border/30 bg-bg-elev/20 min-h-[88px]"
-                />
+                <div key={`e-${idx}`} className="rounded-lg sm:rounded-xl min-h-[52px] sm:min-h-[100px]" />
               );
             }
 
@@ -383,54 +371,64 @@ function CalendarView({ records, month, year, today, filterEmp, onEdit, onDelete
             const rec      = recordByDate[dateStr];
             const isToday  = dateStr === today;
             const isFuture = dateStr > today;
-            const cellBg   = rec ? (STATUS_CELL_BG[rec.status] || '') : '';
+            const solidBg  = rec ? (STATUS_SOLID_BG[rec.status] || '') : '';
+            const isColored = !!solidBg;
+            const canTap   = rec ? true : !isFuture;
 
             return (
               <div
                 key={dateStr}
-                className={`border-r border-b border-border/30 min-h-[88px] p-1.5 flex flex-col relative group transition-colors ${cellBg} ${isFuture ? 'opacity-40' : ''}`}
+                onClick={() => { if (rec) onEdit(rec); else if (!isFuture) onAddForDate(dateStr); }}
+                className={`rounded-lg sm:rounded-xl min-h-[52px] sm:min-h-[100px] p-1 sm:p-2 flex flex-col relative group transition-all
+                  ${isColored ? `${solidBg} shadow-sm` : 'bg-bg-card border border-border'}
+                  ${isFuture ? 'opacity-40' : ''}
+                  ${canTap ? 'cursor-pointer hover:border-accent sm:hover:shadow-md' : ''}
+                `}
               >
-                <div className={`text-xs font-bold mb-1 w-5 h-5 flex items-center justify-center rounded-full flex-shrink-0 ${
-                  isToday ? 'bg-accent text-white' : 'text-gray-500'
+                <div className={`text-[10px] sm:text-xs font-bold mb-0.5 sm:mb-1 w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center rounded-full flex-shrink-0 ${
+                  isToday ? 'bg-white text-gray-900 shadow' : isColored ? 'text-white' : 'text-gray-500'
                 }`}>
                   {day}
                 </div>
 
                 {rec ? (
                   <>
-                    <span className={`text-[10px] font-semibold leading-tight ${STATUS_TEXT[rec.status] || 'text-gray-300'}`}>
+                    <span className="sm:hidden text-[8px] font-bold leading-none text-white truncate">
+                      {(STATUS_LABEL[rec.status]?.label || rec.status).slice(0, 3)}
+                    </span>
+                    <span className="hidden sm:inline text-[10px] font-bold leading-tight text-white">
                       {STATUS_LABEL[rec.status]?.label || rec.status}
                     </span>
 
                     {rec.check_in && (
-                      <span className="text-[10px] text-gray-500 leading-tight mt-0.5">
+                      <span className="hidden sm:inline text-[10px] text-white leading-tight mt-0.5 font-semibold">
                         {fmtTime(rec.check_in)}{rec.check_out ? ` – ${fmtTime(rec.check_out)}` : ''}
                       </span>
                     )}
 
                     {rec.worked_minutes > 0 && (
-                      <span className="text-[10px] text-gray-600 leading-tight">{fmtMins(rec.worked_minutes)}</span>
+                      <span className="hidden sm:inline text-[10px] text-white/85 leading-tight font-semibold">{fmtMins(rec.worked_minutes)}</span>
                     )}
 
-                    <div className="flex flex-wrap gap-x-1 mt-auto pt-0.5">
+                    <div className="hidden sm:flex flex-wrap gap-x-1 mt-auto pt-0.5">
                       {rec.late_minutes > 0 && (
-                        <span className="text-[9px] text-yellow-500 leading-none">+{fmtMins(rec.late_minutes)} late</span>
+                        <span className="text-[9px] text-white leading-none font-bold">+{fmtMins(rec.late_minutes)} late</span>
                       )}
                       {rec.overtime_minutes > 0 && (
-                        <span className="text-[9px] text-purple-400 leading-none">+{fmtMins(rec.overtime_minutes)} OT</span>
+                        <span className="text-[9px] text-white leading-none font-bold">+{fmtMins(rec.overtime_minutes)} OT</span>
                       )}
                     </div>
 
-                    <div className="absolute top-0.5 right-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="hidden sm:flex absolute top-1 right-1 gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
-                        onClick={() => onEdit(rec)}
-                        className="p-0.5 rounded text-gray-500 hover:text-accent bg-bg-card/80"
+                        onClick={(e) => { e.stopPropagation(); onEdit(rec); }}
+                        className="p-0.5 rounded bg-black/25 text-white hover:bg-black/45"
                       >
                         <Pencil size={10} />
                       </button>
                       <button
-                        onClick={() => onDelete(rec)}
-                        className="p-0.5 rounded text-gray-500 hover:text-red-400 bg-bg-card/80"
+                        onClick={(e) => { e.stopPropagation(); onDelete(rec); }}
+                        className="p-0.5 rounded bg-black/25 text-white hover:bg-black/45"
                       >
                         <Trash2 size={10} />
                       </button>
@@ -438,12 +436,9 @@ function CalendarView({ records, month, year, today, filterEmp, onEdit, onDelete
                   </>
                 ) : (
                   !isFuture && (
-                    <button
-                      onClick={() => onAddForDate(dateStr)}
-                      className="flex-1 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-gray-600 hover:text-accent"
-                    >
+                    <div className="hidden sm:flex flex-1 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-gray-600">
                       <Plus size={13} />
-                    </button>
+                    </div>
                   )
                 )}
               </div>
@@ -455,7 +450,7 @@ function CalendarView({ records, month, year, today, filterEmp, onEdit, onDelete
   );
 }
 
-function AttendanceFormModal({ modal, onClose, onSaved, employees, records }) {
+function AttendanceFormModal({ modal, onClose, onSaved, employees, records, onDelete }) {
   const toast  = useToast();
   const today  = todayStr();
   const empty  = { employee: '', date: today, status: 'present', notes: '' };
@@ -538,6 +533,15 @@ function AttendanceFormModal({ modal, onClose, onSaved, employees, records }) {
       title={modal?.mode === 'edit' ? 'Edit Attendance' : 'Mark Attendance'}
       footer={
         <>
+          {modal?.mode === 'edit' && onDelete && (
+            <Button
+              variant="danger"
+              className="mr-auto"
+              onClick={() => { onDelete(modal.data); onClose(); }}
+            >
+              Delete
+            </Button>
+          )}
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button onClick={submit} loading={submitting}>
             {modal?.mode === 'edit' ? 'Save Changes' : 'Mark'}

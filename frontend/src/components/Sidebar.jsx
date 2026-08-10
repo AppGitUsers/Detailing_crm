@@ -1,9 +1,10 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, ClipboardList, Users, Wrench,
-  UserCog, Truck, ScanLine, Sparkles, LogOut, User, TrendingUp, Settings2, X, ShoppingCart, Bell, BookOpen, FileText,
+  UserCog, Truck, ScanLine, LogOut, User, TrendingUp, Settings2, X, ShoppingCart, Bell, BookOpen, FileText,
 } from 'lucide-react';
 import { tokens, logout } from '../api/auth';
+import ThemeToggle from './ThemeToggle';
 
 const NAV_GROUPS = [
   {
@@ -68,23 +69,23 @@ export default function Sidebar({ onClose }) {
       {/* Logo + mobile close */}
       <div className="px-5 py-5 border-b border-border flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-accent/20 flex items-center justify-center shrink-0">
-            <Sparkles size={18} className="text-accent" />
-          </div>
           <div>
             <div className="text-sm font-semibold text-gray-100 leading-tight">Detailing CRM</div>
             <div className="text-[10px] text-gray-500 uppercase tracking-wider">Workshop</div>
           </div>
         </div>
-        {onClose && (
-          <button
-            onClick={onClose}
-            className="lg:hidden p-1 text-gray-500 hover:text-gray-100 transition-colors"
-            aria-label="Close menu"
-          >
-            <X size={18} />
-          </button>
-        )}
+        <div className="flex items-center gap-1 shrink-0">
+          <ThemeToggle />
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="lg:hidden p-1 text-gray-500 hover:text-gray-100 transition-colors"
+              aria-label="Close menu"
+            >
+              <X size={18} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Nav */}

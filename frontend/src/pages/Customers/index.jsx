@@ -92,12 +92,15 @@ function TabBtn({ active, onClick, icon, children }) {
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${active
-        ? 'border-accent text-accent'
-        : 'border-transparent text-gray-400 hover:text-gray-200'
+      className={`relative flex items-center gap-2 px-5 py-2.5 text-sm font-medium transition-colors ${active
+        ? 'text-accent'
+        : 'text-gray-400 hover:text-gray-200'
         }`}
     >
       {icon}{children}
+      {active && (
+        <span className="absolute left-2 right-2 -bottom-px h-[3px] rounded-full bg-accent" />
+      )}
     </button>
   );
 }
@@ -703,9 +706,9 @@ function downloadAnalyticsReport(data) {
 
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <title>Customer Analytics Report</title>
-<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',Arial,sans-serif;background:#0b0d12;color:#e5e7eb;padding:32px}.page{max-width:960px;margin:0 auto}h1{font-size:22px;font-weight:700;color:#fff;margin-bottom:4px}h2{font-size:12px;font-weight:600;color:#c4b5fd;text-transform:uppercase;letter-spacing:.06em;margin:0 0 12px}.section{background:#13161d;border:1px solid #252a36;border-radius:12px;padding:20px 24px;margin-bottom:20px}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}table{width:100%;border-collapse:collapse;font-size:12px}th{text-align:left;padding:8px 10px;color:#9ca3af;font-weight:500;border-bottom:1px solid #252a36}td{padding:8px 10px;border-bottom:1px solid #1a1e27}tr:hover td{background:#1a1e27}.header{background:linear-gradient(135deg,#1a1e27,#13161d);border:1px solid #252a36;border-radius:12px;padding:24px 28px;margin-bottom:24px}</style>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',Arial,sans-serif;background:rgb(var(--color-bg));color:rgb(var(--gray-200));padding:32px}.page{max-width:960px;margin:0 auto}h1{font-size:22px;font-weight:700;color:#fff;margin-bottom:4px}h2{font-size:12px;font-weight:600;color:#c4b5fd;text-transform:uppercase;letter-spacing:.06em;margin:0 0 12px}.section{background:rgb(var(--color-bg-card));border:1px solid rgb(var(--color-border));border-radius:12px;padding:20px 24px;margin-bottom:20px}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}table{width:100%;border-collapse:collapse;font-size:12px}th{text-align:left;padding:8px 10px;color:rgb(var(--gray-400));font-weight:500;border-bottom:1px solid rgb(var(--color-border))}td{padding:8px 10px;border-bottom:1px solid rgb(var(--color-bg-elev))}tr:hover td{background:rgb(var(--color-bg-elev))}.header{background:linear-gradient(135deg,rgb(var(--color-bg-elev)),rgb(var(--color-bg-card)));border:1px solid rgb(var(--color-border));border-radius:12px;padding:24px 28px;margin-bottom:24px}</style>
 </head><body><div class="page">
-<div class="header"><h1>📊 Customer & Vehicle Analytics</h1><p style="color:#9ca3af;font-size:12px;margin-top:4px">Generated on ${new Date().toLocaleString('en-IN')}</p></div>
+<div class="header"><h1>📊 Customer & Vehicle Analytics</h1><p style="color:rgb(var(--gray-400));font-size:12px;margin-top:4px">Generated on ${new Date().toLocaleString('en-IN')}</p></div>
 <div class="grid2">
 <div class="section"><h2>🏆 Top 5 High-Value Customers</h2><table><thead><tr><th>#</th><th>Customer</th><th style="text-align:right">Revenue</th><th style="text-align:center">Visits</th></tr></thead><tbody>${revRows}</tbody></table></div>
 <div class="section"><h2>🔁 Top 5 Frequent Visitors</h2><table><thead><tr><th>#</th><th>Customer</th><th style="text-align:center">Visits</th><th style="text-align:right">Revenue</th></tr></thead><tbody>${visRows}</tbody></table></div>
@@ -771,11 +774,11 @@ function AnalyticsTab() {
                   onClick={(e) => { if (e?.activePayload?.[0]?.payload?.customer_id) navigate(`/customers/${e.activePayload[0].payload.customer_id}`); }}
                   style={{ cursor: 'pointer' }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#252a36" horizontal={false} />
-                  <XAxis type="number" tick={{ fill: '#6b7280', fontSize: 10 }} tickFormatter={fmtRev} axisLine={false} tickLine={false} />
-                  <YAxis type="category" dataKey={(d) => (d.name && d.name.trim()) ? d.name : d.phone_number} tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} width={110} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-border))" horizontal={false} />
+                  <XAxis type="number" tick={{ fill: 'rgb(var(--gray-500))', fontSize: 10 }} tickFormatter={fmtRev} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey={(d) => (d.name && d.name.trim()) ? d.name : d.phone_number} tick={{ fill: 'rgb(var(--gray-400))', fontSize: 11 }} axisLine={false} tickLine={false} width={110} />
                   <Tooltip
-                    contentStyle={{ background: '#1a1e27', border: '1px solid #252a36', borderRadius: 8, fontSize: 11 }}
+                    contentStyle={{ background: 'rgb(var(--color-bg-elev))', border: '1px solid rgb(var(--color-border))', borderRadius: 8, fontSize: 11 }}
                     formatter={(v) => [fmtRev(v), 'Revenue']}
                     cursor={{ fill: 'rgba(99,102,241,0.08)' }}
                   />
@@ -801,11 +804,11 @@ function AnalyticsTab() {
                   onClick={(e) => { if (e?.activePayload?.[0]?.payload?.customer_id) navigate(`/customers/${e.activePayload[0].payload.customer_id}`); }}
                   style={{ cursor: 'pointer' }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#252a36" horizontal={false} />
-                  <XAxis type="number" allowDecimals={false} tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis type="category" dataKey={(d) => (d.name && d.name.trim()) ? d.name : d.phone_number} tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} width={110} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-border))" horizontal={false} />
+                  <XAxis type="number" allowDecimals={false} tick={{ fill: 'rgb(var(--gray-500))', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey={(d) => (d.name && d.name.trim()) ? d.name : d.phone_number} tick={{ fill: 'rgb(var(--gray-400))', fontSize: 11 }} axisLine={false} tickLine={false} width={110} />
                   <Tooltip
-                    contentStyle={{ background: '#1a1e27', border: '1px solid #252a36', borderRadius: 8, fontSize: 11 }}
+                    contentStyle={{ background: 'rgb(var(--color-bg-elev))', border: '1px solid rgb(var(--color-border))', borderRadius: 8, fontSize: 11 }}
                     formatter={(v) => [v + ' visits', 'Visits']}
                     cursor={{ fill: 'rgba(16,185,129,0.08)' }}
                   />
@@ -825,12 +828,12 @@ function AnalyticsTab() {
         {data?.monthly_trend?.length > 0 ? (
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={data.monthly_trend} margin={{ top: 4, right: 20, left: 8, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#252a36" />
-              <XAxis dataKey="month" tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis yAxisId="left" tick={{ fill: '#9ca3af', fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} width={28} />
-              <YAxis yAxisId="right" orientation="right" tick={{ fill: '#9ca3af', fontSize: 10 }} tickFormatter={fmtRev} axisLine={false} tickLine={false} width={52} />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-border))" />
+              <XAxis dataKey="month" tick={{ fill: 'rgb(var(--gray-400))', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis yAxisId="left" tick={{ fill: 'rgb(var(--gray-400))', fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} width={28} />
+              <YAxis yAxisId="right" orientation="right" tick={{ fill: 'rgb(var(--gray-400))', fontSize: 10 }} tickFormatter={fmtRev} axisLine={false} tickLine={false} width={52} />
               <Tooltip
-                contentStyle={{ background: '#1a1e27', border: '1px solid #252a36', borderRadius: 8, fontSize: 11 }}
+                contentStyle={{ background: 'rgb(var(--color-bg-elev))', border: '1px solid rgb(var(--color-border))', borderRadius: 8, fontSize: 11 }}
                 formatter={(v, n) => [n === 'revenue' ? fmtRev(v) : v, n === 'revenue' ? 'Revenue' : 'Job Cards']}
               />
               <Line yAxisId="left" type="monotone" dataKey="count" stroke="#6366f1" strokeWidth={2} dot={{ r: 4, fill: '#6366f1' }} name="count" />
@@ -846,10 +849,10 @@ function AnalyticsTab() {
           {data?.vehicle_type_dist?.length > 0 ? (
             <div className="flex items-center gap-6">
               <PieChart width={160} height={160}>
-                <Pie data={data.vehicle_type_dist.map(d => ({ ...d, value: d.count }))} dataKey="value" cx="50%" cy="50%" innerRadius={45} outerRadius={72} strokeWidth={2} stroke="#13161d">
+                <Pie data={data.vehicle_type_dist.map(d => ({ ...d, value: d.count }))} dataKey="value" cx="50%" cy="50%" innerRadius={45} outerRadius={72} strokeWidth={2} stroke="rgb(var(--color-bg-card))">
                   {data.vehicle_type_dist.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
                 </Pie>
-                <Tooltip contentStyle={{ background: '#1a1e27', border: '1px solid #252a36', borderRadius: 8, fontSize: 11 }} formatter={(v, _, p) => [v + ' job cards', p.payload.label]} />
+                <Tooltip contentStyle={{ background: 'rgb(var(--color-bg-elev))', border: '1px solid rgb(var(--color-border))', borderRadius: 8, fontSize: 11 }} formatter={(v, _, p) => [v + ' job cards', p.payload.label]} />
               </PieChart>
               <div className="space-y-2">
                 {data.vehicle_type_dist.map((d, i) => (
@@ -868,10 +871,10 @@ function AnalyticsTab() {
           {data?.payment_dist?.some(d => d.count > 0) ? (
             <div className="flex items-center gap-6">
               <PieChart width={160} height={160}>
-                <Pie data={data.payment_dist.filter(d => d.count > 0).map(d => ({ ...d, value: d.count }))} dataKey="value" cx="50%" cy="50%" innerRadius={45} outerRadius={72} strokeWidth={2} stroke="#13161d">
+                <Pie data={data.payment_dist.filter(d => d.count > 0).map(d => ({ ...d, value: d.count }))} dataKey="value" cx="50%" cy="50%" innerRadius={45} outerRadius={72} strokeWidth={2} stroke="rgb(var(--color-bg-card))">
                   {data.payment_dist.filter(d => d.count > 0).map((d) => <Cell key={d.status} fill={d.status === 'Paid' ? '#10b981' : d.status === 'Partial' ? '#f59e0b' : '#f43f5e'} />)}
                 </Pie>
-                <Tooltip contentStyle={{ background: '#1a1e27', border: '1px solid #252a36', borderRadius: 8, fontSize: 11 }} formatter={(v, _, p) => [v + ' job cards', p.payload.status]} />
+                <Tooltip contentStyle={{ background: 'rgb(var(--color-bg-elev))', border: '1px solid rgb(var(--color-border))', borderRadius: 8, fontSize: 11 }} formatter={(v, _, p) => [v + ' job cards', p.payload.status]} />
               </PieChart>
               <div className="space-y-2">
                 {data.payment_dist.map((d) => (
