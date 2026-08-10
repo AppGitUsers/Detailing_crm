@@ -135,30 +135,34 @@ export default function Dashboard() {
       />
 
       {/* Stat cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className={`grid grid-cols-1 sm:grid-cols-2 ${isStaff ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-4 mb-6`}>
         <StatCard icon={ClipboardList} label="Active Job Cards"          value={stats.active}     accent="yellow" loading={loading} />
         <StatCard icon={Users}         label={`Customers Served (${activeFilter?.label})`} value={stats.customers} accent="blue" loading={loading} />
-        <StatCard icon={IndianRupee}   label={revenueLabel}               value={fmt(stats.revenue)} accent="green"  loading={loading} />
+        {!isStaff && (
+          <StatCard icon={IndianRupee} label={revenueLabel}               value={fmt(stats.revenue)} accent="green"  loading={loading} />
+        )}
         <StatCard icon={AlertTriangle} label="Low Stock Alerts"           value={lowStock.length}    accent="red"    loading={loading} />
       </div>
 
       {/* Daily Closing Report — lazy-mounted on demand */}
-      <div className="mb-6">
-        <button
-          onClick={() => setShowReport(v => !v)}
-          className="w-full flex items-center justify-between px-4 py-3 bg-bg-card border border-border rounded-xl text-sm font-medium text-gray-300 hover:text-gray-100 hover:bg-bg-hover transition-colors"
-        >
-          <span>Daily Closing Report</span>
-          <ChevronDown size={15} className={`transition-transform ${showReport ? 'rotate-180' : ''}`} />
-        </button>
-        {showReport && (
-          <div className="mt-3">
-            <Suspense fallback={<div className="py-10 text-center text-sm text-gray-500">Loading report…</div>}>
-              <DailyReport />
-            </Suspense>
-          </div>
-        )}
-      </div>
+      {!isStaff && (
+        <div className="mb-6">
+          <button
+            onClick={() => setShowReport(v => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-bg-card border border-border rounded-xl text-sm font-medium text-gray-300 hover:text-gray-100 hover:bg-bg-hover transition-colors"
+          >
+            <span>Daily Closing Report</span>
+            <ChevronDown size={15} className={`transition-transform ${showReport ? 'rotate-180' : ''}`} />
+          </button>
+          {showReport && (
+            <div className="mt-3">
+              <Suspense fallback={<div className="py-10 text-center text-sm text-gray-500">Loading report…</div>}>
+                <DailyReport />
+              </Suspense>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
 
@@ -214,9 +218,11 @@ export default function Dashboard() {
         <div className="bg-bg-card border border-border rounded-xl">
           <div className="px-5 py-4 border-b border-border flex items-center justify-between">
             <h2 className="text-base font-semibold text-gray-100">Low Stock Alerts</h2>
-            <Link to="/vendors/inventory" className="text-xs text-accent hover:underline flex items-center gap-1">
-              Inventory <ArrowRight size={12} />
-            </Link>
+            {!isStaff && (
+              <Link to="/vendors/inventory" className="text-xs text-accent hover:underline flex items-center gap-1">
+                Inventory <ArrowRight size={12} />
+              </Link>
+            )}
           </div>
           {loading ? (
             <Loading />
