@@ -63,7 +63,7 @@ class GarageOwner(models.Model):
     garage_name  = models.CharField(max_length=255)              # business name
     location     = models.TextField(blank=True, default='')
     gstin        = models.CharField(max_length=50, blank=True, default='')
-    phone_number = models.CharField(max_length=10, unique=True)
+    phone_number = models.CharField(max_length=20, unique=True)
     email        = models.EmailField(blank=True, null=True)
     notes        = models.TextField(blank=True, default='')
 
@@ -73,7 +73,7 @@ class GarageOwner(models.Model):
 
 class Customer(models.Model):
     customer_name = models.CharField(max_length=255, blank = True, null = True)
-    phone_number  = models.CharField(max_length=10, unique=True)
+    phone_number  = models.CharField(max_length=20, unique=True)
     email         = models.EmailField(unique=True, blank=True, null=True)
     garage_owner  = models.ForeignKey(
         GarageOwner, null=True, blank=True,
