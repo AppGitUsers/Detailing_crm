@@ -635,7 +635,12 @@ function GarageFormModal({ modal, onClose, onSaved }) {
           <Input value={form.name} onChange={(e) => upd('name', e.target.value)} placeholder="e.g. Rajan Kumar" />
         </Field>
         <Field label="Phone Number" required error={errors.phone_number}>
-          <Input value={form.phone_number} onChange={(e) => upd('phone_number', e.target.value)} placeholder="+91 9000000000" />
+          <Input
+            value={form.phone_number}
+            onChange={(e) => upd('phone_number', e.target.value.replace(/\D/g, '').slice(0, 10))}
+            placeholder="9000000000"
+            maxLength={10}
+          />
         </Field>
         <Field label="Email" error={errors.email}>
           <Input type="email" value={form.email} onChange={(e) => upd('email', e.target.value)} placeholder="garage@email.com (optional)" />
@@ -1272,7 +1277,11 @@ export function CustomerFormModal({ modal, onClose, onSaved }) {
           <Input value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} />
         </Field>
         <Field label="Phone Number" required error={errors.phone_number}>
-          <Input value={form.phone_number} onChange={(e) => setForm({ ...form, phone_number: e.target.value })} />
+          <Input
+            value={form.phone_number}
+            onChange={(e) => setForm({ ...form, phone_number: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+            maxLength={10}
+          />
         </Field>
         <Field label="Email" error={errors.email}>
           <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />

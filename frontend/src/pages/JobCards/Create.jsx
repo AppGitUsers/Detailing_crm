@@ -906,9 +906,10 @@ function Step2({ customer, vehicle, vehicleSubType, setVehicleSubType, complaint
           <div className="mb-4">
             <Field label="Phone Number" required error={errors.phone_number}>
               <Input
-                placeholder="+91 9000000000"
+                placeholder="9000000000"
                 value={customer.phone_number}
-                onChange={(e) => updateCustomer('phone_number', e.target.value)}
+                onChange={(e) => updateCustomer('phone_number', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                maxLength={10}
               />
             </Field>
           </div>
