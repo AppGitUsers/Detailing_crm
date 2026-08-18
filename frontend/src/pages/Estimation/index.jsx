@@ -88,18 +88,6 @@ export default function Estimation() {
       ),
     },
     {
-      key: 'vehicle_name',
-      header: 'Vehicle',
-      render: (r) => (
-        <div className="leading-tight">
-          <div className="text-gray-200">{r.vehicle_name || '—'}</div>
-          <div className="text-[10px] text-gray-500 mt-0.5">
-            {VEHICLE_LABEL[r.vehicle_type] || r.vehicle_type}
-          </div>
-        </div>
-      ),
-    },
-    {
       key: 'items',
       header: 'Services',
       render: (r) => (
@@ -160,13 +148,6 @@ export default function Estimation() {
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm font-semibold text-gray-100 truncate">{r.customer_name}</span>
                   <span className="text-sm font-semibold text-gray-100 shrink-0">{fmt(r.total_amount)}</span>
-                </div>
-                <div className="flex items-center justify-between gap-2 mt-1 text-xs text-gray-500">
-                  <span className="truncate">
-                    {r.vehicle_name ? `${r.vehicle_name} · ` : ''}
-                    {VEHICLE_LABEL[r.vehicle_type] || r.vehicle_type}
-                  </span>
-                  <span className="shrink-0">{fmtDateTime(r.created_at)}</span>
                 </div>
               </div>
             ))}

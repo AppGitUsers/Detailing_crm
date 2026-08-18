@@ -19,8 +19,7 @@ class Estimation(models.Model):
     ]
     customer_name = models.CharField(max_length=255, blank=False, null=False)
     customer_phone_number = models.CharField(max_length=10, blank= False, null=False)
-    vehicle_name = models.CharField(max_length=255)
-    vehicle_company= models.CharField(max_length=255, blank=False, null = True)
+    vehicle_company= models.CharField(max_length=255, blank=True, null = True)
     vehicle_model = models.CharField(max_length=255, blank=True, null=True)
     vehicle_colour = models.CharField(max_length=255, blank=True, null=True)
     vehicle_type = models.CharField(max_length=255, choices=VEHICLE_TYPE, blank=False, null=False)

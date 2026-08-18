@@ -108,7 +108,6 @@ export default function EstimationDetail() {
                 prefill: {
                   customer_name: est.customer_name,
                   customer_phone_number: est.customer_phone_number,
-                  vehicle_name: est.vehicle_name,
                   vehicle_type: est.vehicle_type,
                   vehicle_sub_type: est.vehicle_sub_type,
                   vehicle_company: est.vehicle_company,
@@ -129,7 +128,6 @@ export default function EstimationDetail() {
           <div className="space-y-4">
             <Info label="Customer Name" value={est.customer_name} />
             <Info label="Phone Number" value={est.customer_phone_number} />
-            <Info label="Vehicle Name" value={est.vehicle_name} />
             <Info label="Vehicle Company" value={est.vehicle_company} />
             <Info label="Vehicle Model" value={est.vehicle_model} />
             <Info label="Vehicle Colour" value={est.vehicle_colour} />
