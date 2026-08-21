@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState,useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, FileText, ChevronLeft, ChevronRight,Search } from 'lucide-react';
+import { Input} from '../../components/Field';
 import PageHeader from '../../components/PageHeader';
 import Button from '../../components/Button';
 import Loading from '../../components/Loading';
@@ -42,6 +43,8 @@ export default function Estimation() {
   const [rows, setRows] = useState([]);
   const [count, setCount] = useState(0);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
 
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
 
@@ -71,7 +74,29 @@ export default function Estimation() {
     load(page);
   }, [page, load]);
 
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(search.trim().toLowerCase()), 250);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const filteredRows = useMemo(() => {
+    const q = debouncedQuery;
+    if (!q) return rows;
+
+    return rows.filter((r) => {
+      const idStr = `EST00${r.id}`.toLowerCase();
+      const phone = (r.customer_phone_number || '').toLowerCase();
+      return idStr.startsWith(q) || phone.startsWith(q);
+    });
+  }, [rows, debouncedQuery]);
+
+//
   const columns = [
+    {
+      key: 'id',
+      header: 'ID',
+      render: (r) => <span className="text-gray-500 font-mono text-xs">EST00{r.id}</span>,
+    },
     {
       key: 'created_at',
       header: 'Date',
@@ -112,6 +137,17 @@ export default function Estimation() {
           </Link>
         }
       />
+      <div className="bg-bg-card border border-border rounded-xl p-4 mb-4 space-y-3">
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <Input
+            placeholder="Search by Estimation Id, Mobile number"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 w-full"
+          />
+        </div>
+      </div>
 
       {loading ? (
         <Loading />
@@ -132,14 +168,14 @@ export default function Estimation() {
           <div className="hidden sm:block">
             <Table
               columns={columns}
-              rows={rows}
+              rows={filteredRows}
               onRowClick={(r) => navigate(`/estimation/${r.id}`)}
             />
           </div>
 
           {/* Mobile cards */}
           <div className="grid grid-cols-1 gap-3 sm:hidden">
-            {rows.map((r) => (
+            {filteredRows.map((r) => (
               <div
                 key={r.id}
                 onClick={() => navigate(`/estimation/${r.id}`)}
