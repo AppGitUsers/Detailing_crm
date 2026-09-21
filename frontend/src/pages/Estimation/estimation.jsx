@@ -52,7 +52,6 @@ export default function Estimation() {
   const [customerData, setCustomerData] = useState({
     customer_name: '',
     customer_phone_number: '',
-    vehicle_name: '',
     vehicle_type: '',
     vehicle_sub_type: '',
     vehicle_model: '',
@@ -130,13 +129,12 @@ export default function Estimation() {
     ev.preventDefault();
     const { ok, validItems } = validate();
     if (!ok) return;
-    console.log(items);
+    // console.log(items);
     // vehicle_sub_type is required by the backend for every vehicle type,
     // so fall back to "others" when it isn't a four-wheeler.
     const payload = {
       customer_name: customerData.customer_name.trim(),
       customer_phone_number: customerData.customer_phone_number.trim(),
-      vehicle_name: customerData.vehicle_name.trim(),
       vehicle_type: customerData.vehicle_type,
       vehicle_company: customerData.vehicle_company.trim(),
       vehicle_model: customerData.vehicle_model.trim(),
@@ -205,15 +203,6 @@ export default function Estimation() {
                 onChange={(e) =>
                   update('customer_phone_number', e.target.value.replace(/\D/g, '').slice(0, 10))
                 }
-              />
-            </Field>
-
-            <Field label="Vehicle Name">
-              <Input
-                type="text"
-                placeholder="Innova, Swift"
-                value={customerData.vehicle_name}
-                onChange={(e) => update('vehicle_name', e.target.value)}
               />
             </Field>
 
@@ -395,10 +384,6 @@ export default function Estimation() {
               <div>
                 <div className="text-[11px] uppercase tracking-wide text-gray-500">Phone</div>
                 <div className="text-gray-100 mt-0.5">{preview.customer_phone_number}</div>
-              </div>
-              <div>
-                <div className="text-[11px] uppercase tracking-wide text-gray-500">Vehicle</div>
-                <div className="text-gray-100 mt-0.5">{preview.vehicle_name || '—'}</div>
               </div>
               <div>
                 <div className="text-[11px] uppercase tracking-wide text-gray-500">Vehicle Type</div>
