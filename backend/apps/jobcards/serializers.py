@@ -265,14 +265,23 @@ class FullJobCardCreateSerializer(serializers.Serializer):
             garage = GarageOwner.objects.get(pk=garage_id)
             job_card_garage = garage
             # Find or create a proxy customer for this garage
-            customer, _ = Customer.objects.get_or_create(
-                garage_owner=garage,
-                defaults={
-                    'customer_name': garage.garage_name,
-                    'phone_number':  garage.phone_number,
-                    'email':         garage.email or None,
-                },
-            )
+            customer = Customer.objects.filter(garage_owner=garage).first()
+            if not customer:
+                lookup = Q(phone_number=normalize_phone(garage.phone_number))
+                if garage.email:
+                    lookup |= Q(email__iexact=garage.email)
+                customer = Customer.objects.filter(lookup).first()
+                if customer:
+                    if not customer.garage_owner_id:
+                        customer.garage_owner = garage
+                        customer.save(update_fields=['garage_owner'])
+                else:
+                    customer = Customer.objects.create(
+                        garage_owner=garage,
+                        customer_name=garage.garage_name,
+                        phone_number=garage.phone_number,
+                        email=garage.email or None,
+                    )
         else:
             c = validated_data['customer']
             if c['is_new']:
